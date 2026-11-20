@@ -21,7 +21,7 @@ struct PredictionsSleepHistoryTests {
         #expect(h.sessions[0].duration == 11.25 * 3600)
         #expect(h.bedtimes.map(\.minuteOfDay) == [19 * 60 + 30])
         // Morning wake 06:45 -> nap at 08:30 is the first wake window of the day.
-        #expect(h.napGaps == [.init(start: t(9, 6, 45), duration: 105 * 60, position: 1)])
+        #expect(h.napGaps == [.init(start: t(9, 6, 45), duration: TimeInterval(105 * 60), position: 1)])
     }
 
     @Test func nightWakingsAreNotWakeWindows() {
