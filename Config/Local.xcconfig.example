@@ -1,23 +1,18 @@
-// Copy this file to Config/Local.xcconfig (git-ignored) and edit.
-// Requires a paid Apple Developer Program membership for iCloud/CloudKit.
-// Then run `xcodegen generate` and rebuild.
-
-// Your 10-character Apple Developer Team ID (developer.apple.com > Membership).
-DEVELOPMENT_TEAM = ABCDE12345
-
-// A reverse-DNS prefix you own. The app bundle id becomes $(BUNDLE_ID_PREFIX).littlebabylog
-// (the widget extension's is $(BUNDLE_ID_PREFIX).littlebabylog.widgets), which must be unique
-// across the App Store. org.littlebabylog is reserved for the official app, so forks need their own.
-BUNDLE_ID_PREFIX = com.yourname
-
-// The CloudKit container. Xcode can register it for you under
-// Signing & Capabilities > iCloud, or create it at developer.apple.com.
-CLOUDKIT_CONTAINER = iCloud.$(BUNDLE_ID_PREFIX).littlebabylog
-
-// Turns on the iCloud + push entitlements (plus the App Group, which is always on).
-CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog-iCloud.entitlements
-
-// The App Group is derived from BUNDLE_ID_PREFIX (group.$(BUNDLE_ID_PREFIX).littlebabylog) and has
-// to be registered for your team too. Xcode does that for you under Signing & Capabilities >
-// App Groups, or create it at developer.apple.com > Identifiers > App Groups. Uncomment to rename it:
-// APP_GROUP_ID = group.com.yourname.littlebabylog
+// Optional overrides. Copy to Config/Local.xcconfig (git-ignored), then `xcodegen generate`.
+//
+// This fork already has its own ids, distinct from Blinky
+// (com.harrisliangsu.whenreset / group.com.harrisliangsu.whenreset)
+// and from upstream org.littlebabylog:
+//   app        com.harrisliangsu.littlebabylog
+//   widgets    com.harrisliangsu.littlebabylog.widgets
+//   app group  group.com.harrisliangsu.littlebabylog
+//   CloudKit   iCloud.com.harrisliangsu.littlebabylog  (reserved, not active)
+//
+// Leave the team unset until it is confirmed on the Apple Developer account.
+// A historical team to verify is D2MBDWD85F; do not assume it until App Store Connect says so.
+// DEVELOPMENT_TEAM =
+//
+// Uncomment both lines to turn iCloud on after that container and the app group
+// are registered for the confirmed team. Offline and signed-out use stays on the local store.
+// CLOUDKIT_CONTAINER = $(CLOUDKIT_CONTAINER_ID)
+// CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog-iCloud.entitlements

@@ -8,7 +8,7 @@ struct SleepWidget: Widget {
         AppIntentConfiguration(kind: "SleepWidget", intent: SelectBabyIntent.self, provider: BabyTimelineProvider()) { entry in
             SleepWidgetView(entry: entry)
         }
-        .configurationDisplayName("Sleep")
+        .configurationDisplayName("睡眠")
         .description("How long your baby has been awake or asleep, the next nap window, and a Sleep / Wake up button.")
         .supportedFamilies([.systemSmall])
     }
@@ -42,7 +42,7 @@ struct SleepWidgetView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 if let started = baby.runningSleepStartedAt {
-                    Text("Asleep for")
+                    Text("睡眠中")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(EventKind.sleep.color)
                         .widgetAccentable()
@@ -51,7 +51,7 @@ struct SleepWidgetView: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 } else if let ended = baby.lastSleepEndedAt {
-                    Text("Awake for")
+                    Text("醒了")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.orange)
                         .widgetAccentable()
@@ -60,7 +60,7 @@ struct SleepWidgetView: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 } else {
-                    Text("No sleep logged")
+                    Text("还没有睡眠")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -79,7 +79,7 @@ struct SleepWidgetView: View {
 
             Button(intent: ToggleSleepIntent(babyID: baby.id)) {
                 TileLabel(
-                    title: baby.isSleeping ? "Wake up" : "Sleep",
+                    title: baby.isSleeping ? "醒来" : "睡眠",
                     systemImage: baby.isSleeping ? "sun.max.fill" : EventKind.sleep.symbolName,
                     tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                     filled: true

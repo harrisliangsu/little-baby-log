@@ -12,7 +12,9 @@ enum AppConfig {
         return value
     }
 
-    static let sourceCodeURL = URL(string: "https://github.com/mogarber/little-baby-log")!
+    /// Corresponding source for this fork. Upstream remains Mo Garber's repository.
+    static let sourceCodeURL = URL(string: "https://github.com/harrisliangsu/little-baby-log")!
+    static let upstreamSourceCodeURL = URL(string: "https://github.com/mogarber/little-baby-log")!
 
     static var versionString: String {
         let info = Bundle.main.infoDictionary

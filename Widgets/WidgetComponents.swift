@@ -205,7 +205,7 @@ struct EmptyWidgetView: View {
                 .font(.title)
                 .foregroundStyle(EventKind.breastfeed.color)
                 .widgetAccentable()
-            Text("Open Little Baby Log to add your baby")
+            Text(Zh.emptyBaby)
                 .font(.footnote.weight(.medium))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

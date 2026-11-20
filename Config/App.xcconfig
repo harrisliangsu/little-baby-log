@@ -8,7 +8,10 @@
 // To turn iCloud on, copy Config/Local.xcconfig.example to Config/Local.xcconfig
 // (git-ignored), fill it in, and run `xcodegen generate`.
 
-BUNDLE_ID_PREFIX = org.littlebabylog.dev
+// Independent of Blinky (com.harrisliangsu.whenreset, group.com.harrisliangsu.whenreset)
+// and of upstream's reserved org.littlebabylog. iCloud stays off until a container
+// is registered; CLOUDKIT_CONTAINER_ID is reserved and is not read as the live container.
+BUNDLE_ID_PREFIX = com.harrisliangsu
 PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog
 
 // The App Group shared by the app and the widget extension (the Core Data store
@@ -17,8 +20,9 @@ PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog
 // a real device, see the README.
 APP_GROUP_ID = group.$(BUNDLE_ID_PREFIX).littlebabylog
 
-// Empty = iCloud disabled.
+// Empty = iCloud disabled. The app then uses a local Core Data store and works signed out.
 CLOUDKIT_CONTAINER =
+CLOUDKIT_CONTAINER_ID = iCloud.$(BUNDLE_ID_PREFIX).littlebabylog
 
 // App Group only. Local.xcconfig points this at LittleBabyLog-iCloud.entitlements
 // to add iCloud + push.

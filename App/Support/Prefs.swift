@@ -23,11 +23,8 @@ enum Prefs {
 
     static let defaultAppearanceMode = AppearanceMode.system
 
-    static var defaultVolumeUnit: VolumeUnit {
-        Locale.current.measurementSystem == .us ? .ounces : .milliliters
-    }
+    /// 宝宝小记 defaults to millilitres and metric, including on an English simulator.
+    static var defaultVolumeUnit: VolumeUnit { .milliliters }
 
-    static var defaultUnitSystem: UnitSystem {
-        Locale.current.measurementSystem == .metric ? .metric : .imperial
-    }
+    static var defaultUnitSystem: UnitSystem { .metric }
 }

@@ -21,8 +21,8 @@ struct QuickActionsGrid: View {
     }
 
     private func title(for kind: EventKind) -> String {
-        if kind == .sleep && isSleeping { return "Wake up" }
-        return kind.title
+        if kind == .sleep && isSleeping { return "醒来" }
+        return Zh.kind(kind)
     }
 
     private func tile(for kind: EventKind) -> some View {
@@ -33,24 +33,24 @@ struct QuickActionsGrid: View {
             Button {
                 onLogPast(kind)
             } label: {
-                Label("Log past \(kind.title.lowercased())", systemImage: "clock.arrow.circlepath")
+                Label("补记\(Zh.kind(kind))", systemImage: "clock.arrow.circlepath")
             }
             if kind == .diaper {
                 Divider()
                 Button {
                     onQuickDiaper(.wet)
                 } label: {
-                    Label("Wet", systemImage: DiaperKind.wet.symbolName)
+                    Label(Zh.diaper(.wet), systemImage: DiaperKind.wet.symbolName)
                 }
                 Button {
                     onQuickDiaper(.dirty)
                 } label: {
-                    Label("Dirty", systemImage: DiaperKind.dirty.symbolName)
+                    Label(Zh.diaper(.dirty), systemImage: DiaperKind.dirty.symbolName)
                 }
                 Button {
                     onQuickDiaper(.mixed)
                 } label: {
-                    Label("Wet + dirty", systemImage: DiaperKind.mixed.symbolName)
+                    Label(Zh.diaper(.mixed), systemImage: DiaperKind.mixed.symbolName)
                 }
             }
         } label: {

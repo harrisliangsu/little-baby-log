@@ -21,25 +21,25 @@ struct MainTabView: View {
                 TodayView(baby: baby, day: day, link: $link)
                     .id(day)
             }
-            .tabItem { Label("Today", systemImage: "sun.max.fill") }
+            .tabItem { Label("今天", systemImage: "sun.max.fill") }
             .tag(Tab.today)
 
             NavigationStack {
                 HistoryView(baby: baby)
             }
-            .tabItem { Label("History", systemImage: "calendar") }
+            .tabItem { Label("历史", systemImage: "calendar") }
             .tag(Tab.history)
 
             NavigationStack {
                 TrendsView(baby: baby)
             }
-            .tabItem { Label("Trends", systemImage: "chart.bar.fill") }
+            .tabItem { Label("趋势", systemImage: "chart.bar.fill") }
             .tag(Tab.trends)
 
             NavigationStack {
                 SettingsView()
             }
-            .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            .tabItem { Label("设置", systemImage: "gearshape.fill") }
             .tag(Tab.settings)
         }
         .onChange(of: link, initial: true) { _, newLink in
