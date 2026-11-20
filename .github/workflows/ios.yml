@@ -16,14 +16,16 @@ permissions:
 jobs:
   simulator:
     name: iOS Simulator tests
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
       - name: Xcode
         run: |
-          if [ -d /Applications/Xcode.app ]; then
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app
+          elif [ -d /Applications/Xcode.app ]; then
             sudo xcode-select -s /Applications/Xcode.app
           fi
           xcodebuild -version
@@ -103,7 +105,7 @@ jobs:
     name: Internal TestFlight upload
     needs: simulator
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
@@ -126,6 +128,16 @@ jobs:
             echo "APP_STORE_CONNECT_API_KEY, APP_STORE_CONNECT_API_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APPLE_TEAM_ID"
             exit 1
           fi
+
+      - name: Xcode
+        if: steps.creds.outputs.present == 'true'
+        run: |
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app
+          elif [ -d /Applications/Xcode.app ]; then
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
 
       - name: XcodeGen
         if: steps.creds.outputs.present == 'true'
