@@ -2,15 +2,9 @@
 
 Thanks for helping make a free baby tracker better. Issues and pull requests are welcome.
 
-## Before your first pull request: the CLA
+## License text
 
-Every contributor signs the [Contributor License Agreement](CLA.md) once. You keep the copyright to your work; the CLA gives the project the rights it needs to keep shipping the app for free through the App Store. It also promises that your contribution will always stay available as open source.
-
-When you open your first pull request, a bot will comment and ask you to reply with:
-
-> I have read the CLA Document and I hereby sign the CLA
-
-That's it. The bot records your signature, and you won't be asked again.
+This fork does not run an automatic CLA signature check. [CLA.md](CLA.md) stays in the repository as the inherited agreement text. It is not a pull-request gate here.
 
 ## Licensing
 

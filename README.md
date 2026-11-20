@@ -97,7 +97,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full layout, data model
 
 ## Contributing
 
-Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Contributors sign a short [Contributor License Agreement](CLA.md) once, through a bot comment on their first pull request.
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. [CLA.md](CLA.md) remains in the tree; this fork does not run the inherited signature bot.
 
 ## Roadmap
 
