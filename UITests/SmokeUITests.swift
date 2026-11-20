@@ -1,0 +1,132 @@
+import XCTest
+
+/// Simulator smoke test: create a baby, log formula, diapers, sleep, and nursing,
+/// relaunch, and check the widget snapshot the extension reads.
+final class SmokeUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+    }
+
+    func testLogPersistAndWidgetSnapshot() throws {
+        app.launch()
+        shot("01-launch")
+
+        let name = app.textFields["baby-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        name.tap()
+        name.typeText("Beibei")
+        app.buttons["start-tracking"].tap()
+
+        let formula = element("summary-formula")
+        XCTAssertTrue(formula.waitForExistence(timeout: 8))
+        XCTAssertTrue(formula.label.contains("还没有"))
+        shot("02-empty-cards")
+
+        app.buttons["show-widget-preview"].tap()
+        let emptyWidget = element("widget-summary")
+        XCTAssertTrue(emptyWidget.waitForExistence(timeout: 8))
+        XCTAssertTrue(emptyWidget.label.contains("还没有记录") || emptyWidget.label.contains("奶粉0次"))
+        shot("03-widget-empty")
+        app.buttons["close-widget-preview"].tap()
+
+        logFormula(millilitres: "120")
+        tap("add-wet")
+        tap("add-dirty")
+        tap("add-diaper-change")
+        tap("add-sleep")
+        app.swipeDown()
+        app.swipeDown()
+        logNursing()
+
+        XCTAssertTrue(formula.label.contains("1次"))
+        XCTAssertTrue(formula.label.contains("120"))
+        XCTAssertTrue(formula.label.contains("24小时"))
+        XCTAssertTrue(element("summary-wet").label.contains("1次"))
+        XCTAssertTrue(element("summary-dirty").label.contains("1次"))
+        XCTAssertTrue(element("summary-change").label.contains("1次"))
+        XCTAssertTrue(element("summary-sleep").label.contains("睡眠中"))
+        XCTAssertTrue(element("summary-breast").label.contains("1次"))
+        shot("04-after-logging")
+
+        app.buttons["show-widget-preview"].tap()
+        let widget = element("widget-summary")
+        XCTAssertTrue(widget.waitForExistence(timeout: 8))
+        XCTAssertTrue(widget.label.contains("奶粉1次"))
+        XCTAssertTrue(widget.label.contains("120"))
+        XCTAssertTrue(widget.label.contains("24小时"))
+        XCTAssertTrue(widget.label.contains("小便1"))
+        XCTAssertTrue(widget.label.contains("睡眠1"))
+        shot("05-widget-filled")
+        app.buttons["close-widget-preview"].tap()
+
+        app.terminate()
+        app.launch()
+
+        let kept = element("summary-formula")
+        XCTAssertTrue(kept.waitForExistence(timeout: 8))
+        XCTAssertTrue(kept.label.contains("120"))
+        XCTAssertTrue(element("summary-wet").label.contains("1次"))
+        XCTAssertTrue(element("summary-sleep").label.contains("1次"))
+        shot("06-after-relaunch")
+
+        app.buttons["show-widget-preview"].tap()
+        let again = element("widget-summary")
+        XCTAssertTrue(again.waitForExistence(timeout: 8))
+        XCTAssertTrue(again.label.contains("奶粉1次"))
+        XCTAssertTrue(again.label.contains("120"))
+        shot("07-widget-after-relaunch")
+    }
+
+    private func tap(_ identifier: String) {
+        let button = app.buttons[identifier]
+        if !button.waitForExistence(timeout: 2) || !button.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(button.waitForExistence(timeout: 4))
+        button.tap()
+    }
+
+    private func logFormula(millilitres: String) {
+        app.buttons["add-formula"].tap()
+        let amount = app.textFields["bottle-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        amount.tap()
+        amount.typeText(millilitres)
+        let save = app.buttons["save-entry"]
+        if !save.isHittable, app.buttons["完成"].exists {
+            app.buttons["完成"].tap()
+        }
+        XCTAssertTrue(save.waitForExistence(timeout: 3))
+        save.tap()
+        XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
+    }
+
+    private func element(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
+    private func logNursing() {
+        app.buttons["add-breast"].tap()
+        let left = app.buttons["breast-left"]
+        XCTAssertTrue(left.waitForExistence(timeout: 5))
+        left.tap()
+        let started = expectation(description: "nursing elapsed")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { started.fulfill() }
+        wait(for: [started], timeout: 4)
+        let done = app.buttons["breast-done"]
+        if !done.isHittable {
+            app.swipeUp()
+        }
+        done.tap()
+    }
+
+    private func shot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

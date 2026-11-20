@@ -46,6 +46,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         public var nextSleep: NextSleep?
         /// When the next feed is likely. Absent in snapshots written by older versions.
         public var nextFeed: NextFeed?
+        /// Today and rolling-24-hour care counts. Nil in snapshots written before this field existed.
+        public var care: CareRollup?
 
         public init(
             id: UUID,
@@ -59,7 +61,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             runningNursing: Nursing? = nil,
             today: Today = Today(),
             nextSleep: NextSleep? = nil,
-            nextFeed: NextFeed? = nil
+            nextFeed: NextFeed? = nil,
+            care: CareRollup? = nil
         ) {
             self.id = id
             self.name = name
@@ -73,6 +76,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             self.today = today
             self.nextSleep = nextSleep
             self.nextFeed = nextFeed
+            self.care = care
         }
     }
 
@@ -271,6 +275,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 let events = (try? context.fetch(LogEvent.requestOverlapping(baby: baby, from: startOfDay))) ?? []
                 let day = DaySummary(events: events, interval: today, now: now)
                 summary.today = Today(feeds: day.feedCount, diapers: day.diaperCount, sleep: day.sleep)
+                let all = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+                summary.care = CareRollup.make(events: all, now: now, calendar: calendar)
 
                 // Predictions only change when the logs do, so they ride along in the snapshot. A sleep window
                 // counted from "now" (no wake-up logged) would shift on every rewrite, so it is left out.

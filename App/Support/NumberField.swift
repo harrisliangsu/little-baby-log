@@ -9,15 +9,17 @@ struct NumberField: View {
     @Binding private var value: Double
     let unit: String?
     let digits: Int
+    let identifier: String?
 
     @State private var text: String
     @FocusState private var focused: Bool
 
-    init(_ title: String, value: Binding<Double>, unit: String? = nil, digits: Int = 1) {
+    init(_ title: String, value: Binding<Double>, unit: String? = nil, digits: Int = 1, identifier: String? = nil) {
         self.title = title
         self._value = value
         self.unit = unit
         self.digits = digits
+        self.identifier = identifier
         self._text = State(initialValue: NumberField.format(value.wrappedValue, digits: digits))
     }
 
@@ -31,6 +33,7 @@ struct NumberField: View {
                 .focused($focused)
                 .frame(minWidth: 60)
                 .font(.title3.weight(.medium))
+                .accessibilityIdentifierIfPresent(identifier)
             if let unit {
                 Text(unit)
                     .foregroundStyle(.secondary)
@@ -76,5 +79,16 @@ struct NumberField: View {
             return max(0, fallback)
         }
         return nil
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func accessibilityIdentifierIfPresent(_ identifier: String?) -> some View {
+        if let identifier, !identifier.isEmpty {
+            self.accessibilityIdentifier(identifier)
+        } else {
+            self
+        }
     }
 }

@@ -1,6 +1,15 @@
-# Little Baby Log
+# Little Baby Log（宝宝小记）
 
 A free, open-source iPhone baby tracker for sleep, feeding, diapers, and more, built for one-handed use at 3am.
+
+This fork ships as **宝宝小记**. It keeps the GPL-3.0 license and the App Store additional permission, and it keeps the original copyright of Mo Garber and the Little Baby Log contributors. The home screen is in Chinese. Records stay on the device when iCloud is off.
+
+Bundle ids for this fork, separate from Blinky (`com.harrisliangsu.whenreset`):
+
+- App: `com.harrisliangsu.littlebabylog`
+- Widget: `com.harrisliangsu.littlebabylog.widgets`
+- App Group: `group.com.harrisliangsu.littlebabylog`
+- CloudKit (reserved, not turned on): `iCloud.com.harrisliangsu.littlebabylog`
 
 <a href="https://www.buymeacoffee.com/mogarber" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
 
@@ -54,7 +63,7 @@ The `.xcodeproj` is generated from `project.yml` and is not checked in. Re-run `
 CloudKit sync and caregiver sharing need a paid Apple Developer Program account and a real device (or a simulator signed in to iCloud).
 
 1. Copy `Config/Local.xcconfig.example` to `Config/Local.xcconfig` (it is git-ignored).
-2. Set `DEVELOPMENT_TEAM` to your team ID and `BUNDLE_ID_PREFIX` to a reverse-DNS prefix you own, such as `com.yourname`.
+2. Set `DEVELOPMENT_TEAM` only after that team is confirmed. This fork's bundle prefix is already `com.harrisliangsu`; leave it unless you are publishing a different fork. Uncomment the CloudKit lines in the example only when that container is registered.
 3. Run `xcodegen generate` again.
 4. Open the project. If Xcode complains under Signing & Capabilities, add or refresh the iCloud capability so the container (`iCloud.<prefix>.littlebabylog`) is registered for your team.
 5. Register the App Group `group.<prefix>.littlebabylog` for your team as well, for both the app and the widget extension (`<prefix>.littlebabylog.widgets`). Xcode does this under Signing & Capabilities > App Groups, or add it at developer.apple.com > Identifiers > App Groups. Without it the widgets can't read the app's data, and the app itself needs it because the Core Data store lives in this group container.
@@ -63,6 +72,8 @@ CloudKit sync and caregiver sharing need a paid Apple Developer Program account 
 Before releasing to the App Store, deploy the CloudKit schema to **Production** in the [CloudKit Console](https://icloud.developer.apple.com/). Until you do, sync works only in the development environment.
 
 ## Running tests
+
+GitHub Actions (`.github/workflows/ios.yml`) compiles a Release build and runs the package tests plus a simulator UI smoke test on macOS. That is the iOS run. `swift test` on its own is only the package.
 
 The model, persistence, and logic live in a Swift package that also builds on macOS, so tests run without Xcode or a simulator:
 
@@ -86,7 +97,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full layout, data model
 
 ## Contributing
 
-Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Contributors sign a short [Contributor License Agreement](CLA.md) once, through a bot comment on their first pull request.
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. [CLA.md](CLA.md) remains in the tree; this fork does not run the inherited signature bot.
 
 ## Roadmap
 

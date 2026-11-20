@@ -15,6 +15,7 @@ struct TodayView: View {
     @State private var editor: EditorTarget?
     @State private var nursing: NursingSheetItem?
     @State private var feedback = 0
+    @State private var showWidgetPreview = false
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -52,13 +53,17 @@ struct TodayView: View {
             }
 
             Section {
-                SinceLastView(baby: baby)
+                CareCardsView(
+                    baby: baby,
+                    onFormula: { editor = .new(.bottle) },
+                    onBreast: { startNursing() },
+                    onSleep: { toggleSleep() },
+                    onDiaper: { quickDiaper($0) }
+                )
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .listRowBackground(Color.clear)
             } header: {
-                if let birthDate = baby.birthDate {
-                    Text(BabyAge.description(birthDate: birthDate))
-                        .font(.subheadline.weight(.medium))
-                        .textCase(nil)
-                }
+                Text("记录").textCase(nil)
             }
             .themedSection()
 
@@ -73,14 +78,7 @@ struct TodayView: View {
                 )
                 .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8))
             } header: {
-                Text("Log").textCase(nil)
-            }
-            .themedSection()
-
-            Section {
-                DaySummaryView(events: Array(dayEvents), day: day)
-            } header: {
-                Text("Today").textCase(nil)
+                Text("其他记录").textCase(nil)
             }
             .themedSection()
 
@@ -88,14 +86,14 @@ struct TodayView: View {
                 NavigationLink {
                     DayRecapView(baby: baby, day: day)
                 } label: {
-                    Label("Today's recap", systemImage: "clock.arrow.circlepath")
+                    Label("今日回顾", systemImage: "clock.arrow.circlepath")
                 }
             }
             .themedSection()
 
             Section {
                 if timeline.isEmpty {
-                    Text("Nothing logged yet today.")
+                    Text("今天还没有记录。")
                         .foregroundStyle(theme.secondary)
                 } else {
                     ForEach(timeline, id: \.objectID) { event in
@@ -109,13 +107,13 @@ struct TodayView: View {
                             Button(role: .destructive) {
                                 delete(event)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label("删除", systemImage: "trash")
                             }
                         }
                     }
                 }
             } header: {
-                Text("Timeline").textCase(nil)
+                Text("时间线").textCase(nil)
             }
             .themedSection()
         }
@@ -123,9 +121,21 @@ struct TodayView: View {
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showWidgetPreview = true
+                } label: {
+                    Image(systemName: "square.grid.2x2")
+                }
+                .accessibilityIdentifier("show-widget-preview")
+                .accessibilityLabel("小组件")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 BabySwitcherMenu()
             }
+        }
+        .sheet(isPresented: $showWidgetPreview) {
+            WidgetPreviewSheet()
         }
         .sensoryFeedback(.success, trigger: feedback)
         .onChange(of: link, initial: true) { _, newLink in

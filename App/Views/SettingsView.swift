@@ -254,14 +254,17 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("Version", value: AppConfig.versionString)
+            LabeledContent("版本", value: AppConfig.versionString)
             Link(destination: AppConfig.sourceCodeURL) {
-                Label("Source code on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                Label("GitHub 源代码", systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+            Link(destination: AppConfig.upstreamSourceCodeURL) {
+                Label("上游 Little Baby Log", systemImage: "arrow.turn.up.right")
             }
         } header: {
-            Text("About")
+            Text("关于")
         } footer: {
-            Text("Little Baby Log is free software, released under the GNU GPL-3.0. No accounts, no ads, no tracking.")
+            Text("宝宝小记（Little Baby Log）是自由软件，以 GNU GPL-3.0 及 App Store 附加许可发布。源自 Mo Garber 的 Little Baby Log。无账号、无广告、无追踪。没登录 iCloud 时数据只在这台设备上。")
         }
         .themedSection()
     }

@@ -8,8 +8,8 @@ struct QuickLogWidget: Widget {
         AppIntentConfiguration(kind: "QuickLogWidget", intent: SelectBabyIntent.self, provider: BabyTimelineProvider()) { entry in
             QuickLogWidgetView(entry: entry)
         }
-        .configurationDisplayName("Quick Log")
-        .description("One-tap buttons for nursing, sleep, and diapers.")
+        .configurationDisplayName("宝宝小记")
+        .description("最近的喂奶、尿布和睡眠，以及今日和 24 小时汇总。")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
@@ -67,72 +67,17 @@ struct QuickLogWidgetView: View {
                 .lineLimit(1)
                 .widgetAccentable()
             } else if let feed = baby.lastFeed {
-                AgoLine(prefix: "Fed", date: feed.referenceDate)
+                AgoLine(prefix: "喂奶", date: feed.referenceDate)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    /// Large only: last feed, last diaper, and today's totals.
+    /// Large only: the same lines the app writes into the snapshot. No sample baby.
     private func details(_ baby: WidgetSnapshot.BabySummary) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            detailRow(
-                kind: baby.lastFeed?.kind ?? .breastfeed,
-                title: baby.isNursing ? "Nursing now" : "Last feed",
-                date: baby.isNursing ? nil : baby.lastFeed?.referenceDate,
-                detail: [baby.lastFeed?.detail, baby.nextSide.map { "Next: \($0.title)" }]
-                    .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
-            )
-            detailRow(
-                kind: .diaper,
-                title: "Last diaper",
-                date: baby.lastDiaperAt,
-                detail: baby.lastDiaperKind?.title ?? ""
-            )
-            let today = entry.today
-            HStack(spacing: 14) {
-                stat("\(today.feeds)", "feeds")
-                stat("\(today.diapers)", "diapers")
-                stat(DurationFormat.short(today.sleep), "sleep")
-            }
-            .padding(.top, 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func detailRow(kind: EventKind, title: String, date: Date?, detail: String) -> some View {
-        HStack(spacing: 10) {
-            WidgetKindIcon(kind: kind, size: 30)
-                .widgetAccentable()
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                if let date {
-                    AgoLine(date: date)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                } else {
-                    Text(title == "Nursing now" ? "In progress" : "None yet")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                }
-            }
-            Spacer(minLength: 6)
-            if !detail.isEmpty {
-                Text(detail)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-        }
-    }
-
-    private func stat(_ value: String, _ label: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(value).font(.system(size: 17, weight: .bold, design: .rounded))
-            Text(label).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
-        }
+        CareSummaryView(baby: baby)
+            .padding(.vertical, 2)
     }
 
     // MARK: Buttons
@@ -144,7 +89,7 @@ struct QuickLogWidgetView: View {
                 ForEach(BreastSide.allCases) { side in
                     Button(intent: NursingSideIntent(babyID: baby.id, side: side)) {
                         TileLabel(
-                            title: "Nurse \(side.shortLabel)",
+                            title: "亲喂\(Zh.side(side))",
                             systemImage: values?.activeSide == side ? "pause.fill" : EventKind.breastfeed.symbolName,
                             tint: side.color,
                             filled: values?.activeSide == side || (values == nil && baby.nextSide == side)
@@ -154,7 +99,7 @@ struct QuickLogWidgetView: View {
                 }
                 Button(intent: ToggleSleepIntent(babyID: baby.id)) {
                     TileLabel(
-                        title: baby.isSleeping ? "Wake up" : "Sleep",
+                        title: baby.isSleeping ? "醒来" : "睡眠",
                         systemImage: baby.isSleeping ? "sun.max.fill" : EventKind.sleep.symbolName,
                         tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                         filled: baby.isSleeping
@@ -164,15 +109,15 @@ struct QuickLogWidgetView: View {
             }
             GridRow {
                 Button(intent: LogDiaperIntent(babyID: baby.id, kind: .wet)) {
-                    TileLabel(title: "Wet", systemImage: DiaperKind.wet.symbolName, tint: EventKind.diaper.color)
+                    TileLabel(title: "小便", systemImage: DiaperKind.wet.symbolName, tint: EventKind.diaper.color)
                 }
                 .buttonStyle(.plain)
                 Button(intent: LogDiaperIntent(babyID: baby.id, kind: .dirty)) {
-                    TileLabel(title: "Dirty", systemImage: DiaperKind.dirty.symbolName, tint: .brown)
+                    TileLabel(title: "大便", systemImage: DiaperKind.dirty.symbolName, tint: .brown)
                 }
                 .buttonStyle(.plain)
                 Link(destination: DeepLink.log(.bottle, babyID: baby.id).url) {
-                    TileLabel(title: "Bottle", systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
+                    TileLabel(title: "奶粉", systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
                 }
             }
         }

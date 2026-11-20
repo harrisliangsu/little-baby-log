@@ -16,7 +16,7 @@ struct EventRow: View {
             HStack(spacing: 12) {
                 KindIcon(kind: event.kind, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(event.kind.title)
+                    Text(title)
                         .font(.headline)
                     Text(detail)
                         .font(.subheadline)
@@ -34,9 +34,33 @@ struct EventRow: View {
         }
     }
 
+    private var title: String {
+        if event.kind == .bottle, let content = event.bottleContent { return Zh.bottle(content) }
+        if event.kind == .diaper, let kind = event.diaperKind { return Zh.diaper(kind) }
+        return Zh.kind(event.kind)
+    }
+
     private var detail: String {
-        let describer = EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem)
-        return describer.summary(for: event)
+        switch event.kind {
+        case .bottle:
+            let amount = Zh.ml(event.amountML)
+            guard let content = event.bottleContent else { return amount }
+            return "\(amount) \(Zh.bottle(content))"
+        case .diaper:
+            return event.diaperKind.map { Zh.diaper($0) } ?? ""
+        case .sleep:
+            return event.isRunning ? "睡眠中" : DurationFormat.short(event.duration())
+        case .breastfeed:
+            var parts: [String] = []
+            for side in BreastSide.allCases {
+                let seconds = event.breastSeconds(side)
+                if seconds > 0 { parts.append("\(Zh.side(side)) \(DurationFormat.compact(seconds))") }
+            }
+            if parts.isEmpty { return event.isRunning ? "计时中" : "" }
+            return parts.joined(separator: " · ")
+        default:
+            return EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem).summary(for: event)
+        }
     }
 }
 

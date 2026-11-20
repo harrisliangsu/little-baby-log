@@ -36,11 +36,11 @@ struct BreastTimerView: View {
                 content(now: timeline.date)
             }
             .themedScreen()
-            .navigationTitle("Nursing")
+            .navigationTitle("亲喂")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("关闭") { dismiss() }
                 }
             }
         }
@@ -66,7 +66,7 @@ struct BreastTimerView: View {
     private func content(now: Date) -> some View {
         VStack(spacing: 20) {
             VStack(spacing: 4) {
-                Text("Total")
+                Text("总计")
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
                 Text(DurationFormat.clock(isGone ? 0 : event.totalBreastSeconds(at: now)))
@@ -91,7 +91,7 @@ struct BreastTimerView: View {
                 Button {
                     finish()
                 } label: {
-                    Text("Done")
+                    Text("完成")
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -100,6 +100,7 @@ struct BreastTimerView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .tint(theme.color(for: .breastfeed))
+                .accessibilityIdentifier("breast-done")
 
                 Button(role: .destructive) {
                     confirmDiscard = true
@@ -125,7 +126,7 @@ struct BreastTimerView: View {
             toggle(side)
         } label: {
             VStack(spacing: 10) {
-                Text(side.title)
+                Text(Zh.side(side))
                     .font(.title2.weight(.bold))
                 Text(DurationFormat.clock(seconds))
                     .font(.system(size: 38, weight: .semibold, design: .rounded))
@@ -147,7 +148,8 @@ struct BreastTimerView: View {
             .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(side.title) side")
+        .accessibilityIdentifier(side == .left ? "breast-left" : "breast-right")
+        .accessibilityLabel(side == .left ? "左侧" : "右侧")
         .accessibilityValue(active ? "Running, \(DurationFormat.clock(seconds))" : "Paused, \(DurationFormat.clock(seconds))")
         .accessibilityHint(active ? "Pauses this side" : "Starts this side")
     }

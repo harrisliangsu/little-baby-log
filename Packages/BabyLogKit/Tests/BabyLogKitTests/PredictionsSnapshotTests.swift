@@ -148,6 +148,7 @@ struct PredictionsSnapshotTests {
         #expect(baby.today.feeds == 3)
         #expect(baby.nextSleep == nil)
         #expect(baby.nextFeed == nil)
+        #expect(baby.care == nil)
 
         // And through the file reader.
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("old-snapshot-\(UUID().uuidString).json")

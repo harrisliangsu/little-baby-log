@@ -47,13 +47,11 @@ struct BabyTimelineProvider: AppIntentTimelineProvider {
     typealias Intent = SelectBabyIntent
 
     func placeholder(in context: Context) -> BabyEntry {
-        .sample()
+        .empty
     }
 
     func snapshot(for configuration: SelectBabyIntent, in context: Context) async -> BabyEntry {
-        let entry = load(configuration)
-        if context.isPreview && entry.baby == nil { return .sample() }
-        return entry
+        load(configuration)
     }
 
     /// Battery: the policy is `.never`. Every time on screen updates itself (`Text(date, style: .relative)`,

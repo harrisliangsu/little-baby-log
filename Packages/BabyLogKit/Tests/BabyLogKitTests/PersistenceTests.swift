@@ -153,6 +153,36 @@ struct PersistenceTests {
         #expect(babies.map(\.name) == ["Ada"])
     }
 
+    @Test func localStoreKeepsLogsWithoutICloud() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("blk-local-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let when = TestSupport.utc(2026, 3, 10, 9)
+        do {
+            let p = PersistenceController(cloudKitContainerIdentifier: nil, storeDirectory: dir)
+            #expect(!p.isCloudSyncEnabled)
+            #expect(p.cloudKitContainer == nil)
+            let ctx = p.viewContext
+            let baby = Baby.create(name: "Ada", birthDate: when, in: ctx)
+            let bottle = LogEvent.create(kind: .bottle, for: baby, start: when, in: ctx)
+            bottle.amountML = 120
+            bottle.bottleContent = .formula
+            let diaper = LogEvent.create(kind: .diaper, for: baby, start: when, in: ctx)
+            diaper.diaperKind = .wet
+            let sleep = LogEvent.create(kind: .sleep, for: baby, start: when.addingTimeInterval(-3600), in: ctx)
+            sleep.endDate = when
+            #expect(ctx.saveIfNeeded())
+        }
+        let again = PersistenceController(cloudKitContainerIdentifier: " ", storeDirectory: dir)
+        #expect(!again.isCloudSyncEnabled)
+        let ctx = again.viewContext
+        let baby = try #require(ctx.fetch(Baby.fetchRequest()).first)
+        let events = try ctx.fetch(LogEvent.requestAll(baby: baby))
+        let care = CareRollup.make(events: events, now: when.addingTimeInterval(60), calendar: TestSupport.utcCalendar)
+        #expect(care.today.formulaML == 120)
+        #expect(care.today.wetCount == 1)
+        #expect(care.today.sleepCount == 1)
+    }
+
     @Test func sampleDataPopulates() throws {
         let p = PersistenceController(inMemory: true)
         let ctx = p.viewContext

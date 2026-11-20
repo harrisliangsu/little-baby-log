@@ -47,7 +47,8 @@ struct EventEditorView: View {
     }
 
     private var screenTitle: String {
-        isEditing ? "Edit \(draft.kind.title.lowercased())" : "Log \(draft.kind.title.lowercased())"
+        let name = draft.kind == .bottle ? "奶粉" : Zh.kind(draft.kind)
+        return isEditing ? "修改\(name)" : "记录\(name)"
     }
 
     var body: some View {
@@ -56,10 +57,10 @@ struct EventEditorView: View {
                 kindFields
 
                 Section {
-                    TextField("Notes", text: $draft.notes, axis: .vertical)
+                    TextField("备注", text: $draft.notes, axis: .vertical)
                         .lineLimit(1...5)
                 } header: {
-                    Text("Notes")
+                    Text("备注")
                 } footer: {
                     if let message = draft.validationMessage {
                         Text(message)
@@ -73,7 +74,7 @@ struct EventEditorView: View {
                         Button(role: .destructive) {
                             confirmDelete = true
                         } label: {
-                            Text("Delete entry").themedDestructive()
+                            Text("删除这条记录").themedDestructive()
                         }
                     }
                     .themedSection()
@@ -85,21 +86,22 @@ struct EventEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button("保存") { save() }
                         .fontWeight(.semibold)
                         .disabled(draft.validationMessage != nil)
+                        .accessibilityIdentifier("save-entry")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { UIApplication.endEditing() }
+                    Button("完成") { UIApplication.endEditing() }
                 }
             }
-            .confirmationDialog("Delete this entry?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) { deleteEntry() }
-                Button("Cancel", role: .cancel) {}
+            .confirmationDialog("删除这条记录？", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("删除", role: .destructive) { deleteEntry() }
+                Button("取消", role: .cancel) {}
             }
         }
     }
@@ -134,29 +136,29 @@ struct EventEditorView: View {
 
     private var sleepFields: some View {
         Section {
-            DatePicker("Start", selection: $draft.startDate)
-            Toggle("Still asleep", isOn: stillAsleep)
+            DatePicker("开始", selection: $draft.startDate)
+            Toggle("还在睡", isOn: stillAsleep)
             if draft.endDate != nil {
-                DatePicker("End", selection: endDateBinding)
-                LabeledContent("Duration", value: DurationFormat.short(sleepSeconds))
+                DatePicker("结束", selection: endDateBinding)
+                LabeledContent("时长", value: DurationFormat.short(sleepSeconds))
             }
         }
     }
 
     private var nursingFields: some View {
         Section {
-            DatePicker("Start", selection: $draft.startDate)
+            DatePicker("开始", selection: $draft.startDate)
             if draft.isRunning {
-                Text("The timer is still running. Open it from Today to change sides or finish.")
+                Text("计时还在进行。回到今天页面可以换边或结束。")
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
             } else {
-                NumberField("Left", value: minutesBinding(\.leftSeconds), unit: "min")
-                NumberField("Right", value: minutesBinding(\.rightSeconds), unit: "min")
-                Picker("Last side", selection: $draft.lastSide) {
-                    Text("None").tag(BreastSide?.none)
+                NumberField("左侧分钟", value: minutesBinding(\.leftSeconds), unit: "分钟")
+                NumberField("右侧分钟", value: minutesBinding(\.rightSeconds), unit: "分钟")
+                Picker("最后一侧", selection: $draft.lastSide) {
+                    Text("无").tag(BreastSide?.none)
                     ForEach(BreastSide.allCases) { side in
-                        Text(side.title).tag(Optional(side))
+                        Text(Zh.side(side)).tag(Optional(side))
                     }
                 }
                 .pickerStyle(.segmented)
@@ -166,11 +168,11 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            DatePicker("Time", selection: $draft.startDate)
-            NumberField("Amount", value: volumeBinding(\.amountML), unit: volumeUnit.symbol)
-            Picker("Contents", selection: $draft.bottleContent) {
+            DatePicker("时间", selection: $draft.startDate)
+            NumberField("奶量", value: volumeBinding(\.amountML), unit: volumeUnit.symbol, identifier: "bottle-amount")
+            Picker("内容", selection: $draft.bottleContent) {
                 ForEach(BottleContent.allCases) { content in
-                    Text(content.title).tag(content)
+                    Text(Zh.bottle(content)).tag(content)
                 }
             }
             .pickerStyle(.segmented)
@@ -187,10 +189,10 @@ struct EventEditorView: View {
 
     private var diaperFields: some View {
         Section {
-            DatePicker("Time", selection: $draft.startDate)
-            Picker("Diaper", selection: $draft.diaperKind) {
+            DatePicker("时间", selection: $draft.startDate)
+            Picker("尿布", selection: $draft.diaperKind) {
                 ForEach(DiaperKind.allCases) { kind in
-                    Text(kind.title).tag(kind)
+                    Text(Zh.diaper(kind)).tag(kind)
                 }
             }
             .pickerStyle(.segmented)

@@ -27,10 +27,10 @@ struct OnboardingView: View {
                         KindIcon(kind: .breastfeed, size: 52)
                         KindIcon(kind: .diaper, size: 52)
                     }
-                    Text("Welcome to Little Baby Log")
+                    Text("欢迎使用宝宝小记")
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
-                    Text("Sleep, feeds and diapers, one tap at a time. Free, private, and shared with your family through your own iCloud.")
+                    Text("亲喂、奶粉、尿布和睡眠，点一下就记下来。免费、离线可用，iCloud 可以以后再开。")
                         .font(.body)
                         .foregroundStyle(theme.secondary)
                         .multilineTextAlignment(.center)
@@ -38,15 +38,16 @@ struct OnboardingView: View {
                 .padding(.top, 32)
 
                 VStack(spacing: 0) {
-                    TextField("Baby's name", text: $name)
+                    TextField("宝宝名字", text: $name)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .focused($nameFocused)
                         .font(.title3)
                         .padding(16)
+                        .accessibilityIdentifier("baby-name")
                     Divider()
                     DatePicker(
-                        "Birthday",
+                        "生日",
                         selection: $birthDate,
                         in: ...latestBirthDate,
                         displayedComponents: .date
@@ -60,7 +61,7 @@ struct OnboardingView: View {
                     Haptics.success()
                     onCreate(trimmedName, birthDate)
                 } label: {
-                    Text("Start tracking")
+                    Text("开始记录")
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -69,8 +70,9 @@ struct OnboardingView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(trimmedName.isEmpty)
+                .accessibilityIdentifier("start-tracking")
 
-                Text("Already invited by another caregiver? Open their invitation on this phone and your baby will appear here once iCloud syncs.")
+                Text("如果另一位照顾者邀请了你，在这台手机上打开邀请。iCloud 同步后，宝宝会出现在这里。没登录 iCloud 也可以先在本地记。")
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
                     .multilineTextAlignment(.center)

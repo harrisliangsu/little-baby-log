@@ -1,10 +1,13 @@
 #!/bin/sh
-# Archives a Release build and uploads it to App Store Connect for TestFlight.
+# Archives a Release build and uploads the binary to App Store Connect.
 #
 #   scripts/testflight.sh <build-number>
 #
-# Needs Config/Local.xcconfig (team + iCloud settings) and Xcode signed in to
-# the developer account. Each upload needs a build number higher than the last.
+# This only uploads. It does not submit App Store review, Beta App Review,
+# or an external TestFlight group. Needs Config/Local.xcconfig with a confirmed
+# DEVELOPMENT_TEAM, and Xcode signed in (or an App Store Connect API key).
+# Each upload needs a build number higher than the last. Without a team the
+# script stops before archiving and must not be described as a successful upload.
 set -eu
 cd "$(dirname "$0")/.."
 

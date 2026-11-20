@@ -28,6 +28,10 @@ struct WidgetSnapshotTests {
         #expect(summary.runningSleepStartedAt == nil)
         #expect(summary.runningNursing == nil)
         #expect(summary.today == .init())
+        let care = try #require(summary.care)
+        #expect(care.today == .zero)
+        #expect(care.last24Hours == .zero)
+        #expect(!care.hasAnyRecord)
         #expect(snapshot.generatedAt == now)
     }
 

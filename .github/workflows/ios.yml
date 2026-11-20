@@ -1,0 +1,180 @@
+# Compiles and tests Little Baby Log on a real iOS Simulator.
+# Package tests and the UI smoke test run inside the simulator via xcodebuild.
+# They are not a substitute for a signed App Store upload.
+name: iOS
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: iOS Simulator tests
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode
+        run: |
+          if [ -d /Applications/Xcode.app ]; then
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
+          xcrun simctl list devices available
+
+      - name: XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Choose simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          NAME=""
+          for candidate in "iPhone 16" "iPhone 17" "iPhone 15"; do
+            if xcrun simctl list devices available | grep -F "$candidate (" >/dev/null; then
+              NAME="$candidate"
+              break
+            fi
+          done
+          if [ -z "$NAME" ]; then
+            echo "No known iPhone simulator. Available devices:"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Using $NAME"
+
+      - name: Release compile for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project LittleBabyLog.xcodeproj \
+            -scheme LittleBabyLog \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Test on iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project LittleBabyLog.xcodeproj \
+            -scheme LittleBabyLog \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Export screenshots and logs
+        if: always()
+        run: |
+          set +e
+          mkdir -p artifacts/screenshots
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/TestResults.xcresult" \
+            --output-path artifacts/screenshots
+          find artifacts -type f | head -100
+          cp -R "$RUNNER_TEMP/TestResults.xcresult" artifacts/TestResults.xcresult 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-results
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Uploads a build to App Store Connect only. It does not submit for App Store
+  # review, Beta App Review, or an external TestFlight group.
+  testflight-internal:
+    name: Internal TestFlight upload
+    needs: simulator
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require signing secrets
+        id: creds
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "$KEY" ] && [ -n "$KEY_ID" ] && [ -n "$ISSUER" ] && [ -n "$TEAM" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "ASC API key or team id is not configured on this repository."
+            echo "Upload was not attempted. Required secret names:"
+            echo "APP_STORE_CONNECT_API_KEY, APP_STORE_CONNECT_API_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APPLE_TEAM_ID"
+            exit 1
+          fi
+
+      - name: XcodeGen
+        if: steps.creds.outputs.present == 'true'
+        run: brew install xcodegen
+
+      - name: Archive and upload
+        if: steps.creds.outputs.present == 'true'
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEY_DIR="$RUNNER_TEMP/private_keys"
+          mkdir -p "$KEY_DIR"
+          printf '%s\n' "$KEY" > "$KEY_DIR/AuthKey_${KEY_ID}.p8"
+          cat > Config/Local.xcconfig <<EOF
+          DEVELOPMENT_TEAM = ${TEAM}
+          EOF
+          xcodegen generate
+          ARCHIVE="$RUNNER_TEMP/LittleBabyLog.xcarchive"
+          EXPORT="$RUNNER_TEMP/export"
+          mkdir -p "$EXPORT"
+          cat > "$EXPORT/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -project LittleBabyLog.xcodeproj -scheme LittleBabyLog -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER" \
+            archive
+          xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$EXPORT/ExportOptions.plist" \
+            -exportPath "$EXPORT" -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER"
+          echo "Upload finished. This job does not submit App Review or external TestFlight."
+          rm -f "$KEY_DIR/AuthKey_${KEY_ID}.p8"

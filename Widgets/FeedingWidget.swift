@@ -8,8 +8,8 @@ struct FeedingWidget: Widget {
         AppIntentConfiguration(kind: "FeedingWidget", intent: SelectBabyIntent.self, provider: BabyTimelineProvider()) { entry in
             FeedingWidgetView(entry: entry)
         }
-        .configurationDisplayName("Feeding")
-        .description("Time since the last feed, the next side, and roughly when the next feed is due. Start nursing with one tap.")
+        .configurationDisplayName("喂奶")
+        .description("最近一次喂奶。没有记录时显示空状态。")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -66,7 +66,7 @@ private struct FeedSummary: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             } else if let feed = baby.lastFeed {
-                Text("Last feed")
+                Text("最近喂奶")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(feed.kind.color)
                     .widgetAccentable()
@@ -79,7 +79,7 @@ private struct FeedSummary: View {
                         .lineLimit(1)
                 }
             } else {
-                Text("No feeds yet")
+                Text("还没有喂奶")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
             }

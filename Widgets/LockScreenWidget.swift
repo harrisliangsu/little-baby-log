@@ -27,11 +27,11 @@ struct LockScreenWidgetView: View {
                 }
             } else {
                 switch family {
-                case .accessoryInline: Text("Open Little Baby Log")
+                case .accessoryInline: Text(Zh.emptyBaby)
                 default:
                     VStack(spacing: 2) {
                         Image(systemName: "heart.fill")
-                        Text("Add your baby")
+                        Text("添加宝宝")
                             .font(.caption2)
                     }
                 }
@@ -122,7 +122,7 @@ private struct Rectangular: View {
                 }
             } else {
                 Text(baby.name).font(.headline)
-                Text("No feeds yet").font(.subheadline)
+                Text("还没有喂奶").font(.subheadline)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,7 +147,7 @@ private struct Inline: View {
                 Image(systemName: "heart.fill")
             }
         } else {
-            Text("No feeds yet")
+            Text("还没有喂奶")
         }
     }
 }
