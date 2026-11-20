@@ -33,7 +33,7 @@ struct NumberField: View {
                 .focused($focused)
                 .frame(minWidth: 60)
                 .font(.title3.weight(.medium))
-                .modifier(OptionalAccessibilityID(identifier))
+                .accessibilityIdentifierIfPresent(identifier)
             if let unit {
                 Text(unit)
                     .foregroundStyle(.secondary)
@@ -82,15 +82,13 @@ struct NumberField: View {
     }
 }
 
-private struct OptionalAccessibilityID: ViewModifier {
-    let identifier: String?
-
+private extension View {
     @ViewBuilder
-    func body(content: Content) -> some View {
+    func accessibilityIdentifierIfPresent(_ identifier: String?) -> some View {
         if let identifier, !identifier.isEmpty {
-            content.accessibilityIdentifier(identifier)
+            self.accessibilityIdentifier(identifier)
         } else {
-            content
+            self
         }
     }
 }
