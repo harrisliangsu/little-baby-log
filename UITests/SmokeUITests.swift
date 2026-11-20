@@ -62,8 +62,7 @@ final class SmokeUITests: XCTestCase {
         shot("05-widget-filled")
         app.buttons["close-widget-preview"].tap()
 
-        app.terminate()
-        app.launch()
+        relaunchFromHomeScreen()
 
         let kept = element("summary-formula")
         XCTAssertTrue(kept.waitForExistence(timeout: 8))
@@ -78,6 +77,22 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(again.label.contains("奶粉1次"))
         XCTAssertTrue(again.label.contains("120"))
         shot("07-widget-after-relaunch")
+    }
+
+    /// Xcode 26 times out when the test runner launches the same app a second time
+    /// through the debugger. Opening the home-screen icon is a real restart.
+    private func relaunchFromHomeScreen() {
+        app.terminate()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        springboard.activate()
+        let icon = springboard.icons["宝宝小记"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 15))
+        let home = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        home.name = "08-home-screen"
+        home.lifetime = .keepAlways
+        add(home)
+        icon.tap()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
     }
 
     private func tap(_ identifier: String) {
