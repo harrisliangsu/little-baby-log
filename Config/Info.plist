@@ -32,7 +32,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CKSharingSupported</key>
-	<true/>
+	<false/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LBLAppGroup</key>
@@ -43,10 +43,6 @@
 	<string>$(CLOUDKIT_CONTAINER_ID)</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

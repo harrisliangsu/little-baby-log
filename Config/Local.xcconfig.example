@@ -14,5 +14,7 @@
 //
 // Uncomment both lines to turn iCloud on after that container and the app group
 // are registered for the confirmed team. Offline and signed-out use stays on the local store.
+// Also set CKSharingSupported and UIBackgroundModes remote-notification again;
+// this build leaves them off so a local export does not request CloudKit or push.
 // CLOUDKIT_CONTAINER = $(CLOUDKIT_CONTAINER_ID)
 // CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog-iCloud.entitlements

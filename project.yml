@@ -56,7 +56,9 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CKSharingSupported: true
+        # iCloud is off in this build, so do not advertise CloudKit sharing or
+        # remote notifications. Those come back only with the iCloud entitlements.
+        CKSharingSupported: false
         LBLCloudKitContainer: $(CLOUDKIT_CONTAINER)
         LBLReservedCloudKitContainer: $(CLOUDKIT_CONTAINER_ID)
         LBLAppGroup: $(APP_GROUP_ID)
@@ -65,8 +67,6 @@ targets:
           - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
             CFBundleURLSchemes:
               - littlebabylog
-        UIBackgroundModes:
-          - remote-notification
         ITSAppUsesNonExemptEncryption: false
 
   # Home Screen / Lock Screen widgets, widget buttons, and Live Activities. Never opens Core Data:
