@@ -541,13 +541,21 @@ final class SmokeUITests: XCTestCase {
         app.terminate()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         springboard.activate()
-        let icon = springboard.icons["宝宝小记"]
-        XCTAssertTrue(icon.waitForExistence(timeout: 15))
+        let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记"))
+        XCTAssertTrue(named.firstMatch.waitForExistence(timeout: 15))
+        var appIcon: XCUIElement?
+        for index in 0..<min(named.count, 6) {
+            let element = named.element(boundBy: index)
+            guard element.exists, element.frame.width < 120 else { continue }
+            appIcon = element
+            break
+        }
         let home = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         home.name = "08-home-screen"
         home.lifetime = .keepAlways
         add(home)
-        icon.tap()
+        XCTAssertNotNil(appIcon, "The app icon was not separate from the widget.")
+        appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
     }
 
