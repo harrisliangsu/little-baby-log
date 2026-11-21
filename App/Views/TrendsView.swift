@@ -58,6 +58,7 @@ private struct WeightPoint: Identifiable {
 private struct TrendsContent: View {
     let baby: Baby
     let days: Int
+    @State private var growthEditor = false
 
     @FetchRequest private var events: FetchedResults<LogEvent>
     @FetchRequest private var growth: FetchedResults<LogEvent>
@@ -119,6 +120,14 @@ private struct TrendsContent: View {
     // MARK: Body
 
     var body: some View {
+        loaded
+            .sheet(isPresented: $growthEditor) {
+                EventEditorView(baby: baby, target: .new(.growth))
+            }
+    }
+
+    @ViewBuilder
+    private var loaded: some View {
         let stats = self.stats
         let hasData = !events.isEmpty || !growth.isEmpty
 
@@ -126,7 +135,7 @@ private struct TrendsContent: View {
             ContentUnavailableView(
                 UICopy.t(.noTrends, language),
                 systemImage: "chart.bar",
-                description: Text(UICopy.t(.trendsHint, language))
+                description: Text(verbatim: "")
             )
             .padding(.top, 40)
         } else {
@@ -136,6 +145,10 @@ private struct TrendsContent: View {
                 diapersCard(stats)
                 bottleCard(stats)
                 weightCard
+                measureCard(language == .zh ? "身高" : "Length", unit: unitSystem == .metric ? "cm" : "in", empty: language == .zh ? "还没有身高" : "No length yet") { $0.lengthCm }
+                measureCard(language == .zh ? "头围" : "Head", unit: unitSystem == .metric ? "cm" : "in", empty: language == .zh ? "还没有头围" : "No head measurement yet") { $0.headCm }
+                Button(language == .zh ? "身高体重" : "Measurement") { growthEditor = true }
+                    .buttonStyle(.bordered)
             }
         }
     }
@@ -145,18 +158,18 @@ private struct TrendsContent: View {
     private func sleepCard(_ stats: [DayStat]) -> some View {
         let avg = average(stats) { $0.sleep / 3600 }
         return TrendCard(
-            title: "Sleep",
-            subtitle: avg > 0 ? "Average " + DurationFormat.short(avg * 3600) + " a day" : "No complete days yet"
+            title: language == .zh ? "睡眠" : "Sleep",
+            subtitle: avg > 0 ? (language == .zh ? "平均每天 " : "Average ") + DurationFormat.short(avg * 3600) : (language == .zh ? "还没有完整的一天" : "No complete days yet")
         ) {
-            DayBarChart(stats: stats, days: days, color: theme.color(for: .sleep), average: avg, unit: "h", minTop: 1) { $0.sleep / 3600 }
+            DayBarChart(stats: stats, days: days, color: theme.color(for: .sleep), average: avg, unit: language == .zh ? "小时" : "h", minTop: 1) { $0.sleep / 3600 }
         }
     }
 
     private func feedsCard(_ stats: [DayStat]) -> some View {
         let avg = average(stats) { Double($0.feedCount) }
         return TrendCard(
-            title: "Feeds",
-            subtitle: avg > 0 ? "Average " + perDay(avg) : "No complete days yet"
+            title: language == .zh ? "喂奶" : "Feeds",
+            subtitle: avg > 0 ? (language == .zh ? "平均 " : "Average ") + perDay(avg) : (language == .zh ? "还没有完整的一天" : "No complete days yet")
         ) {
             DayBarChart(stats: stats, days: days, color: theme.color(for: .breastfeed), average: avg, unit: "", minTop: 4) { Double($0.feedCount) }
         }
@@ -166,15 +179,15 @@ private struct TrendsContent: View {
         let avg = average(stats) { Double($0.diaperCount) }
         let points: [DiaperPoint] = stats.flatMap { stat -> [DiaperPoint] in
             [
-                DiaperPoint(day: stat.day, label: "Wet", count: stat.summary.diapers[.wet] ?? 0),
-                DiaperPoint(day: stat.day, label: "Dirty", count: stat.summary.diapers[.dirty] ?? 0),
-                DiaperPoint(day: stat.day, label: "Both", count: stat.summary.diapers[.mixed] ?? 0)
+                DiaperPoint(day: stat.day, label: language == .zh ? "小便" : "Wet", count: stat.summary.diapers[.wet] ?? 0),
+                DiaperPoint(day: stat.day, label: language == .zh ? "大便" : "Dirty", count: stat.summary.diapers[.dirty] ?? 0),
+                DiaperPoint(day: stat.day, label: language == .zh ? "都有" : "Both", count: stat.summary.diapers[.mixed] ?? 0)
             ]
         }
         let busiestDay = stats.map { Double($0.summary.diaperCount) }.max() ?? 0
         return TrendCard(
-            title: "Diapers",
-            subtitle: avg > 0 ? "Average " + perDay(avg) : "No complete days yet"
+            title: language == .zh ? "尿布" : "Diapers",
+            subtitle: avg > 0 ? (language == .zh ? "平均 " : "Average ") + perDay(avg) : (language == .zh ? "还没有完整的一天" : "No complete days yet")
         ) {
             Chart(points) { point in
                 BarMark(
@@ -184,7 +197,7 @@ private struct TrendsContent: View {
                 .foregroundStyle(by: .value("Type", point.label))
             }
             .chartForegroundStyleScale(
-                domain: ["Wet", "Dirty", "Both"],
+                domain: language == .zh ? ["小便", "大便", "都有"] : ["Wet", "Dirty", "Both"],
                 range: theme.diaperColors
             )
             .chartLegend(position: .bottom, alignment: .leading)
@@ -198,10 +211,12 @@ private struct TrendsContent: View {
         let unit = volumeUnit
         let avg = average(stats) { unit.value(fromMilliliters: $0.bottleML) }
         return TrendCard(
-            title: "Bottle volume",
+            title: language == .zh ? "奶量" : "Bottle volume",
             subtitle: avg > 0
-                ? "Average " + avg.formatted(.number.precision(.fractionLength(0...1))) + " " + unit.symbol + " a day"
-                : (stats.contains { $0.summary.bottleML > 0 } ? "No complete days yet" : "No bottles in this range")
+                ? (language == .zh ? "平均每天 " : "Average ") + avg.formatted(.number.precision(.fractionLength(0...1))) + " " + unit.symbol
+                : (stats.contains { $0.summary.bottleML > 0 }
+                    ? (language == .zh ? "还没有完整的一天" : "No complete days yet")
+                    : (language == .zh ? "这段时间没有奶瓶" : "No bottles in this range"))
         ) {
             DayBarChart(stats: stats, days: days, color: theme.color(for: .bottle), average: avg, unit: unit.symbol, minTop: 1) {
                 unit.value(fromMilliliters: $0.bottleML)
@@ -214,8 +229,9 @@ private struct TrendsContent: View {
         let symbol = unitSystem == .metric ? "kg" : "lb"
         let latest = growth.last(where: { $0.weightKg > 0 })?.weightKg
         return TrendCard(
-            title: "Weight",
-            subtitle: latest.map { "Latest " + unitSystem.formatWeight(kilograms: $0) } ?? "No weight logged yet"
+            title: language == .zh ? "体重" : "Weight",
+            subtitle: latest.map { (language == .zh ? "最近 " : "Latest ") + unitSystem.formatWeight(kilograms: $0) }
+                ?? (language == .zh ? "还没有体重" : "No weight logged yet")
         ) {
             if points.isEmpty {
                 Text(UICopy.t(.noGrowth, language))
@@ -238,6 +254,36 @@ private struct TrendsContent: View {
                 .chartYScale(domain: .automatic(includesZero: false))
                 .chartYAxisLabel(symbol)
                 .frame(height: 180)
+            }
+        }
+    }
+
+    private func measureCard(_ title: String, unit: String, empty: String, value: @escaping (LogEvent) -> Double) -> some View {
+        let points = growth.compactMap { event -> WeightPoint? in
+            guard let date = event.startDate else { return nil }
+            let raw = value(event)
+            guard raw > 0 else { return nil }
+            let shown = unitSystem == .metric ? raw : raw / 2.54
+            return WeightPoint(date: date, value: shown)
+        }
+        let latest = points.last.map { String(format: "%.1f %@", $0.value, unit) }
+        return TrendCard(
+            title: title,
+            subtitle: latest.map { (language == .zh ? "最近 " : "Latest ") + $0 } ?? empty
+        ) {
+            if points.isEmpty {
+                Text(empty)
+                    .font(.subheadline)
+                    .foregroundStyle(theme.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            } else {
+                Chart(points) { point in
+                    LineMark(x: .value("Date", point.date), y: .value(title, point.value))
+                    PointMark(x: .value("Date", point.date), y: .value(title, point.value))
+                }
+                .chartYScale(domain: .automatic(includesZero: false))
+                .chartYAxisLabel(unit)
+                .frame(height: 160)
             }
         }
     }

@@ -87,9 +87,7 @@ struct ImportPreviewSheet: View {
                             }
                         }
                     } header: {
-                        Text(language == .zh ? "这些名字还没有对应的宝宝" : "These names are not a baby yet")
-                    } footer: {
-                        Text(language == .zh ? "不会因为文件里的名字自动新建宝宝。" : "A name in the file does not create a baby.")
+                        Text(language == .zh ? "对应宝宝" : "Baby")
                     }
                 }
                 Section {
@@ -104,14 +102,12 @@ struct ImportPreviewSheet: View {
                 }
                 if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
                     Section {
-                        Button(language == .zh ? "让 AI 看列名（先确认再发送）" : "Ask AI about the columns") {
+                        Button(language == .zh ? "看列名" : "Columns") {
                             consent = mappingPreview
                         }
                         if !mappingText.isEmpty {
                             Text(mappingText).font(.footnote)
                         }
-                    } footer: {
-                        Text(language == .zh ? "建议不会自动写入。仍要点下面的导入。" : "A suggestion is not saved. Import still needs the button below.")
                     }
                 }
                 if let errorText {

@@ -2,14 +2,13 @@ import SwiftUI
 import CoreData
 import BabyLogKit
 
-/// Which cards Today shows, per baby. A feed preference only fills the suggestion.
-/// A card that already has records stays on Today even if it is not in the suggestion.
+/// Which functions sit in the log area. Cards in that list are the large shortcuts.
+/// Functions left out stay on Today as smaller rows, even when they already have records.
 struct HomeCardsSettingsView: View {
     @FetchRequest(fetchRequest: Baby.lblAllByCreation()) private var babies: FetchedResults<Baby>
     @AppStorage(Prefs.selectedBabyID) private var selectedBabyID = ""
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @AppStorage(HomeLayoutStore.storageKey) private var layoutJSON = ""
-    @Environment(\.managedObjectContext) private var context
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
@@ -32,7 +31,6 @@ struct HomeCardsSettingsView: View {
 
     @ViewBuilder
     private func editor(_ baby: Baby, id: UUID) -> some View {
-        let recorded = recordedCards(baby)
         let layout = HomeLayoutStore.load(babyID: id, from: layoutData)
         Section {
             Picker(Copy.feedStyle(language), selection: preference(id, layout)) {
@@ -40,15 +38,12 @@ struct HomeCardsSettingsView: View {
                             Text(Copy.preference(item, language)).tag(item)
                         }
                     }
-                } footer: {
-                    Text(Copy.feedStyleFootnote(language))
                 }
                 .themedSection()
 
                 Section {
                     ForEach(HomeCard.allCases) { card in
-                        Toggle(Copy.card(card, language), isOn: visible(id, layout, card, recorded: recorded))
-                            .disabled(recorded.contains(card))
+                        Toggle(Copy.card(card, language), isOn: visible(id, layout, card))
                     }
                 } header: {
                     Text(Copy.homeCards(language))
@@ -56,18 +51,18 @@ struct HomeCardsSettingsView: View {
                 .themedSection()
 
                 Section {
-                    ForEach(layout.resolved(recorded: recorded)) { card in
+                    ForEach(layout.cards) { card in
                         HStack {
                             Text(Copy.card(card, language))
                             Spacer()
                             Button {
-                                reorder(card, up: true, layout: layout, recorded: recorded, id: id)
+                                reorder(card, up: true, layout: layout, id: id)
                             } label: {
                                 Image(systemName: "chevron.up")
                             }
                             .accessibilityLabel(language == .zh ? "上移\(Copy.card(card, language))" : "Move \(Copy.card(card, language)) up")
                             Button {
-                                reorder(card, up: false, layout: layout, recorded: recorded, id: id)
+                                reorder(card, up: false, layout: layout, id: id)
                             } label: {
                                 Image(systemName: "chevron.down")
                             }
@@ -76,34 +71,16 @@ struct HomeCardsSettingsView: View {
                     }
                 } header: {
                     Text(language == .zh ? "首页顺序" : "Home order")
-                } footer: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(language == .zh ? "今天页的摘要和卡片按这个顺序排。" : "Today's summary and cards use this order.")
-                        Text(Copy.widgetSeparate(language))
-                    }
                 }
                 .themedSection()
     }
 
-    private func reorder(_ card: HomeCard, up: Bool, layout: BabyHomeLayout, recorded: Set<HomeCard>, id: UUID) {
-        var cards = layout.resolved(recorded: recorded)
-        guard let index = cards.firstIndex(of: card) else { return }
-        let next = up ? index - 1 : index + 1
-        guard cards.indices.contains(next) else { return }
-        cards.swapAt(index, next)
-        var copy = layout
-        copy.cards = cards
-        write(copy, id)
+    private func reorder(_ card: HomeCard, up: Bool, layout: BabyHomeLayout, id: UUID) {
+        write(layout.moving(card, up: up), id)
     }
 
     private var layoutData: Data? {
         layoutJSON.isEmpty ? nil : Data(layoutJSON.utf8)
-    }
-
-    private func recordedCards(_ baby: Baby) -> Set<HomeCard> {
-        let request = LogEvent.requestAll(baby: baby)
-        let events = (try? context.fetch(request)) ?? []
-        return HomeCardMatch.recordedCards(in: events)
     }
 
     private func preference(_ id: UUID, _ layout: BabyHomeLayout) -> Binding<FeedPreference> {
@@ -118,9 +95,9 @@ struct HomeCardsSettingsView: View {
         )
     }
 
-    private func visible(_ id: UUID, _ layout: BabyHomeLayout, _ card: HomeCard, recorded: Set<HomeCard>) -> Binding<Bool> {
+    private func visible(_ id: UUID, _ layout: BabyHomeLayout, _ card: HomeCard) -> Binding<Bool> {
         Binding(
-            get: { layout.cards.contains(card) || recorded.contains(card) },
+            get: { layout.cards.contains(card) },
             set: { write(layout.setting(card, visible: $0), id) }
         )
     }

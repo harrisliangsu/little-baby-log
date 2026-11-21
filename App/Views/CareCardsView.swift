@@ -30,16 +30,25 @@ struct CareCardsView: View {
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             let _ = changeTick
             let care = CareRollup.make(events: Array(events), now: timeline.date)
-            let recorded = HomeCardMatch.recordedCards(in: Array(events))
-            let cards = currentLayout.resolved(recorded: recorded)
+            let chosen = currentLayout.cards
+            let extra = HomeCard.defaultOrder.filter { !chosen.contains($0) }
             VStack(spacing: 8) {
-                Text(compactSummary(cards, care: care, now: timeline.date))
+                Text(compactSummary(chosen, care: care, now: timeline.date))
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("home-compact-summary")
-                ForEach(cards) { card in
-                    row(card, care: care, now: timeline.date)
+                ForEach(chosen) { card in
+                    row(card, care: care, now: timeline.date, prominent: true)
+                }
+                if !extra.isEmpty {
+                    Text(language == .zh ? "其他" : "Other")
+                        .font(.caption)
+                        .foregroundStyle(theme.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    ForEach(extra) { card in
+                        row(card, care: care, now: timeline.date, prominent: false)
+                    }
                 }
             }
         }
@@ -56,27 +65,31 @@ struct CareCardsView: View {
         cards.map { "\(Copy.card($0, language)) \(recent($0, care: care, now: now))" }.joined(separator: " · ")
     }
 
-    private func row(_ card: HomeCard, care: CareRollup, now: Date) -> some View {
+    private func row(_ card: HomeCard, care: CareRollup, now: Date, prominent: Bool) -> some View {
         let title = Copy.card(card, language)
-        return HStack(alignment: .center, spacing: 10) {
+        let iconSide: CGFloat = prominent ? 36 : 22
+        return HStack(alignment: .center, spacing: prominent ? 12 : 8) {
             Image(systemName: symbol(card))
-                .font(.footnote.weight(.semibold))
+                .font((prominent ? Font.body : Font.caption).weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
+                .frame(width: iconSide, height: iconSide)
                 .background(Circle().fill(tint(card)))
             Button {
                 onOpen(card)
             } label: {
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: prominent ? 3 : 0) {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(prominent ? .headline : .subheadline.weight(.semibold))
                         .foregroundStyle(theme.primaryText)
-                    Text("\(Copy.recent(language)) \(recent(card, care: care, now: now)) · \(Copy.todayWord(language)) \(todayLine(card, care: care)) · \(Copy.last24(language)) \(dayLine(card, window: care.last24Hours))")
-                        .font(.footnote)
-                        .foregroundStyle(theme.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if prominent {
+                        Text("\(Copy.recent(language)) \(recent(card, care: care, now: now)) · \(Copy.todayWord(language)) \(todayLine(card, care: care))")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
@@ -85,17 +98,17 @@ struct CareCardsView: View {
                 onAdd(card)
             } label: {
                 Image(systemName: "plus.circle.fill")
-                    .font(.title3)
-                    .frame(width: 36, height: 36)
+                    .font(prominent ? .title2 : .title3)
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(.borderless)
             .accessibilityIdentifier(addID(card))
             .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 10)
+        .padding(.vertical, prominent ? 10 : 4)
+        .padding(.horizontal, prominent ? 12 : 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: prominent ? 16 : 12, style: .continuous))
     }
 
     private func recent(_ card: HomeCard, care: CareRollup, now: Date) -> String {

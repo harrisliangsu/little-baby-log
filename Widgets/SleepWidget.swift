@@ -9,7 +9,7 @@ struct SleepWidget: Widget {
             SleepWidgetView(entry: entry)
         }
         .configurationDisplayName("睡眠")
-        .description("How long your baby has been awake or asleep, the next nap window, and a Sleep / Wake up button.")
+        .description("醒着或睡着多久。")
         .supportedFamilies([.systemSmall])
     }
 }
@@ -65,7 +65,7 @@ struct SleepWidgetView: View {
                         .foregroundStyle(.secondary)
                 }
                 if let next = entry.nextSleep {
-                    Text(PredictionFormat.sleepLine(next))
+                    Text(PredictionFormat.sleepLine(next, language: entry.language))
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

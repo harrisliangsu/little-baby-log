@@ -15,7 +15,7 @@ struct CloudSyncProblemTests {
         #expect(kind(CKError(.requestRateLimited)) == .busy)
         #expect(kind(CKError(.serviceUnavailable)) == .busy)
         #expect(kind(CKError(.managedAccountRestricted)) == .restricted)
-        #expect(kind(CKError(.serverRejectedRequest)) == .other)
+        #expect(kind(CKError(.serverRejectedRequest)) == .schemaNotReady)
     }
 
     @Test func messagesAreFriendly() {
@@ -68,9 +68,19 @@ struct CloudSyncProblemTests {
             userInfo: [NSLocalizedDescriptionKey: "Cannot create new type CD_Baby in production schema"]
         )
         let problem = CloudSyncProblem.classify(schema)
-        #expect(problem.kind == .other)
-        #expect(problem.message == "iCloud sync isn't working right now.")
+        #expect(problem.kind == .schemaNotReady)
+        #expect(problem.message == CloudSyncProblem.message(for: .schemaNotReady, language: .en))
         #expect(problem.technicalDetails.contains("Cannot create new type CD_Baby in production schema"))
+        let zones = NSError(domain: CKError.errorDomain, code: CKError.partialFailure.rawValue, userInfo: [
+            NSLocalizedDescriptionKey: "Failed to modify some record zones",
+            NSUnderlyingErrorKey: CKError(.serverRejectedRequest),
+        ])
+        let chinese = CloudSyncProblem.classify(zones, language: .zh)
+        #expect(chinese.kind == .schemaNotReady)
+        #expect(chinese.message.contains("还不能同步"))
+        #expect(chinese.message.contains("仍在"))
+        #expect(!chinese.message.contains("记录结构"))
+        #expect(!chinese.message.contains("isn't working"))
     }
 
     @Test func syncDisabledSharingError() {

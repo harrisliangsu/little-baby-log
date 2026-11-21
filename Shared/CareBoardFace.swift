@@ -1,8 +1,8 @@
 import BabyLogKit
 import SwiftUI
 
-/// Three different Home Screen layouts. They share the same words and the same limits.
-/// A small widget does not embed links: the system gives it one tap target, applied by the widget with `widgetURL`.
+/// Layout follows how many items are selected. One item is large; two or more share compact rows.
+/// Each row is a link. systemSmall may still expose only one system tap.
 struct CareBoardFace: View {
     var face: WidgetFace
     var size: WidgetSize
@@ -28,93 +28,79 @@ struct CareBoardFace: View {
         .accessibilityIdentifier("widget-face-\(size.rawValue)")
     }
 
-    private var small: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            name
-            if let item = face.items.first {
-                Text(item.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                labeled(item.sinceLabel, item.sinceValue, prominent: true)
-                labeled(item.lastLabel, item.lastValue, prominent: true)
-            }
-            Spacer(minLength: 2)
-            if let hint = face.tapHint {
-                Text(hint)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            limit
-        }
-    }
+    /// One selected item is the headline. Two or more share the card as compact rows, still fully tappable.
+    private var small: some View { sized(columns: face.items.count == 2 ? 2 : 1, showsToday: false) }
 
-    private var medium: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            name
-            HStack(alignment: .top, spacing: 8) {
-                ForEach(face.items, id: \.card) { item in
-                    linked(item.card) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                            labeled(item.sinceLabel, item.sinceValue, prominent: false)
-                            labeled(item.lastLabel, item.lastValue, prominent: false)
-                            labeled(item.todayLabel, item.todayValue, prominent: false)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(item.accessibilityText)
-                    }
-                }
-            }
-            Spacer(minLength: 0)
-            limit
-        }
-    }
+    private var medium: some View { sized(columns: face.items.count <= 3 ? face.items.count : 2, showsToday: true) }
 
     private var large: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            name
-            ForEach(face.items, id: \.card) { item in
-                linked(item.card) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        HStack(spacing: 8) {
-                            labeled(item.sinceLabel, item.sinceValue, prominent: false)
-                            labeled(item.lastLabel, item.lastValue, prominent: false)
-                        }
-                        HStack(spacing: 8) {
-                            labeled(item.todayLabel, item.todayValue, prominent: false)
-                            labeled(item.dayLabel, item.dayValue, prominent: false)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(item.accessibilityText)
-                }
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            sized(columns: 1, showsToday: true)
             if let title = face.recentTitle {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                ForEach(face.recentLines, id: \.self) { line in
-                    Text(line)
-                        .font(.caption)
-                        .lineLimit(2)
-                }
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                ForEach(face.recentLines, id: \.self) { Text($0).font(.caption).lineLimit(1) }
             }
             if let reminder = face.reminderLine {
-                Text(reminder)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(2)
+                Text(reminder).font(.caption).lineLimit(2)
             }
-            limit
-            Spacer(minLength: 0)
+        }
+    }
+
+    private func sized(columns: Int, showsToday: Bool) -> some View {
+        VStack(alignment: .leading, spacing: face.items.count <= 1 ? 6 : 3) {
+            name
+            if columns > 1 {
+                let rows = stride(from: 0, to: face.items.count, by: columns).map { start in
+                    Array(face.items[start..<min(start + columns, face.items.count)])
+                }
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 6) {
+                        ForEach(row, id: \.card) { item in
+                            itemLink(item, showsToday: showsToday)
+                        }
+                    }
+                }
+            } else {
+                ForEach(face.items, id: \.card) { item in
+                    itemLink(item, showsToday: showsToday && face.items.count <= 4)
+                }
+            }
+        }
+    }
+
+    private func itemLink(_ item: WidgetFaceItem, showsToday: Bool) -> some View {
+        linked(item.card) {
+            Group {
+                if face.items.count == 1 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title).font(.headline).lineLimit(1)
+                        Text(item.sinceValue).font(.title3.weight(.bold)).lineLimit(1).minimumScaleFactor(0.6)
+                        Text(item.lastValue).font(.subheadline).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Text(item.title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        Text(item.sinceValue)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.55)
+                        Text(item.lastValue)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.55)
+                        if showsToday {
+                            Text(item.todayValue)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.55)
+                        }
+                    }
+                    .font(.caption2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(item.accessibilityText)
         }
     }
 
@@ -123,31 +109,6 @@ struct CareBoardFace: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
             .lineLimit(1)
-    }
-
-    @ViewBuilder
-    private var limit: some View {
-        if let note = face.limitNote {
-            Text(note)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func labeled(_ label: String, _ value: String, prominent: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Text(value)
-                .font(prominent ? .title3.weight(.bold) : .caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .accessibilityElement(children: .combine)
     }
 
     private var spoken: String {

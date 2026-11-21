@@ -43,6 +43,8 @@ struct EventEditorView: View {
 
     @State private var draft: EventDraft
     @State private var confirmDelete = false
+    @State private var showNotes = false
+    @State private var attemptedSave = false
 
     init(baby: Baby, target: EditorTarget) {
         self.baby = baby
@@ -65,34 +67,38 @@ struct EventEditorView: View {
     }
 
     private var screenTitle: String {
-        let name = UICopy.kind(draft.kind == .bottle ? .bottle : draft.kind, language)
+        let name = target.homeCard.map { Copy.card($0, language) }
+            ?? UICopy.kind(draft.kind, language)
         return isEditing ? "\(UICopy.t(.editPrefix, language))\(name)" : "\(UICopy.t(.newPrefix, language))\(language == .zh ? "" : " ")\(name)"
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Text(Copy.forBaby(baby.displayName, language))
-                        .accessibilityIdentifier("composer-baby")
-                    if let card = target.homeCard {
-                        Text(card.rawValue)
-                            .font(.system(size: 1))
-                            .foregroundStyle(.clear)
-                            .frame(width: 1, height: 1)
-                            .accessibilityIdentifier("composer-card")
-                            .accessibilityLabel(card.rawValue)
+                if target.homeCard == nil {
+                    Section {
+                        Text(Copy.forBaby(baby.displayName, language))
+                            .accessibilityIdentifier("composer-baby")
                     }
+                } else if let card = target.homeCard {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityIdentifier("composer-baby")
+                        .accessibilityLabel(baby.displayName)
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityIdentifier("composer-card")
+                        .accessibilityLabel(card.rawValue)
                 }
                 kindFields
 
                 Section {
-                    TextField(UICopy.t(.notes, language), text: $draft.notes, axis: .vertical)
-                        .lineLimit(1...5)
-                } header: {
-                    Text(UICopy.t(.notes, language))
+                    DisclosureGroup(UICopy.t(.notes, language), isExpanded: $showNotes) {
+                        TextField(UICopy.t(.notes, language), text: $draft.notes, axis: .vertical)
+                            .lineLimit(1...5)
+                    }
                 } footer: {
-                    if let message = draft.validationMessage {
+                    if attemptedSave, let message = draft.validationMessage {
                         Text(UICopy.validation(message, language))
                             .foregroundStyle(theme.destructive)
                     }
@@ -122,7 +128,6 @@ struct EventEditorView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(UICopy.t(.save, language)) { save() }
                         .fontWeight(.semibold)
-                        .disabled(draft.validationMessage != nil)
                         .accessibilityIdentifier("save-entry")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
@@ -199,14 +204,16 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
             NumberField(UICopy.t(.amount, language), value: volumeBinding(\.amountML), unit: volumeUnit.symbol, identifier: "bottle-amount")
-            Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
-                ForEach(BottleContent.allCases) { content in
-                    Text(UICopy.bottle(content, language)).tag(content)
+            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            if target.homeCard != .formula {
+                Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
+                    ForEach(BottleContent.allCases) { content in
+                        Text(UICopy.bottle(content, language)).tag(content)
+                    }
                 }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
         }
     }
 
@@ -221,12 +228,14 @@ struct EventEditorView: View {
     private var diaperFields: some View {
         Section {
             DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
-            Picker(UICopy.kind(.diaper, language), selection: $draft.diaperKind) {
-                ForEach(DiaperKind.allCases) { kind in
-                    Text(UICopy.diaper(kind, language)).tag(kind)
+            if target.homeCard == nil {
+                Picker(UICopy.kind(.diaper, language), selection: $draft.diaperKind) {
+                    ForEach(DiaperKind.allCases) { kind in
+                        Text(UICopy.diaper(kind, language)).tag(kind)
+                    }
                 }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
         }
     }
 
@@ -333,11 +342,12 @@ struct EventEditorView: View {
     // MARK: Actions
 
     private func save() {
+        if draft.validationMessage != nil {
+            attemptedSave = true
+            return
+        }
         switch target {
-        case .new, .seeded:
-            let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
-            draft.apply(to: event)
-        case .card, .seeded:
+        case .new, .card, .seeded:
             let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
         case .edit(let event):

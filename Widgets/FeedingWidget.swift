@@ -9,7 +9,7 @@ struct FeedingWidget: Widget {
             FeedingWidgetView(entry: entry)
         }
         .configurationDisplayName("喂奶")
-        .description("最近一次喂奶。没有记录时显示空状态。")
+        .description("最近一次喂奶。")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -45,7 +45,9 @@ private struct FeedSummary: View {
         VStack(alignment: .leading, spacing: 2) {
             if let nursing = baby.runningNursing {
                 let values = NursingValues(nursing)
-                Text(values.isRunning ? "Nursing · \(values.activeSide?.title ?? "")" : "Nursing · paused")
+                Text(values.isRunning
+                     ? (language == .zh ? "亲喂 · \(values.activeSide.map { UICopy.side($0, .zh) } ?? "")" : "Nursing · \(values.activeSide?.title ?? "")")
+                     : (language == .zh ? "亲喂暂停" : "Nursing paused"))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(EventKind.breastfeed.color)
                     .widgetAccentable()
@@ -57,7 +59,7 @@ private struct FeedSummary: View {
                 HStack(spacing: 4) {
                     ForEach(BreastSide.allCases) { side in
                         HStack(spacing: 4) {
-                            Text(side.shortLabel)
+                            Text(language == .zh ? UICopy.side(side, .zh) : side.shortLabel)
                             NursingSideClock(values: values, side: side)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -71,7 +73,7 @@ private struct FeedSummary: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(feed.kind.color)
                     .widgetAccentable()
-                AgoStack(date: feed.referenceDate)
+                AgoStack(date: feed.referenceDate, language: language)
                     .font(.system(size: compact ? 17 : 19, weight: .bold, design: .rounded))
                 if !feed.detail.isEmpty {
                     Text(feed.detail)
@@ -108,14 +110,9 @@ private struct SmallFeeding: View {
             Spacer(minLength: 4)
             FeedSummary(baby: baby, compact: true, language: language)
             Spacer(minLength: 4)
-            if baby.isNursing {
-                Text("Open to manage")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            } else if let side = baby.nextSide {
-                // "Next: Right  ~4:30": the side, then roughly when.
+            if let side = baby.nextSide, !baby.isNursing {
                 HStack(spacing: 6) {
-                    Text("Next: \(side.title)")
+                    Text(language == .zh ? UICopy.side(side, .zh) : side.title)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .padding(.horizontal, 9)
                         .padding(.vertical, 3)
@@ -133,7 +130,7 @@ private struct SmallFeeding: View {
                     }
                 }
             } else if let nextFeed {
-                Text(PredictionFormat.feedLine(nextFeed))
+                Text(PredictionFormat.feedLine(nextFeed, language: language))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -167,14 +164,14 @@ private struct MediumFeeding: View {
                 FeedSummary(baby: baby, language: language)
                 Spacer(minLength: 4)
                 if !baby.isNursing, let nextFeed {
-                    Text(PredictionFormat.feedLine(nextFeed))
+                    Text(PredictionFormat.feedLine(nextFeed, language: language))
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
                 if !baby.isNursing, let side = baby.nextSide {
-                    Text("Next: \(side.title)")
+                    Text(language == .zh ? UICopy.side(side, .zh) : side.title)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(side.color)
                         .widgetAccentable()
@@ -197,7 +194,7 @@ private struct MediumFeeding: View {
                     ForEach(BreastSide.allCases) { side in
                         Button(intent: NursingSideIntent(babyID: baby.id, side: side)) {
                             TileLabel(
-                                title: side.title,
+                                title: language == .zh ? UICopy.side(side, .zh) : side.title,
                                 systemImage: values.activeSide == side ? "pause.fill" : "play.fill",
                                 tint: side.color,
                                 subtitle: DurationFormat.clock(values.banked(side)),
@@ -209,7 +206,7 @@ private struct MediumFeeding: View {
                     }
                 }
                 Button(intent: FinishNursingIntent(babyID: baby.id)) {
-                    TileLabel(title: "Done", systemImage: "checkmark", tint: .green, filled: true)
+                    TileLabel(title: language == .zh ? "完成" : "Done", systemImage: "checkmark", tint: .green, filled: true)
                         .frame(maxHeight: 40)
                 }
                 .buttonStyle(.plain)
@@ -220,18 +217,17 @@ private struct MediumFeeding: View {
                     ForEach(BreastSide.allCases) { side in
                         Button(intent: NursingSideIntent(babyID: baby.id, side: side)) {
                             TileLabel(
-                                title: side.title,
+                                title: language == .zh ? UICopy.side(side, .zh) : side.title,
                                 systemImage: "play.fill",
                                 tint: side.color,
-                                filled: baby.nextSide == side,
-                                badge: baby.nextSide == side ? "NEXT" : nil
+                                filled: baby.nextSide == side
                             )
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 Link(destination: DeepLink.log(.bottle, babyID: baby.id).url) {
-                    TileLabel(title: "Bottle", systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
+                    TileLabel(title: Copy.card(.formula, language), systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
                         .frame(maxHeight: 40)
                 }
             }

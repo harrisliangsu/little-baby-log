@@ -112,10 +112,6 @@ struct CareRulesBabySection: View {
 
     private var rulesSection: some View {
         Section {
-            if settings.rules.isEmpty {
-                Text(language == .zh ? "还没有提醒。上面的模板会直接加好，也可以再改。" : "No reminders yet. A template adds one you can edit.")
-                    .foregroundStyle(theme.secondary)
-            }
             ForEach(settings.rules) { rule in
                 Button {
                     editing = rule
@@ -155,10 +151,6 @@ struct CareRulesBabySection: View {
                 }
                 Toggle(language == .zh ? "也包括夜间睡觉" : "Also remind for bedtime", isOn: $settings.napWindow.includeBedtime)
             }
-        } footer: {
-            Text(language == .zh
-                 ? "这是根据已有睡眠估的下一窗口，只是提示，不是医学建议。"
-                 : "This is an estimate from logged sleep, not medical advice.")
         }
         .themedSection()
     }
@@ -237,11 +229,6 @@ private struct CareRuleEditor: View {
                     }
                 }
                 Toggle(language == .zh ? "静默时段" : "Quiet hours", isOn: quietOn)
-                if rule.quietHours != nil {
-                    Text(language == .zh ? "落在静默时段里的提醒会等到时段结束，可以跨过午夜。" : "A reminder inside quiet hours waits until they end, including across midnight.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
             }
             .navigationTitle(language == .zh ? "编辑提醒" : "Edit reminder")
             .navigationBarTitleDisplayMode(.inline)

@@ -40,6 +40,7 @@ struct SettingsView: View {
     @State private var importRequest: ImportRequest?
     @AppStorage("lastImportBatchID") private var lastImportBatch = ""
     @State private var remindersOn = false
+    @State private var showWidgetPreview = false
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @Environment(PersistenceGate.self) private var gate
 
@@ -64,6 +65,9 @@ struct SettingsView: View {
         .themedList()
         .navigationTitle(Copy.settings(language))
         .systemBarChrome()
+        .sheet(isPresented: $showWidgetPreview) {
+            WidgetPreviewSheet()
+        }
         .sheet(item: $babySheet) { sheet in
             switch sheet {
             case .add:
@@ -79,13 +83,13 @@ struct SettingsView: View {
                 .presentationDetents([.medium, .large])
         }
         .alert(
-            "Couldn't export",
+            language == .zh ? "导出失败" : "Couldn't export",
             isPresented: Binding(
                 get: { exportError != nil },
                 set: { if !$0 { exportError = nil } }
             )
         ) {
-            Button("OK", role: .cancel) {}
+            Button(language == .zh ? "好" : "OK", role: .cancel) {}
         } message: {
             Text(exportError ?? "")
         }
@@ -174,10 +178,6 @@ struct SettingsView: View {
             ICloudSyncRow()
         } header: {
             Text(Copy.iCloud(language))
-        } footer: {
-            Text(language == .zh
-                 ? "开关只决定这台设备是否把同一份本地数据库交给 iCloud。关闭不会删除记录。容器已关联，但还没有记录类型，也还没有部署到 Production。两台手机是否同步，要等 schema 和 Push 都就绪后再用真机确认。"
-                 : "This switch chooses whether this device hands the same local database to iCloud. Turning it off does not delete records. The container is associated, but it still has no record types and Production has not been deployed. Two phones can be checked only after the schema and Push are ready.")
         }
         .themedSection()
     }
@@ -189,10 +189,6 @@ struct SettingsView: View {
             }
         } header: {
             Text(UICopy.t(.caregivers, language))
-        } footer: {
-            Text(language == .zh
-                 ? "分享依赖 iCloud。这里没有验证过邀请是否成功，失败时会显示系统给出的原因。"
-                 : "Sharing depends on iCloud. An invitation has not been verified here; a failure shows the system reason.")
         }
         .themedSection()
     }
@@ -233,34 +229,17 @@ struct SettingsView: View {
             }
 
             if appearanceMode.canShowNight {
-                VStack(alignment: .leading, spacing: 6) {
-                    Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
-                    BatteryImpactNote(language == .zh ? "夜间界面会降低屏幕亮度，更省电。" : "Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
-                }
-                .padding(.vertical, 2)
+                Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
             }
         } header: {
             Text(UICopy.t(.appearance, language))
-        } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                if appearanceMode == .nightSchedule {
-                    Text(UICopy.t(.nightSchedule, language))
-                } else if appearanceMode == .night {
-                    Text(UICopy.t(.nightLook, language))
-                }
-                Text(UICopy.t(.widgetAppearance, language))
-            }
         }
         .themedSection()
     }
 
     private var nursingTimerSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 6) {
-                Toggle(language == .zh ? "计时中保持屏幕常亮" : "Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
-                BatteryImpactNote(language == .zh ? "计时页面打开时屏幕不熄灭，会更耗电。" : "Keeps your screen on while the timer is open, which uses more battery.")
-            }
-            .padding(.vertical, 2)
+            Toggle(language == .zh ? "计时中保持屏幕常亮" : "Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
         } header: {
             Text(UICopy.t(.nursingTimer, language))
         }
@@ -269,22 +248,14 @@ struct SettingsView: View {
 
     private var widgetsSection: some View {
         Section {
-            Label {
-                Text(UICopy.t(.widgetHelp, language))
-            } icon: {
-                Image(systemName: "rectangle.3.group.fill")
-                    .foregroundStyle(theme.accent)
+            Button {
+                showWidgetPreview = true
+            } label: {
+                Label(language == .zh ? "预览" : "Preview", systemImage: "rectangle.3.group")
             }
-            Label {
-                Text(UICopy.t(.lockHelp, language))
-            } icon: {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(theme.accent)
-            }
+            .accessibilityIdentifier("show-widget-preview")
         } header: {
             Text(language == .zh ? "小组件" : "Widgets")
-        } footer: {
-            Text(UICopy.t(.widgetBaby, language))
         }
         .themedSection()
     }
@@ -308,8 +279,6 @@ struct SettingsView: View {
             }
         } header: {
             Text(language == .zh ? "你的数据" : "Your data")
-        } footer: {
-            Text(UICopy.t(.dataFootnote, language))
         }
         .themedSection()
     }
@@ -564,14 +533,6 @@ private struct ICloudSyncRow: View {
             }
             if case .error(let problem) = status.state {
                 SyncProblemView(problem: problem, onDismiss: nil)
-            } else if status.state == .notSignedIn {
-                Text(UICopy.t(.signInICloud, language))
-                    .font(.footnote)
-                    .foregroundStyle(theme.secondary)
-            } else if status.state == .unavailable {
-                Text(UICopy.t(.iCloudRestricted, language))
-                    .font(.footnote)
-                    .foregroundStyle(theme.secondary)
             }
         }
         .padding(.vertical, 2)
@@ -617,15 +578,16 @@ private struct SyncProblemView: View {
     var onDismiss: (() -> Void)?
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(problem.message)
+            Text(CloudSyncProblem.message(for: problem.kind, language: language))
                 .font(.footnote)
                 .foregroundStyle(theme.destructive)
                 .fixedSize(horizontal: false, vertical: true)
             if !problem.technicalDetails.isEmpty {
-                DisclosureGroup("Details") {
+                DisclosureGroup(language == .zh ? "详情" : "Details") {
                     Text(problem.technicalDetails)
                         .font(.caption.monospaced())
                         .foregroundStyle(theme.secondary)
@@ -635,7 +597,7 @@ private struct SyncProblemView: View {
                 .font(.footnote)
             }
             if let onDismiss {
-                Button("Dismiss", action: onDismiss)
+                Button(language == .zh ? "关闭" : "Dismiss", action: onDismiss)
                     .font(.footnote)
                     .buttonStyle(.borderless)
             }

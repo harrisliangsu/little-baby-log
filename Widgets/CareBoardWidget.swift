@@ -3,9 +3,7 @@ import SwiftUI
 import WidgetKit
 
 /// Home Screen board for one baby and an ordered list of care items.
-///
-/// Apple's WidgetKit only gives `systemSmall` one tap target (`widgetURL`). Medium and large use a `Link`
-/// on each item. The small widget therefore opens the first configured item and says so on the card.
+/// Each item is a link to its form. systemSmall may still offer only one system tap.
 /// https://developer.apple.com/documentation/widgetkit/linking-to-specific-app-screens
 struct CareBoardWidget: Widget {
     var body: some WidgetConfiguration {
@@ -13,7 +11,7 @@ struct CareBoardWidget: Widget {
             CareBoardWidgetView(entry: entry)
         }
         .configurationDisplayName("宝宝小记")
-        .description("选择宝宝和项目顺序。小号看最近一次，中号看多项和今日次数，大号看完整记录和已设提醒。")
+        .description("所选宝宝和项目。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -55,10 +53,6 @@ struct CareBoardWidgetView: View {
         Group {
             if entry.baby == nil && !entry.missingBaby {
                 EmptyWidgetView(language: entry.language)
-            } else if size == .small {
-                // One destination for the whole card: the first selected item.
-                CareBoardFace(face: face, size: .small, destination: nil)
-                    .widgetURL(primaryURL)
             } else {
                 CareBoardFace(face: face, size: size) { card in
                     DeepLink.start(card, babyID: entry.missingBaby ? nil : entry.baby?.id).url
@@ -66,12 +60,6 @@ struct CareBoardWidgetView: View {
             }
         }
         .widgetBackground()
-    }
-
-    private var primaryURL: URL {
-        let card = entry.cards.first ?? .formula
-        let babyID = entry.missingBaby ? nil : entry.baby?.id
-        return DeepLink.start(card, babyID: babyID).url
     }
 }
 

@@ -5,13 +5,8 @@ import Foundation
 public enum WidgetSize: String, Sendable {
     case small, medium, large
 
-    public var itemLimit: Int {
-        switch self {
-        case .small: return 1
-        case .medium: return 3
-        case .large: return 6
-        }
-    }
+    /// Every selected home card fits. The view gets denser as the count grows, instead of hiding items.
+    public var itemLimit: Int { 6 }
 }
 
 /// One logged row the large widget can list. Amounts stay optional so pee never gains a made-up millilitre.
@@ -142,7 +137,7 @@ public enum StartRouting {
         guard case .start(let card, _) = link else { return nil }
         switch card {
         case .breast, .formula:
-            return .feedingChoice
+            return .editor(card)
         case .wet, .dirty, .diaperChange, .sleep:
             return .editor(card)
         }
@@ -190,16 +185,14 @@ public enum WidgetBoard {
         let ordered = unique(cards)
         let fitted = fit(ordered, size: size)
         let items = fitted.shown.map { item($0, care: care, language: language, volume: volume, now: now) }
-        let limit = fitted.hidden > 0 ? Copy.widgetLimit(fitted.hidden, size, language) : nil
-        let hint = size == .small ? items.first.map { Copy.tapToLog($0.card, language) } : nil
         let lines = size == .large ? recentLines(recent, cards: fitted.shown, language: language, volume: volume, now: now) : []
         let reminderText = size == .large ? reminderLine(reminder, language: language) : nil
         return WidgetFace(
             babyName: babyName,
             items: items,
             hiddenCount: fitted.hidden,
-            limitNote: limit,
-            tapHint: hint,
+            limitNote: nil,
+            tapHint: nil,
             recentTitle: size == .large && !lines.isEmpty ? Copy.recentRecords(language) : nil,
             recentLines: lines,
             reminderLine: reminderText,
@@ -326,8 +319,8 @@ public enum WidgetBoard {
         }
     }
 
-    private static func reminderLine(_ reminder: SnapshotReminder?, language: ResolvedLanguage) -> String {
-        guard let reminder else { return Copy.noReminder(language) }
+    private static func reminderLine(_ reminder: SnapshotReminder?, language: ResolvedLanguage) -> String? {
+        guard let reminder else { return nil }
         let words = reminder.userWords && !reminder.text.isEmpty ? reminder.text : Copy.setReminder(language)
         return "\(words) \(Copy.clock(reminder.fireAt, language))"
     }
