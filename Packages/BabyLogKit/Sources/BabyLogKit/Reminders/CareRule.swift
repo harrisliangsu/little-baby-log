@@ -121,6 +121,7 @@ public enum CareRulePlanner {
             switch baseline(rule: rule, baby: baby, anchor: anchor, delay: false) {
             case .missing: return .noBaseline
             case .waitingForEnd: return .waitingForEnd
+            case .acknowledged: return .acknowledgedUntilNextRecord
             case .date(let start):
                 let due = quiet(rule, start.addingTimeInterval(TimeInterval(clamped(minutes) * 60)), calendar)
                 return due > now ? .fires(due, repeatsDaily: false) : .overdue
