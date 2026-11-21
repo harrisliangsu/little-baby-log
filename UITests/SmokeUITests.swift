@@ -228,13 +228,11 @@ final class SmokeUITests: XCTestCase {
 
         addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记")
         _ = tapControl(springboard, labels: ["Done", "完成"], timeout: 4)
-        let before = springboard.staticTexts.allElementsBoundByIndex.prefix(40).map(\.label).joined(separator: "\n")
-        attachTree("15-before-record", springboard)
         shotSpringboard("15-home-screen-widget-before")
         let empty = springboard.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS '还没有记录' OR label CONTAINS '打开宝宝小记' OR label CONTAINS 'Nothing logged yet'")
         ).firstMatch
-        XCTAssertTrue(empty.waitForExistence(timeout: 20), "The Home Screen widget is blank. Empty data must show the empty-state words, not only the name under a white square. Saw:\n\(before)")
+        XCTAssertTrue(empty.waitForExistence(timeout: 20), "The Home Screen widget is blank. Empty data must show the empty-state words, not only the name under a white square.")
 
         let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记")).allElementsBoundByIndex
         let appIcon = named.filter { $0.frame.width < 120 }.first ?? named.first
@@ -250,12 +248,10 @@ final class SmokeUITests: XCTestCase {
         logFormula(millilitres: "120")
         app.terminate()
         springboard.activate()
-        let showedUpdate = waitForHomeLabel(springboard, containing: "120", timeout: 25)
-        let after = springboard.staticTexts.allElementsBoundByIndex.prefix(40).map(\.label).joined(separator: "\n")
-        attachText("15-widget-text-before", before)
-        attachText("15-widget-text-after", after)
+        let updated = springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '120'")).firstMatch
+        let showedUpdate = updated.waitForExistence(timeout: 25)
         shotSpringboard("15-home-screen-widget-after")
-        XCTAssertTrue(showedUpdate, "The Home Screen widget did not show the new 120 ml record. Before:\n\(before)\nAfter:\n\(after)")
+        XCTAssertTrue(showedUpdate, "The Home Screen widget did not show the new 120 ml record.")
     }
 
     private func openWidgetGallery(_ springboard: XCUIApplication) {
