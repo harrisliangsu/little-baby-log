@@ -77,6 +77,16 @@ struct EventEditorView: View {
         NavigationStack {
             Form {
                 kindFields
+                if isEditing {
+                    Section {
+                        Button(role: .destructive) {
+                            confirmDelete = true
+                        } label: {
+                            Text(UICopy.t(.deleteEntry, language)).themedDestructive()
+                        }
+                    }
+                    .themedSection()
+                }
             }
             .background(alignment: .topLeading) {
                 VStack(alignment: .leading) {
@@ -93,18 +103,6 @@ struct EventEditorView: View {
                 .accessibilityElement(children: .contain)
             }
             .onAppear(perform: seedFormulaAmountIfNeeded)
-
-                if isEditing {
-                    Section {
-                        Button(role: .destructive) {
-                            confirmDelete = true
-                        } label: {
-                            Text(UICopy.t(.deleteEntry, language)).themedDestructive()
-                        }
-                    }
-                    .themedSection()
-                }
-            }
             .themedList()
             .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)
