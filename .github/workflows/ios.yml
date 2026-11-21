@@ -74,10 +74,33 @@ jobs:
       - name: Test on iOS Simulator
         run: |
           set -o pipefail
-          xcodebuild test \
+          UDID="${{ steps.sim.outputs.udid }}"
+          DERIVED="$RUNNER_TEMP/Derived"
+          xcodebuild build-for-testing \
             -project LittleBabyLog.xcodeproj \
             -scheme LittleBabyLog \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find "$DERIVED/Build/Products" -type d -name 'LittleBabyLog.app' | head -1)
+          test -d "$APP"
+          xcrun simctl install "$UDID" "$APP"
+          # The gallery stays empty, including system widgets, until chronod has scanned the new extension.
+          xcrun simctl launch "$UDID" com.harrisliangsu.littlebabylog || true
+          sleep 5
+          xcrun simctl terminate "$UDID" com.harrisliangsu.littlebabylog || true
+          xcrun simctl spawn "$UDID" launchctl kickstart -k system/com.apple.chronod || true
+          sleep 3
+          xcodebuild test-without-building \
+            -project LittleBabyLog.xcodeproj \
+            -scheme LittleBabyLog \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath "$DERIVED" \
             -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" \
             CODE_SIGN_IDENTITY=- \
             CODE_SIGNING_ALLOWED=YES \
