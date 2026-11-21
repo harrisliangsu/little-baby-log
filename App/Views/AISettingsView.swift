@@ -6,6 +6,7 @@ struct AISettingsView: View {
     var notice: String = ""
     @AppStorage(AIPreferences.enabledKey) private var enabled = false
     @AppStorage(AIPreferences.providerKey) private var providerRaw = AIProviderID.deepseek.rawValue
+    @AppStorage(AIPreferences.modelsKey) private var modelsJSON = ""
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var draft = ""
     @State private var savedHint = ""
@@ -15,8 +16,8 @@ struct AISettingsView: View {
 
     private var modelSelection: Binding<String> {
         Binding(
-            get: { AIPreferences.modelID(for: provider) },
-            set: { AIPreferences.setModel($0, for: provider) }
+            get: { AIModelSelection(json: modelsJSON).current(for: provider) },
+            set: { modelsJSON = AIModelSelection(json: modelsJSON).choosing($0, for: provider).json }
         )
     }
     private var language: ResolvedLanguage {

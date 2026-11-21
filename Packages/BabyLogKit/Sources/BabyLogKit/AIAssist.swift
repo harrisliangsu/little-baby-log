@@ -90,6 +90,22 @@ public struct AIModelSelection: Equatable, Sendable {
         copy.byProvider[provider.rawValue] = AIModelCatalog.resolve(rawID, for: provider)
         return copy
     }
+
+    public var json: String {
+        guard JSONSerialization.isValidJSONObject(byProvider),
+              let data = try? JSONSerialization.data(withJSONObject: byProvider),
+              let text = String(data: data, encoding: .utf8) else { return "{}" }
+        return text
+    }
+
+    public init(json: String) {
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            self.byProvider = [:]
+            return
+        }
+        self.byProvider = object
+    }
 }
 
 public enum AITask: String, Codable, Sendable {

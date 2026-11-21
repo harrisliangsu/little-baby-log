@@ -28,6 +28,9 @@ struct AIModelTests {
         #expect(selection.current(for: .deepseek) == "deepseek-v4-pro")
         #expect(selection.current(for: .kimiCN) == "kimi-k3")
         #expect(selection.current(for: .kimiAI) == "kimi-k3.1-pro")
+        let restored = AIModelSelection(json: selection.json)
+        #expect(restored.current(for: .kimiCN) == "kimi-k3")
+        #expect(restored.current(for: .deepseek) == "deepseek-v4-pro")
 
         selection = selection.choosing("kimi-k3", for: .deepseek)
         selection = selection.choosing("not-a-model", for: .kimiAI)

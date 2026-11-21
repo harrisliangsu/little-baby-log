@@ -718,16 +718,23 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(model.waitForExistence(timeout: 4))
         XCTAssertTrue(model.label.contains("Flash"))
         choosePicker("ai-model", option: "V4 Pro")
-        XCTAssertTrue(model.label.contains("V4 Pro"))
+        waitUntil(model, contains: "V4 Pro")
         choosePicker("ai-provider", option: "Kimi 国际")
-        XCTAssertTrue(model.label.contains("K3.1 Pro"))
+        waitUntil(model, contains: "K3.1 Pro")
         XCTAssertFalse(model.label.contains("V4"))
         choosePicker("ai-model", option: "K3", exact: true)
-        XCTAssertTrue(model.label.contains("K3"))
-        XCTAssertFalse(model.label.contains("K3.1"))
+        waitUntil(model, contains: "K3", excluding: "K3.1")
         XCTAssertTrue(app.tabBars.buttons["历史"].exists)
         XCTAssertTrue(app.tabBars.buttons["趋势"].exists)
         XCTAssertTrue(app.tabBars.buttons["设置"].exists)
+    }
+
+    private func waitUntil(_ element: XCUIElement, contains text: String, excluding: String? = nil) {
+        let predicate = excluding == nil
+            ? NSPredicate(format: "label CONTAINS %@", text)
+            : NSPredicate(format: "label CONTAINS %@ AND NOT label CONTAINS %@", text, excluding!)
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 4), .completed)
     }
 
     private func choosePicker(_ identifier: String, option: String, exact: Bool = false) {
