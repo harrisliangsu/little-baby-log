@@ -1,5 +1,5 @@
 import BabyLogKit
-import Foundation
+import SwiftUI
 
 enum L10n {
     static var language: AppLanguage {
@@ -8,4 +8,15 @@ enum L10n {
     }
 
     static var resolved: ResolvedLanguage { language.resolved() }
+}
+
+private struct UILanguageKey: EnvironmentKey {
+    static let defaultValue = ResolvedLanguage.zh
+}
+
+extension EnvironmentValues {
+    var uiLanguage: ResolvedLanguage {
+        get { self[UILanguageKey.self] }
+        set { self[UILanguageKey.self] = newValue }
+    }
 }

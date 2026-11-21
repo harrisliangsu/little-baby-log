@@ -5,6 +5,7 @@ struct OnboardingView: View {
     let onCreate: (String, Date) -> Void
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     @State private var name = ""
     @State private var birthDate = Date.now
@@ -27,10 +28,10 @@ struct OnboardingView: View {
                         KindIcon(kind: .breastfeed, size: 52)
                         KindIcon(kind: .diaper, size: 52)
                     }
-                    Text("欢迎使用宝宝小记")
+                    Text(UICopy.t(.welcome, language))
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
-                    Text("亲喂、奶粉、尿布和睡眠，点一下就记下来。免费、离线可用，iCloud 可以以后再开。")
+                    Text(UICopy.t(.welcomeBody, language))
                         .font(.body)
                         .foregroundStyle(theme.secondary)
                         .multilineTextAlignment(.center)
@@ -38,7 +39,7 @@ struct OnboardingView: View {
                 .padding(.top, 32)
 
                 VStack(spacing: 0) {
-                    TextField("宝宝名字", text: $name)
+                    TextField(UICopy.t(.babyName, language), text: $name)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .focused($nameFocused)
@@ -47,7 +48,7 @@ struct OnboardingView: View {
                         .accessibilityIdentifier("baby-name")
                     Divider()
                     DatePicker(
-                        "生日",
+                        UICopy.t(.birthday, language),
                         selection: $birthDate,
                         in: ...latestBirthDate,
                         displayedComponents: .date
@@ -61,7 +62,7 @@ struct OnboardingView: View {
                     Haptics.success()
                     onCreate(trimmedName, birthDate)
                 } label: {
-                    Text("开始记录")
+                    Text(UICopy.t(.startTracking, language))
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -72,7 +73,7 @@ struct OnboardingView: View {
                 .disabled(trimmedName.isEmpty)
                 .accessibilityIdentifier("start-tracking")
 
-                Text("如果另一位照顾者邀请了你，在这台手机上打开邀请。iCloud 同步后，宝宝会出现在这里。没登录 iCloud 也可以先在本地记。")
+                Text(UICopy.t(.inviteFootnote, language))
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
                     .multilineTextAlignment(.center)

@@ -115,8 +115,8 @@ final class SmokeUITests: XCTestCase {
         app.buttons["close-widget-preview"].tap()
     }
 
-    /// Tries to add the real Home Screen widget from Springboard. If iOS 26 does not expose
-    /// the gallery control to the test runner, the test is skipped and the screen is attached.
+    /// Adds the Home Screen widget through Springboard. A missing control fails the test.
+    /// The in-app preview is not accepted as the widget.
     func testAddHomeScreenWidget() throws {
         app.launch()
         app.terminate()
@@ -128,9 +128,15 @@ final class SmokeUITests: XCTestCase {
         let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
         wallpaper.press(forDuration: 1.4)
         let menuLabels = ["Edit Home Screen", "编辑主屏幕"]
-        for label in menuLabels where springboard.buttons[label].waitForExistence(timeout: 1) {
-            springboard.buttons[label].tap()
-            break
+        for label in menuLabels {
+            if springboard.buttons[label].waitForExistence(timeout: 1) {
+                springboard.buttons[label].tap()
+                break
+            }
+            if springboard.menuItems[label].waitForExistence(timeout: 1) {
+                springboard.menuItems[label].tap()
+                break
+            }
         }
         let addLabels = ["Add Widget", "Add", "添加小组件", "添加"]
         var addButton = springboard.buttons["Add Widget"]
@@ -144,8 +150,10 @@ final class SmokeUITests: XCTestCase {
         attachment.name = shotName
         attachment.lifetime = .keepAlways
         add(attachment)
-        guard addButton.waitForExistence(timeout: 1) else {
-            throw XCTSkip("Springboard did not show an Add Widget control. Visible buttons: \(seen). See attachment \(shotName). The in-app preview is not this widget.")
+        let menus = springboard.menuItems.allElementsBoundByIndex.prefix(12).map(\.label).filter { !$0.isEmpty }.joined(separator: " | ")
+        guard addButton.waitForExistence(timeout: 2) else {
+            XCTFail("Home Screen widget was not added. Springboard buttons: \(seen). Menus: \(menus). See \(shotName). Skipping is not a successful add, and the in-app preview is not the widget.")
+            return
         }
         addButton.tap()
         let search = springboard.searchFields.firstMatch

@@ -6,18 +6,20 @@ import BabyLogKit
 struct TrendsView: View {
     let baby: Baby
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     @State private var days = 7
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Picker("Range", selection: $days) {
-                    Text("7 days").tag(7)
-                    Text("14 days").tag(14)
-                    Text("30 days").tag(30)
+                Picker(UICopy.t(.trends, language), selection: $days) {
+                    Text(UICopy.t(.days7, language)).tag(7)
+                    Text(UICopy.t(.days14, language)).tag(14)
+                    Text(UICopy.t(.days30, language)).tag(30)
                 }
                 .pickerStyle(.segmented)
+                .controlChrome()
 
                 TrendsContent(baby: baby, days: days)
                     .id(days)
@@ -26,7 +28,8 @@ struct TrendsView: View {
         }
         .background(theme.background)
         .themedForeground()
-        .navigationTitle("Trends")
+        .navigationTitle(UICopy.t(.trends, language))
+        .systemBarChrome()
     }
 }
 
@@ -59,6 +62,7 @@ private struct TrendsContent: View {
     @FetchRequest private var events: FetchedResults<LogEvent>
     @FetchRequest private var growth: FetchedResults<LogEvent>
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
 
@@ -101,7 +105,7 @@ private struct TrendsContent: View {
     }
 
     private func perDay(_ number: Double) -> String {
-        number.formatted(.number.precision(.fractionLength(0...1))) + " per day"
+        number.formatted(.number.precision(.fractionLength(0...1))) + (language == .zh ? " /天" : " per day")
     }
 
     private var weightPoints: [WeightPoint] {
@@ -120,9 +124,9 @@ private struct TrendsContent: View {
 
         if !hasData {
             ContentUnavailableView(
-                "No trends yet",
+                UICopy.t(.noTrends, language),
                 systemImage: "chart.bar",
-                description: Text("Log a few sleeps, feeds and diapers and your charts will show up here.")
+                description: Text(UICopy.t(.trendsHint, language))
             )
             .padding(.top, 40)
         } else {
@@ -214,7 +218,7 @@ private struct TrendsContent: View {
             subtitle: latest.map { "Latest " + unitSystem.formatWeight(kilograms: $0) } ?? "No weight logged yet"
         ) {
             if points.isEmpty {
-                Text("Log a growth entry to see your baby's weight over time.")
+                Text(UICopy.t(.noGrowth, language))
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
                     .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)

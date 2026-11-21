@@ -1,0 +1,34 @@
+import CoreData
+import os
+import BabyLogKit
+
+/// Development-schema setup for NSPersistentCloudKitContainer.
+///
+/// Apple's documented path is `initializeCloudKitSchema` on a Debug build
+/// (Creating a Core Data Model for CloudKit). It uploads representative records
+/// to the development environment and then deletes them. It does not deploy
+/// Production. CI never passes the launch flag, so tests do not call it.
+enum CloudKitDevelopmentSchema {
+    private static let log = Logger(subsystem: "app.littlebabylog", category: "cloudkit-schema")
+
+    static func initializeIfRequested(_ persistence: PersistenceController) {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-lbl-init-cloudkit-schema") else { return }
+        guard let cloud = persistence.cloudKitContainer else {
+            log.error("Schema init skipped: this launch is not using CloudKit")
+            return
+        }
+        var options: NSPersistentCloudKitSchemaInitializationOptions = []
+        if arguments.contains("-lbl-cloudkit-schema-dry-run") {
+            options.insert(.dryRun)
+        }
+        do {
+            try cloud.initializeCloudKitSchema(options: options)
+            log.notice("Development CloudKit schema initialization returned")
+        } catch {
+            log.error("Development schema initialization failed: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+}

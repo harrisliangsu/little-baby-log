@@ -58,7 +58,8 @@ struct SettingsView: View {
             aboutSection
         }
         .themedList()
-        .navigationTitle("Settings")
+        .navigationTitle(Copy.settings(language))
+        .systemBarChrome()
         .sheet(item: $babySheet) { sheet in
             switch sheet {
             case .add:
@@ -101,7 +102,7 @@ struct SettingsView: View {
             Button {
                 babySheet = .add
             } label: {
-                Label("Add a baby", systemImage: "plus.circle.fill")
+                Label(UICopy.t(.addBaby, language), systemImage: "plus.circle.fill")
             }
         } header: {
             Text(language == .zh ? "宝宝" : "Babies")
@@ -166,7 +167,7 @@ struct SettingsView: View {
                 CaregiverRow(baby: baby)
             }
         } header: {
-            Text("Caregivers")
+            Text(UICopy.t(.caregivers, language))
         } footer: {
             Text(language == .zh
                  ? "分享依赖 iCloud。这里没有验证过邀请是否成功，失败时会显示系统给出的原因。"
@@ -177,12 +178,12 @@ struct SettingsView: View {
 
     private var unitsSection: some View {
         Section {
-            Picker("Liquids", selection: $volumeUnit) {
+            Picker(language == .zh ? "液体" : "Liquids", selection: $volumeUnit) {
                 ForEach(VolumeUnit.allCases) { unit in
                     Text(unit.title).tag(unit)
                 }
             }
-            Picker("Weight and length", selection: $unitSystem) {
+            Picker(language == .zh ? "体重和身长" : "Weight and length", selection: $unitSystem) {
                 ForEach(UnitSystem.allCases) { system in
                     Text(system.title).tag(system)
                 }
@@ -195,36 +196,36 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         Section {
-            Picker("Appearance", selection: $appearanceMode) {
+            Picker(UICopy.t(.appearance, language), selection: $appearanceMode) {
                 ForEach(AppearanceMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Text(appearanceTitle(mode)).tag(mode)
                 }
             }
             .pickerStyle(.inline)
             .labelsHidden()
 
             if appearanceMode == .nightSchedule {
-                DatePicker("From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
-                DatePicker("To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
+                DatePicker(language == .zh ? "从" : "From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
+                DatePicker(language == .zh ? "到" : "To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
             }
 
             if appearanceMode.canShowNight {
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Dim screen at night", isOn: $dimScreenAtNight)
+                    Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
                     BatteryImpactNote("Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
                 }
                 .padding(.vertical, 2)
             }
         } header: {
-            Text("Appearance")
+            Text(UICopy.t(.appearance, language))
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 if appearanceMode == .nightSchedule {
-                    Text("Night turns on at \(Self.timeString(nightStartMinutes)) and off at \(Self.timeString(nightEndMinutes)). The rest of the time the app follows your phone's Light or Dark setting.")
+                    Text(UICopy.t(.nightSchedule, language))
                 } else if appearanceMode == .night {
-                    Text("Night is a dim, warm, true-black look for feeding in the dark.")
+                    Text(UICopy.t(.nightLook, language))
                 }
-                Text("Widgets and Live Activities follow your phone's Light or Dark setting. iOS doesn't let apps change that.")
+                Text(UICopy.t(.widgetAppearance, language))
             }
         }
         .themedSection()
@@ -238,7 +239,7 @@ struct SettingsView: View {
             }
             .padding(.vertical, 2)
         } header: {
-            Text("Nursing timer")
+            Text(UICopy.t(.nursingTimer, language))
         }
         .themedSection()
     }
@@ -246,13 +247,13 @@ struct SettingsView: View {
     private var widgetsSection: some View {
         Section {
             Label {
-                Text("Touch and hold an empty spot on the Home Screen, tap Edit, then Add Widget, and choose Little Baby Log. Start nursing or log a diaper without opening the app.")
+                Text(UICopy.t(.widgetHelp, language))
             } icon: {
                 Image(systemName: "rectangle.3.group.fill")
                     .foregroundStyle(theme.accent)
             }
             Label {
-                Text("For the Lock Screen, touch and hold it, tap Customize, then add a widget under the clock. Running sleep and nursing timers also show up on the Lock Screen and in the Dynamic Island.")
+                Text(UICopy.t(.lockHelp, language))
             } icon: {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(theme.accent)
@@ -260,7 +261,7 @@ struct SettingsView: View {
         } header: {
             Text(language == .zh ? "小组件" : "Widgets")
         } footer: {
-            Text("To show a different baby in a widget, touch and hold it and tap Edit Widget.")
+            Text(UICopy.t(.widgetBaby, language))
         }
         .themedSection()
     }
@@ -275,7 +276,7 @@ struct SettingsView: View {
         } header: {
             Text(language == .zh ? "你的数据" : "Your data")
         } footer: {
-            Text("A spreadsheet of every entry for every baby.")
+            Text(UICopy.t(.dataFootnote, language))
         }
         .themedSection()
     }
@@ -290,9 +291,9 @@ struct SettingsView: View {
                 Label("上游 Little Baby Log", systemImage: "arrow.turn.up.right")
             }
         } header: {
-            Text("关于")
+            Text(UICopy.t(.about, language))
         } footer: {
-            Text("宝宝小记（Little Baby Log）是自由软件，以 GNU GPL-3.0 及 App Store 附加许可发布。源自 Mo Garber 的 Little Baby Log。无账号、无广告、无追踪。没登录 iCloud 时数据只在这台设备上。")
+            Text(UICopy.t(.aboutBody, language))
         }
         .themedSection()
     }
@@ -318,6 +319,16 @@ struct SettingsView: View {
     }
 
     // MARK: Export
+
+    private func appearanceTitle(_ mode: AppearanceMode) -> String {
+        switch mode {
+        case .system: return language == .zh ? "跟随系统" : "System"
+        case .light: return language == .zh ? "浅色" : "Light"
+        case .dark: return language == .zh ? "深色" : "Dark"
+        case .night: return language == .zh ? "夜间" : "Night"
+        case .nightSchedule: return language == .zh ? "按时夜间" : "Night on a schedule"
+        }
+    }
 
     private func exportCSV() {
         let request: NSFetchRequest<LogEvent> = LogEvent.fetchRequest()
@@ -506,11 +517,11 @@ private struct ICloudSyncRow: View {
             if case .error(let problem) = status.state {
                 SyncProblemView(problem: problem, onDismiss: nil)
             } else if status.state == .notSignedIn {
-                Text("Sign in to iCloud in the Settings app to sync and share.")
+                Text(UICopy.t(.signInICloud, language))
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
             } else if status.state == .unavailable {
-                Text("iCloud is restricted or unavailable on this phone right now.")
+                Text(UICopy.t(.iCloudRestricted, language))
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
             }

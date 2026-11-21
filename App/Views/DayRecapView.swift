@@ -15,6 +15,7 @@ struct DayRecapView: View {
     @State private var day: Date
     @State private var pickingDate = false
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     init(baby: Baby, day: Date = .now, embedded: Bool = false) {
         self.baby = baby
@@ -48,7 +49,7 @@ struct DayRecapView: View {
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
             }
-            .accessibilityLabel("Previous day")
+            .accessibilityLabel(UICopy.t(.previousDay, language))
 
             Button {
                 pickingDate = true
@@ -81,7 +82,7 @@ struct DayRecapView: View {
                     .frame(width: 44, height: 44)
             }
             .disabled(isToday)
-            .accessibilityLabel("Next day")
+            .accessibilityLabel(UICopy.t(.nextDay, language))
         }
         .foregroundStyle(theme.accent)
         .padding(.horizontal, 8)
@@ -126,7 +127,8 @@ private struct RecapTitle: ViewModifier {
             content
         } else {
             content
-                .navigationTitle("Recap")
+                .navigationTitle(UICopy.t(.recapTitle, language))
+                .systemBarChrome()
                 .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -152,11 +154,11 @@ private struct RecapDatePicker: View {
                 .padding(.horizontal)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .themedScreen()
-                .navigationTitle("Go to day")
+                .navigationTitle(UICopy.t(.goToDay, language))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
+                        Button(UICopy.t(.done, language)) { dismiss() }
                     }
                 }
                 .onChange(of: selection) { _, newValue in
@@ -222,7 +224,7 @@ private struct DayRecapDay: View {
         Group {
             if recap.isEmpty {
                 ContentUnavailableView {
-                    Label("Nothing logged", systemImage: "moon.zzz")
+                    Label(UICopy.t(.nothingLogged, language), systemImage: "moon.zzz")
                 } description: {
                     Text(recap.isToday ? "Nothing has been logged yet today." : "Nothing was logged on this day.")
                 }
@@ -258,7 +260,7 @@ private struct DayRecapDay: View {
         return ShareLink(item: text, subject: Text("\(name)'s day")) {
             Image(systemName: "square.and.arrow.up")
         }
-        .accessibilityLabel("Share recap")
+        .accessibilityLabel(UICopy.t(.shareRecap, language))
     }
 
     private func open(_ event: LogEvent) {
@@ -546,11 +548,12 @@ private struct HourRow: View {
 
 private struct NowLine: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     let now: Date
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("Now")
+            Text(UICopy.t(.now, language))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(theme.destructive)
             Rectangle()
@@ -559,13 +562,14 @@ private struct NowLine: View {
         }
         .frame(height: RecapMetrics.nowRowHeight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Now, \(now.formatted(date: .omitted, time: .shortened))")
+        .accessibilityLabel("\(UICopy.t(.now, language)), \(now.formatted(date: .omitted, time: .shortened))")
     }
 }
 
 /// A run of empty hours, one short row. If the baby slept through it, the sleep bar still passes through.
 private struct QuietRow: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     let run: DayRecap.QuietRun
     let isFirst: Bool
@@ -600,7 +604,7 @@ private struct QuietRow: View {
                         .font(.caption)
                         .foregroundStyle(theme.secondary)
                 } else {
-                    Text("Nothing logged")
+                    Text(UICopy.t(.nothingLogged, language))
                         .font(.caption)
                         .foregroundStyle(theme.tertiary)
                 }

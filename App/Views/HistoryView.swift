@@ -8,10 +8,10 @@ enum HistoryMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(_ language: ResolvedLanguage) -> String {
         switch self {
-        case .recap: return "Recap"
-        case .list: return "List"
+        case .recap: return UICopy.t(.recap, language)
+        case .list: return UICopy.t(.list, language)
         }
     }
 }
@@ -21,6 +21,7 @@ struct HistoryView: View {
     let baby: Baby
 
     @AppStorage(Prefs.historyMode) private var mode: HistoryMode = .recap
+    @Environment(\.uiLanguage) private var language
 
     var body: some View {
         Group {
@@ -32,16 +33,18 @@ struct HistoryView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            Picker("Show", selection: $mode) {
+            Picker(UICopy.t(.filter, language), selection: $mode) {
                 ForEach(HistoryMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Text(mode.title(language)).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
+            .controlChrome()
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-        .navigationTitle("History")
+        .navigationTitle(UICopy.t(.history, language))
+        .systemBarChrome()
         .navigationBarTitleDisplayMode(mode == .recap ? .inline : .large)
     }
 }
@@ -140,23 +143,25 @@ private struct HistoryListView: View {
         }
     }
 
+    @Environment(\.uiLanguage) private var language
+
     private var emptyTitle: String {
-        filter == nil ? "No entries yet" : "Nothing here"
+        filter == nil ? UICopy.t(.noEntries, language) : UICopy.t(.nothingHere, language)
     }
 
     private var emptyMessage: String {
         if let filter {
-            return "No \(filter.title.lowercased()) entries logged yet."
+            return UICopy.kind(filter, language)
         }
-        return "Everything you log will show up here."
+        return UICopy.t(.everythingShows, language)
     }
 
     private var filterMenu: some View {
         Menu {
-            Picker("Show", selection: $filter) {
-                Text("Everything").tag(EventKind?.none)
+            Picker(UICopy.t(.filter, language), selection: $filter) {
+                Text(UICopy.t(.everything, language)).tag(EventKind?.none)
                 ForEach(EventKind.allCases) { kind in
-                    Text(kind.title).tag(Optional(kind))
+                    Text(UICopy.kind(kind, language)).tag(Optional(kind))
                 }
             }
         } label: {
@@ -164,7 +169,7 @@ private struct HistoryListView: View {
                 ? "line.3.horizontal.decrease.circle"
                 : "line.3.horizontal.decrease.circle.fill")
         }
-        .accessibilityLabel("Filter")
+        .accessibilityLabel(UICopy.t(.filter, language))
     }
 
     private var addMenu: some View {
@@ -173,7 +178,7 @@ private struct HistoryListView: View {
                 Button {
                     editor = .new(kind)
                 } label: {
-                    Label(kind.title, systemImage: kind.symbolName)
+                    Label(UICopy.kind(kind, language), systemImage: kind.symbolName)
                 }
             }
         } label: {

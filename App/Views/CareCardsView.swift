@@ -10,7 +10,6 @@ struct CareCardsView: View {
 
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @AppStorage(HomeLayoutStore.storageKey) private var layoutJSON = ""
     @FetchRequest private var events: FetchedResults<LogEvent>
@@ -88,7 +87,7 @@ struct CareCardsView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassChrome(solid: theme.surface, reduceTransparency: reduceTransparency)
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func recent(_ card: HomeCard, care: CareRollup, now: Date) -> String {

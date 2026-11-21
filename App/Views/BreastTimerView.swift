@@ -18,6 +18,7 @@ struct BreastTimerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @AppStorage(Prefs.keepScreenOnWhileNursing) private var keepScreenOn = false
     @State private var confirmDiscard = false
     @State private var tapCount = 0
@@ -36,20 +37,21 @@ struct BreastTimerView: View {
                 content(now: timeline.date)
             }
             .themedScreen()
-            .navigationTitle("亲喂")
+            .navigationTitle(UICopy.kind(.breastfeed, language))
             .navigationBarTitleDisplayMode(.inline)
+            .systemBarChrome()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(UICopy.t(.close, language)) { dismiss() }
                 }
             }
         }
         .sensoryFeedback(.impact, trigger: tapCount)
-        .confirmationDialog("Discard this feed?", isPresented: $confirmDiscard, titleVisibility: .visible) {
-            Button("Discard", role: .destructive) { discard() }
-            Button("Keep going", role: .cancel) {}
+        .confirmationDialog(UICopy.t(.discardFeed, language), isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button(UICopy.t(.discard, language), role: .destructive) { discard() }
+            Button(UICopy.t(.keepGoing, language), role: .cancel) {}
         } message: {
-            Text("The time you've tracked will be deleted.")
+            Text(UICopy.t(.discardBody, language))
         }
         // Battery: the screen only stays on if the person turned that on in Settings.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = keepScreenOn }
@@ -66,14 +68,14 @@ struct BreastTimerView: View {
     private func content(now: Date) -> some View {
         VStack(spacing: 20) {
             VStack(spacing: 4) {
-                Text("总计")
+                Text(UICopy.t(.total, language))
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
                 Text(DurationFormat.clock(isGone ? 0 : event.totalBreastSeconds(at: now)))
                     .font(.system(size: 64, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                 if let start = event.startDate, !isGone {
-                    Text("Started " + start.formatted(date: .omitted, time: .shortened))
+                    Text(UICopy.t(.started, language) + " " + start.formatted(date: .omitted, time: .shortened))
                         .font(.footnote)
                         .foregroundStyle(theme.secondary)
                 }
@@ -91,7 +93,7 @@ struct BreastTimerView: View {
                 Button {
                     finish()
                 } label: {
-                    Text("完成")
+                    Text(UICopy.t(.finish, language))
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -105,7 +107,7 @@ struct BreastTimerView: View {
                 Button(role: .destructive) {
                     confirmDiscard = true
                 } label: {
-                    Text("Discard")
+                    Text(UICopy.t(.discard, language))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .themedDestructive()
@@ -149,21 +151,21 @@ struct BreastTimerView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(side == .left ? "breast-left" : "breast-right")
-        .accessibilityLabel(side == .left ? "左侧" : "右侧")
-        .accessibilityValue(active ? "Running, \(DurationFormat.clock(seconds))" : "Paused, \(DurationFormat.clock(seconds))")
-        .accessibilityHint(active ? "Pauses this side" : "Starts this side")
+        .accessibilityLabel(UICopy.side(side, language))
+        .accessibilityValue((active ? (language == .zh ? "计时中" : "Running") : (language == .zh ? "已暂停" : "Paused")) + ", \(DurationFormat.clock(seconds))")
+        .accessibilityHint(active ? (language == .zh ? "暂停这一侧" : "Pauses this side") : (language == .zh ? "开始这一侧" : "Starts this side"))
     }
 
     @ViewBuilder
     private func nextBadge(visible: Bool, active: Bool) -> some View {
         if visible {
-            Text("Next")
+            Text(UICopy.t(.next, language))
                 .font(.footnote.weight(.bold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
                 .background(Capsule().fill(theme.primaryText.opacity(0.12)))
         } else {
-            Text(active ? "Running" : " ")
+            Text(active ? (language == .zh ? "计时中" : "Running") : " ")
                 .font(.footnote.weight(.medium))
                 .padding(.vertical, 4)
                 .opacity(active ? 0.9 : 0)

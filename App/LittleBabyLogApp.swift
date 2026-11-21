@@ -8,6 +8,7 @@ struct LittleBabyLogApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var gate = PersistenceGate()
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -26,6 +27,7 @@ struct LittleBabyLogApp: App {
                 .environment(\.managedObjectContext, gate.controller.viewContext)
                 .environment(\.persistence, gate.controller)
                 .environment(gate)
+                .environment(\.uiLanguage, (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved())
                 .id(ObjectIdentifier(gate.controller))
                 .appearanceHost()
                 .onChange(of: scenePhase, initial: true) { _, phase in

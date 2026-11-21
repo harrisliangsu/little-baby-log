@@ -1,24 +1,51 @@
 import SwiftUI
 
-/// iOS 26 Liquid Glass, with a material fallback and a solid fill when Reduce Transparency is on.
-struct GlassChrome: ViewModifier {
-    var solid: Color
-    var reduceTransparency: Bool
+/// Glass belongs on bars and small controls. Content cards stay solid so text stays readable.
+struct ControlChrome: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    @ViewBuilder
     func body(content: Content) -> some View {
         if reduceTransparency {
-            content.background(solid, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(.secondarySystemBackground), in: Capsule())
         } else if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .glassEffect(.regular, in: Capsule())
         } else {
-            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
         }
     }
 }
 
 extension View {
-    func glassChrome(solid: Color, reduceTransparency: Bool) -> some View {
-        modifier(GlassChrome(solid: solid, reduceTransparency: reduceTransparency))
+    /// Leaves iOS 26 navigation and tab bars on the system glass. Older systems get a material bar,
+    /// and Reduce Transparency keeps the system opaque bars.
+    func systemBarChrome() -> some View {
+        modifier(SystemBarChrome())
+    }
+
+    func controlChrome() -> some View {
+        modifier(ControlChrome())
+    }
+}
+
+private struct SystemBarChrome: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+        } else if #available(iOS 26.0, *) {
+            content
+        } else {
+            content.toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        }
     }
 }

@@ -19,7 +19,7 @@ struct RootView: View {
         Group {
             if let error = persistence.loadError {
                 ContentUnavailableView {
-                    Label("Couldn't open your data", systemImage: "exclamationmark.triangle")
+                    Label(UICopy.t(.couldntOpen, L10n.resolved), systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(error.localizedDescription)
                 }
@@ -34,6 +34,7 @@ struct RootView: View {
                 }
             }
         }
+        .task { CloudKitDevelopmentSchema.initializeIfRequested(persistence) }
         .onOpenURL { url in
             if let link = DeepLink(url: url) { open(link) }
         }

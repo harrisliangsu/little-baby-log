@@ -8,6 +8,7 @@ struct SinceLastView: View {
 
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @FetchRequest private var running: FetchedResults<LogEvent>
     @FetchRequest private var lastSleep: FetchedResults<LogEvent>
     @FetchRequest private var lastFeed: FetchedResults<LogEvent>
@@ -47,7 +48,7 @@ struct SinceLastView: View {
         let diaperLine = diaperStat(now: now)
 
         if sleepLine == nil && feedLine == nil && diaperLine == nil {
-            Text("Nothing logged yet. Tap a button below to get started.")
+            Text(UICopy.t(.sinceEmpty, language))
                 .foregroundStyle(theme.secondary)
         } else {
             VStack(alignment: .leading, spacing: 14) {

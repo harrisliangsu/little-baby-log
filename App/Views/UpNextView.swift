@@ -12,6 +12,7 @@ struct UpNextView: View {
     @ObservedObject var baby: Baby
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @FetchRequest private var events: FetchedResults<LogEvent>
     @State private var showsInfo = false
 
@@ -64,7 +65,7 @@ struct UpNextView: View {
 
     private func header(_ initial: Forecast) -> some View {
         HStack {
-            Text("Up next")
+            Text(UICopy.t(.upNext, language))
                 .textCase(nil)
             Spacer()
             Button {
@@ -89,7 +90,7 @@ struct UpNextView: View {
             if let sleep = forecast.sleep {
                 UpNextRow(
                     kind: .sleep,
-                    title: sleep.kind == .nap ? "Nap window" : "Bedtime around",
+                    title: sleep.kind == .nap ? UICopy.t(.napWindow, language) : UICopy.t(.bedtimeAround, language),
                     value: sleep.kind == .nap ? Self.interval(sleep.window) : Self.time(sleep.centre),
                     timing: PredictionText.timing(of: sleep.window, at: now).text,
                     caption: PredictionText.caption(basis: sleep.basis, babyName: baby.displayName, ageDays: forecast.ageDays)
@@ -98,7 +99,7 @@ struct UpNextView: View {
             if let feed = forecast.feed {
                 UpNextRow(
                     kind: .breastfeed,
-                    title: "Next feed around",
+                    title: UICopy.t(.nextFeedAround, language),
                     value: Self.time(feed.centre),
                     timing: PredictionText.timing(of: feed.around, at: now).text,
                     caption: PredictionText.caption(basis: feed.basis, babyName: baby.displayName, ageDays: forecast.ageDays)
@@ -179,7 +180,7 @@ private struct UpNextInfoSheet: View {
 
                     if !details.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Right now")
+                            Text(UICopy.t(.rightNow, language))
                                 .font(.headline)
                             ForEach(details, id: \.self) { line in
                                 Text(line)

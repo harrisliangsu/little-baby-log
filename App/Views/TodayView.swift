@@ -63,7 +63,7 @@ struct TodayView: View {
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowBackground(Color.clear)
             } header: {
-                Text(language == .zh ? "记录" : "Log").textCase(nil)
+                Text(UICopy.t(.newPrefix, language)).textCase(nil)
             }
             .themedSection()
 
@@ -78,7 +78,7 @@ struct TodayView: View {
                 )
                 .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8))
             } header: {
-                Text("其他记录").textCase(nil)
+                Text(UICopy.t(.otherLog, language)).textCase(nil)
             }
             .themedSection()
 
@@ -93,7 +93,7 @@ struct TodayView: View {
 
             Section {
                 if timeline.isEmpty {
-                    Text("今天还没有记录。")
+                    Text(UICopy.t(.nothingToday, language))
                         .foregroundStyle(theme.secondary)
                 } else {
                     ForEach(timeline, id: \.objectID) { event in
@@ -113,13 +113,14 @@ struct TodayView: View {
                     }
                 }
             } header: {
-                Text("时间线").textCase(nil)
+                Text(UICopy.t(.timeline, language)).textCase(nil)
             }
             .themedSection()
         }
         .themedList()
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
+        .systemBarChrome()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
