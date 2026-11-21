@@ -19,7 +19,7 @@ enum CloudKitDevelopmentSchema {
             log.error("Schema init skipped: this launch is not using CloudKit")
             return
         }
-        var options: NSPersistentCloudKitSchemaInitializationOptions = []
+        var options: NSPersistentCloudKitContainer.SchemaInitializationOptions = []
         if arguments.contains("-lbl-cloudkit-schema-dry-run") {
             options.insert(.dryRun)
         }
