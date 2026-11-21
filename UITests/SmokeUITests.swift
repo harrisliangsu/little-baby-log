@@ -106,18 +106,18 @@ final class SmokeUITests: XCTestCase {
             ? springboard.buttons["Edit Home Screen"]
             : springboard.buttons["编辑主屏幕"]
         if menu.waitForExistence(timeout: 3) { menu.tap() }
-        let add = springboard.buttons["Add Widget"].exists ? springboard.buttons["Add Widget"]
+        let addButton = springboard.buttons["Add Widget"].exists ? springboard.buttons["Add Widget"]
             : (springboard.buttons["Add"].exists ? springboard.buttons["Add"]
             : (springboard.buttons["添加小组件"].exists ? springboard.buttons["添加小组件"] : springboard.buttons["添加"]))
-        let shotName = add.waitForExistence(timeout: 6) ? "14-widget-gallery" : "14-widget-gallery-missing"
+        let shotName = addButton.waitForExistence(timeout: 6) ? "14-widget-gallery" : "14-widget-gallery-missing"
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = shotName
         attachment.lifetime = .keepAlways
         add(attachment)
-        guard add.waitForExistence(timeout: 1) else {
+        guard addButton.waitForExistence(timeout: 1) else {
             throw XCTSkip("Springboard did not show an Add Widget control. See attachment \(shotName). The in-app preview is not this widget.")
         }
-        add.tap()
+        addButton.tap()
         let search = springboard.searchFields.firstMatch
         if search.waitForExistence(timeout: 4) {
             search.tap()
