@@ -29,6 +29,7 @@ enum AIRuntime {
                 preview: preview,
                 token: token,
                 approved: preview,
+                model: AIPreferences.modelID(for: preview.provider),
                 access: access,
                 flight: AIFlight.shared,
                 ticket: ticket

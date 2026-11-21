@@ -20,12 +20,8 @@ public enum AIProviderID: String, Codable, CaseIterable, Identifiable, Sendable 
         }
     }
 
-    public var model: String {
-        switch self {
-        case .kimiAI, .kimiCN: return "kimi-k3.1-pro"
-        case .deepseek: return "deepseek-flash"
-        }
-    }
+    /// The provider's default model. A chosen model is resolved separately so one vendor's ID cannot ride on another.
+    public var model: String { AIModelCatalog.defaultID(for: self) }
 
     public var displayName: String {
         switch self {
@@ -33,6 +29,66 @@ public enum AIProviderID: String, Codable, CaseIterable, Identifiable, Sendable 
         case .kimiCN: return "Kimi 中国站"
         case .deepseek: return "DeepSeek"
         }
+    }
+}
+
+public struct AIModelChoice: Equatable, Identifiable, Sendable {
+    public var id: String { rawID }
+    public var rawID: String
+    public var title: String
+
+    public init(rawID: String, title: String) {
+        self.rawID = rawID
+        self.title = title
+    }
+}
+
+/// Official model IDs checked on 2026-11-22. The app does not fetch this list or accept a typed name.
+public enum AIModelCatalog {
+    public static func choices(for provider: AIProviderID) -> [AIModelChoice] {
+        switch provider {
+        case .deepseek:
+            return [
+                AIModelChoice(rawID: "deepseek-flash", title: "Flash"),
+                AIModelChoice(rawID: "deepseek-v4-pro", title: "V4 Pro"),
+            ]
+        case .kimiAI, .kimiCN:
+            return [
+                AIModelChoice(rawID: "kimi-k3.1-pro", title: "K3.1 Pro"),
+                AIModelChoice(rawID: "kimi-k3.1-pro-highspeed", title: "K3.1 Pro 高速"),
+                AIModelChoice(rawID: "kimi-k3", title: "K3"),
+            ]
+        }
+    }
+
+    public static func defaultID(for provider: AIProviderID) -> String {
+        choices(for: provider)[0].rawID
+    }
+
+    /// Unknown IDs, including another provider's model, become this provider's default.
+    public static func resolve(_ stored: String?, for provider: AIProviderID) -> String {
+        let known = choices(for: provider).map(\.rawID)
+        if let stored, known.contains(stored) { return stored }
+        return defaultID(for: provider)
+    }
+}
+
+/// Per-provider model memory. Selecting a model for one provider does not change the others.
+public struct AIModelSelection: Equatable, Sendable {
+    public var byProvider: [String: String]
+
+    public init(byProvider: [String: String] = [:]) {
+        self.byProvider = byProvider
+    }
+
+    public func current(for provider: AIProviderID) -> String {
+        AIModelCatalog.resolve(byProvider[provider.rawValue], for: provider)
+    }
+
+    public func choosing(_ rawID: String, for provider: AIProviderID) -> AIModelSelection {
+        var copy = self
+        copy.byProvider[provider.rawValue] = AIModelCatalog.resolve(rawID, for: provider)
+        return copy
     }
 }
 
@@ -213,7 +269,7 @@ public enum AIClientError: Error, Equatable {
 
 public enum AIRequestBuilder {
     /// Builds the chat request. `tools` is never set. The token is only the Authorization header.
-    public static func request(provider: AIProviderID, userText: String, token: String) -> URLRequest {
+    public static func request(provider: AIProviderID, model explicit: String? = nil, userText: String, token: String) -> URLRequest {
         var request = URLRequest(url: provider.endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
@@ -221,7 +277,7 @@ public enum AIRequestBuilder {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let system = "Return only the JSON object asked for. Do not give medical advice. Do not invent times or amounts. If a value is missing, use null."
         var body: [String: Any] = [
-            "model": provider.model,
+            "model": AIModelCatalog.resolve(explicit, for: provider),
             "messages": [
                 ["role": "system", "content": system],
                 ["role": "user", "content": userText],
@@ -263,13 +319,14 @@ public struct AIClient {
         preview: AISendPreview,
         token: String,
         approved: AISendPreview,
+        model: String? = nil,
         access: AIAccess = .ready,
         flight: AIFlight? = nil,
         ticket: Int = 0
     ) async throws -> Data {
         guard preview == approved, preview.provider == provider else { throw AIClientError.wrongHost }
         guard AISendGuard.shouldSend(access: access, flight: flight, ticket: ticket) else { throw AIClientError.cancelled }
-        let request = AIRequestBuilder.request(provider: provider, userText: preview.userText, token: token)
+        let request = AIRequestBuilder.request(provider: provider, model: model, userText: preview.userText, token: token)
         guard !AIRequestBuilder.refusesOtherHost(request, provider: provider) else { throw AIClientError.wrongHost }
         let (data, response) = try await transport.data(for: request)
         guard AISendGuard.shouldSend(access: access, flight: flight, ticket: ticket) else { throw AIClientError.cancelled }

@@ -714,9 +714,36 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
+        let model = app.descendants(matching: .any)["ai-model"]
+        XCTAssertTrue(model.waitForExistence(timeout: 4))
+        XCTAssertTrue(model.label.contains("Flash"))
+        choosePicker("ai-model", option: "V4 Pro")
+        XCTAssertTrue(model.label.contains("V4 Pro"))
+        choosePicker("ai-provider", option: "Kimi 国际")
+        XCTAssertTrue(model.label.contains("K3.1 Pro"))
+        XCTAssertFalse(model.label.contains("V4"))
+        choosePicker("ai-model", option: "K3", exact: true)
+        XCTAssertTrue(model.label.contains("K3"))
+        XCTAssertFalse(model.label.contains("K3.1"))
         XCTAssertTrue(app.tabBars.buttons["历史"].exists)
         XCTAssertTrue(app.tabBars.buttons["趋势"].exists)
         XCTAssertTrue(app.tabBars.buttons["设置"].exists)
+    }
+
+    private func choosePicker(_ identifier: String, option: String, exact: Bool = false) {
+        let control = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(control.waitForExistence(timeout: 4))
+        control.tap()
+        let query = exact
+            ? NSPredicate(format: "label == %@", option)
+            : NSPredicate(format: "label == %@ OR label BEGINSWITH %@", option, option)
+        let choice = app.descendants(matching: .any).matching(query).firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 4))
+        choice.tap()
+        if app.navigationBars[option].exists || app.navigationBars["模型"].exists || app.navigationBars["供应商"].exists {
+            let back = app.navigationBars.buttons["AI 助手"]
+            if back.exists { back.tap() }
+        }
     }
 
     private func shot(_ name: String) {

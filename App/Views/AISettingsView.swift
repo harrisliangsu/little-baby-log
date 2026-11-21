@@ -12,6 +12,13 @@ struct AISettingsView: View {
     @State private var message = ""
 
     private var provider: AIProviderID { AIProviderID(rawValue: providerRaw) ?? .deepseek }
+
+    private var modelSelection: Binding<String> {
+        Binding(
+            get: { AIPreferences.modelID(for: provider) },
+            set: { AIPreferences.setModel($0, for: provider) }
+        )
+    }
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
     }
@@ -28,6 +35,15 @@ struct AISettingsView: View {
                     Text(item.displayName).tag(item.rawValue)
                 }
             }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("ai-provider")
+            Picker(language == .zh ? "模型" : "Model", selection: modelSelection) {
+                ForEach(AIModelCatalog.choices(for: provider)) { choice in
+                    Text(choice.title).tag(choice.rawID)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("ai-model")
             SecureField(language == .zh ? "API Key" : "API key", text: $draft)
             if !savedHint.isEmpty {
                 Text(language == .zh ? "已保存，末四位 \(savedHint)" : "Saved, last four \(savedHint)")

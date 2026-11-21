@@ -60,4 +60,18 @@ enum AIPreferences {
         let raw = UserDefaults.standard.string(forKey: providerKey) ?? ""
         return AIProviderID(rawValue: raw) ?? .deepseek
     }
+
+    static func modelKey(_ provider: AIProviderID) -> String {
+        "aiAssistModel." + provider.rawValue
+    }
+
+    /// The model for this provider only. A missing or foreign ID becomes that provider's default.
+    static func modelID(for provider: AIProviderID) -> String {
+        AIModelCatalog.resolve(UserDefaults.standard.string(forKey: modelKey(provider)), for: provider)
+    }
+
+    static func setModel(_ rawID: String, for provider: AIProviderID) {
+        let resolved = AIModelCatalog.resolve(rawID, for: provider)
+        UserDefaults.standard.set(resolved, forKey: modelKey(provider))
+    }
 }
