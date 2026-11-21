@@ -202,15 +202,19 @@ struct EmptyWidgetView: View {
     var language: ResolvedLanguage = .zh
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Image(systemName: "heart.fill")
-                .font(.title)
+                .font(.title2)
                 .foregroundStyle(EventKind.breastfeed.color)
                 .widgetAccentable()
+            Text(language == .zh ? "还没有记录" : "Nothing logged yet")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .widgetAccentable()
             Text(language == .zh ? Zh.emptyBaby : "Open Little Baby Log and add a baby")
-                .font(.footnote.weight(.medium))
+                .font(.caption)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .widgetURL(DeepLink.today(babyID: nil).url)

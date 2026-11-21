@@ -207,8 +207,8 @@ final class SmokeUITests: XCTestCase {
         return sum / Double(count)
     }
 
-    /// Drives the iOS 26 edit menu that the wallpaper press already opened.
-    /// Edit, then Add Widget. A system widget is added and removed before 宝宝小记.
+    /// Adds 宝宝小记 from the widget gallery and checks a real record appears on the Home Screen.
+    /// System Contacts add/remove is historical evidence in runs 44863721858 and 44866148544, not this test.
     /// The in-app preview is not accepted as the widget.
     func testAddHomeScreenWidget() throws {
         app.launch()
@@ -225,19 +225,16 @@ final class SmokeUITests: XCTestCase {
         let addGallery = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-edit-menu")
         addGallery.tap()
         shotSpringboard("14-widget-gallery")
-        attachTree("14-gallery-controls", springboard)
 
-        addGalleryWidget(springboard, query: "Contacts", choice: "Contacts")
-        shotSpringboard("15-system-widget")
-        removeOnlyTheTestWidget(springboard, name: "Contacts")
-        shotSpringboard("15-system-widget-removed")
-
-        openWidgetGallery(springboard)
         addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记")
         _ = tapControl(springboard, labels: ["Done", "完成"], timeout: 4)
         let before = springboard.staticTexts.allElementsBoundByIndex.prefix(40).map(\.label).joined(separator: "\n")
         attachTree("15-before-record", springboard)
         shotSpringboard("15-home-screen-widget-before")
+        let empty = springboard.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS '还没有记录' OR label CONTAINS '打开宝宝小记' OR label CONTAINS 'Nothing logged yet'")
+        ).firstMatch
+        XCTAssertTrue(empty.waitForExistence(timeout: 20), "The Home Screen widget is blank. Empty data must show the empty-state words, not only the name under a white square. Saw:\n\(before)")
 
         let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记")).allElementsBoundByIndex
         let appIcon = named.filter { $0.frame.width < 120 }.first ?? named.first
