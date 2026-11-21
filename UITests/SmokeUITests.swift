@@ -234,6 +234,9 @@ final class SmokeUITests: XCTestCase {
     /// The in-app preview is not accepted as the widget.
     func testAddHomeScreenWidget() throws {
         app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        // WidgetKit often omits the extension from the gallery until the app has been open.
+        RunLoop.current.run(until: Date().addingTimeInterval(8))
         app.terminate()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         springboard.activate()
@@ -374,11 +377,16 @@ final class SmokeUITests: XCTestCase {
         let lower = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
         lower.press(forDuration: 0.05, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
         if springboard.cells.firstMatch.waitForExistence(timeout: 4) { return }
-        if springboard.buttons["Close"].exists {
-            springboard.buttons["Close"].tap()
+        _ = tapControl(springboard, labels: ["Close", "Done", "完成"], timeout: 2)
+        if springboard.buttons["Edit"].waitForExistence(timeout: 3) || springboard.buttons["编辑"].exists {
+            _ = tapControl(springboard, labels: ["Edit", "编辑"], timeout: 3)
+        } else {
+            let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+            wallpaper.press(forDuration: 1.2)
+            _ = tapControl(springboard, labels: ["Edit", "编辑"], timeout: 4)
         }
-        openWidgetGallery(springboard)
-        _ = springboard.cells.firstMatch.waitForExistence(timeout: 15)
+        _ = tapControl(springboard, labels: ["Add Widget", "添加小组件"], timeout: 6)
+        _ = springboard.cells.firstMatch.waitForExistence(timeout: 12)
     }
 
     private func searchForWidget(_ springboard: XCUIApplication, search: XCUIElement, query: String) {
