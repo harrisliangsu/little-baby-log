@@ -334,8 +334,8 @@ struct EventEditorView: View {
 
     private func save() {
         switch target {
-        case .new(let kind):
-            let event = LogEvent.create(kind: kind, for: baby, start: draft.startDate, in: context)
+        case .new, .seeded:
+            let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
         case .card, .seeded:
             let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)

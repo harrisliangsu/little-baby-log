@@ -62,13 +62,13 @@ struct CategoryTimelineView: View {
                     DatePicker(Copy.pickDate(language), selection: $pickedDay, displayedComponents: .date)
                 }
                 Text(totalLine)
+                    .font(.headline)
+                    .accessibilityIdentifier("timeline-total")
                 if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
                     Button(language == .zh ? "总结这段已显示的合计" : "Summarize these totals") {
                         showSummary = true
                     }
                 }
-                    .font(.headline)
-                    .accessibilityIdentifier("timeline-total")
             }
             .themedSection()
 
