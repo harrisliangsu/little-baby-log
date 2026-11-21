@@ -207,12 +207,9 @@ final class SmokeUITests: XCTestCase {
         return sum / Double(count)
     }
 
-    /// Adds the Home Screen widget through Springboard. A missing control fails the test.
+    /// Drives the iOS 26 edit menu that the wallpaper press already opened.
+    /// Edit, then Add Widget. A system widget is added and removed before 宝宝小记.
     /// The in-app preview is not accepted as the widget.
-    ///
-    /// A long-press on the icon opens a context menu, and on this simulator the
-    /// accessibility server then stops answering. Pressing empty wallpaper is the
-    /// path that enters edit mode without that menu.
     func testAddHomeScreenWidget() throws {
         app.launch()
         app.terminate()
@@ -220,38 +217,156 @@ final class SmokeUITests: XCTestCase {
         springboard.activate()
         let icon = springboard.icons["宝宝小记"]
         XCTAssertTrue(icon.waitForExistence(timeout: 15))
+
         let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
         wallpaper.press(forDuration: 1.2)
-        let addButton = springboard.descendants(matching: .any).matching(
-            NSPredicate(format: "label == 'Add Widget' OR label == '添加小组件' OR label == '+'")
-        ).firstMatch
-        let appeared = addButton.waitForExistence(timeout: 6)
-        let shotName = appeared ? "14-widget-gallery" : "14-widget-gallery-missing"
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = shotName
-        attachment.lifetime = .keepAlways
-        add(attachment)
-        guard appeared else {
-            XCTFail("Home Screen widget was not added. Edit mode did not show an add control. See \(shotName). Skipping is not a successful add, and the in-app preview is not the widget.")
+        let edit = requireControl(springboard, labels: ["Edit", "编辑"], shot: "14-edit-mode")
+        edit.tap()
+        let addGallery = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-edit-menu")
+        addGallery.tap()
+        shotSpringboard("14-widget-gallery")
+        attachTree("14-gallery-controls", springboard)
+
+        addGalleryWidget(springboard, query: "Calendar", choice: "Calendar")
+        shotSpringboard("15-system-widget")
+        removeOnlyTheTestWidget(springboard, name: "Calendar")
+        shotSpringboard("15-system-widget-removed")
+
+        openWidgetGallery(springboard)
+        addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记")
+        _ = tapControl(springboard, labels: ["Done", "完成"], timeout: 4)
+        let before = springboard.staticTexts.allElementsBoundByIndex.prefix(40).map(\.label).joined(separator: "\n")
+        attachTree("15-before-record", springboard)
+        shotSpringboard("15-home-screen-widget-before")
+
+        icon.tap()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        if app.textFields["baby-name"].waitForExistence(timeout: 4) {
+            let name = app.textFields["baby-name"]
+            name.tap()
+            name.typeText("Beibei")
+            app.buttons["start-tracking"].tap()
+        }
+        logFormula(millilitres: "120")
+        app.terminate()
+        springboard.activate()
+        let showedUpdate = waitForHomeLabel(springboard, containing: "120", timeout: 25)
+        let after = springboard.staticTexts.allElementsBoundByIndex.prefix(40).map(\.label).joined(separator: "\n")
+        attachText("15-widget-text-before", before)
+        attachText("15-widget-text-after", after)
+        shotSpringboard("15-home-screen-widget-after")
+        XCTAssertTrue(showedUpdate, "The Home Screen widget did not show the new 120 ml record. Before:\n\(before)\nAfter:\n\(after)")
+    }
+
+    private func openWidgetGallery(_ springboard: XCUIApplication) {
+        if springboard.buttons["Edit"].exists || springboard.buttons["编辑"].exists {
+            requireControl(springboard, labels: ["Edit", "编辑"], shot: "14-edit-mode-again").tap()
+        } else {
+            let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+            wallpaper.press(forDuration: 1.2)
+            requireControl(springboard, labels: ["Edit", "编辑"], shot: "14-edit-mode-again").tap()
+        }
+        requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-edit-menu-again").tap()
+    }
+
+    private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String) {
+        let search = springboard.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 8), "Widget gallery did not show a search field.\n\(visibleControls(springboard))")
+        search.tap()
+        search.typeText(query)
+        let cell = springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
+        let button = springboard.buttons.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
+        let match = cell.waitForExistence(timeout: 8) ? cell : button
+        XCTAssertTrue(match.waitForExistence(timeout: 4), "Gallery has no \(choice).\n\(visibleControls(springboard))")
+        match.tap()
+        let confirm = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-gallery-\(query)")
+        confirm.tap()
+    }
+
+    /// Removes only a widget whose own label names it. Other icons are left alone.
+    private func removeOnlyTheTestWidget(_ springboard: XCUIApplication, name: String) {
+        let remove = springboard.buttons.matching(NSPredicate(
+            format: "label CONTAINS %@ AND (label CONTAINS 'Remove' OR label CONTAINS 'Delete' OR label CONTAINS '移除' OR label CONTAINS '删除')",
+            name
+        )).firstMatch
+        guard remove.waitForExistence(timeout: 4) else {
+            attachTree("15-remove-not-named", springboard)
+            shotSpringboard("15-remove-not-named")
+            XCTFail("Refused to tap an unnamed delete control. No button both names \(name) and says remove.")
             return
         }
-        addButton.tap()
-        let search = springboard.searchFields.firstMatch
-        if search.waitForExistence(timeout: 4) {
-            search.tap()
-            search.typeText("宝宝小记")
+        remove.tap()
+        _ = tapControl(springboard, labels: ["Remove Widget", "Remove App", "移除小组件", "删除小组件"], timeout: 4)
+    }
+
+    private func requireControl(_ app: XCUIApplication, labels: [String], shot name: String) -> XCUIElement {
+        if let found = waitControl(app, labels: labels, timeout: 8) {
+            return found
         }
-        let choice = springboard.cells.matching(NSPredicate(format: "label CONTAINS '宝宝小记' OR label CONTAINS 'Little Baby Log'")).firstMatch
-        XCTAssertTrue(choice.waitForExistence(timeout: 8))
-        choice.tap()
-        let confirm = springboard.buttons["Add Widget"].exists ? springboard.buttons["Add Widget"] : springboard.buttons["添加小组件"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 6))
-        confirm.tap()
-        springboard.activate()
-        let placed = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        placed.name = "15-home-screen-widget"
-        placed.lifetime = .keepAlways
-        add(placed)
+        attachTree(name, app)
+        shotSpringboard(name)
+        XCTFail("Missing \(labels.joined(separator: " / ")).\n\(visibleControls(app))")
+        return app.buttons[labels[0]]
+    }
+
+    private func tapControl(_ app: XCUIApplication, labels: [String], timeout: TimeInterval) -> Bool {
+        guard let found = waitControl(app, labels: labels, timeout: timeout) else { return false }
+        found.tap()
+        return true
+    }
+
+    private func waitControl(_ app: XCUIApplication, labels: [String], timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            for label in labels {
+                let button = app.buttons[label]
+                if button.exists { return button }
+                let menu = app.menuItems[label]
+                if menu.exists { return menu }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        return nil
+    }
+
+    private func visibleControls(_ app: XCUIApplication) -> String {
+        func lines(_ query: XCUIElementQuery, _ kind: String) -> [String] {
+            query.allElementsBoundByIndex.prefix(40).compactMap { element in
+                let label = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !label.isEmpty else { return nil }
+                return "\(kind) \(label)"
+            }
+        }
+        return (lines(app.buttons, "button") + lines(app.menuItems, "menu") + lines(app.cells, "cell") + lines(app.searchFields, "search"))
+            .joined(separator: "\n")
+    }
+
+    private func attachTree(_ name: String, _ app: XCUIApplication) {
+        attachText(name, visibleControls(app))
+    }
+
+    private func attachText(_ name: String, _ body: String) {
+        let attachment = XCTAttachment(data: Data(body.utf8), uniformTypeIdentifier: "public.plain-text")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func shotSpringboard(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func waitForHomeLabel(_ app: XCUIApplication, containing needle: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        let query = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", needle))
+        while Date() < deadline {
+            if query.firstMatch.exists { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        return query.firstMatch.exists
     }
 
     /// Xcode 26 times out when the test runner launches the same app a second time

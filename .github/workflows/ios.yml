@@ -53,8 +53,12 @@ jobs:
             xcrun simctl list devices available
             exit 1
           fi
+          LINE=$(xcrun simctl list devices available | grep -F "$NAME (" | head -1)
+          UDID=$(printf '%s\n' "$LINE" | sed -E 's/.*\(([0-9A-Fa-f-]+)\).*/\1/')
+          test -n "$UDID"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "Using $NAME"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "Using $NAME $UDID"
 
       - name: Release compile for iOS Simulator
         run: |
@@ -79,6 +83,23 @@ jobs:
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Installed widget extension
+        if: always()
+        run: |
+          set -euo pipefail
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          CONTAINER=$(xcrun simctl get_app_container "$UDID" com.harrisliangsu.littlebabylog app)
+          APPEX="$CONTAINER/PlugIns/LittleBabyLogWidgets.appex"
+          test -d "$APPEX"
+          echo "Installed app: $CONTAINER"
+          plutil -p "$APPEX/Info.plist"
+          POINT=$(plutil -extract NSExtension.NSExtensionPointIdentifier raw -o - "$APPEX/Info.plist")
+          test "$POINT" = "com.apple.widgetkit-extension"
+          test -e "$APPEX/LittleBabyLogWidgets"
+          echo "Widget extension is inside the installed app and uses the WidgetKit extension point."
 
       - name: Export screenshots and logs
         if: always()
