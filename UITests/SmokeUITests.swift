@@ -345,17 +345,35 @@ final class SmokeUITests: XCTestCase {
     private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String, swipes: Int = 0) {
         let listed = springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
         if !listed.waitForExistence(timeout: 4) {
+            waitForGalleryEntries(springboard)
             let search = springboard.searchFields.firstMatch
             XCTAssertTrue(search.waitForExistence(timeout: 8), "Widget gallery did not show a search field.\n\(visibleControls(springboard))")
-            search.tap()
-            search.typeText(query)
-            _ = tapControl(springboard, labels: ["search", "Search", "搜索"], timeout: 2)
-            XCTAssertTrue(listed.waitForExistence(timeout: 8), "Gallery has no \(choice).\n\(visibleControls(springboard))")
+            searchForWidget(springboard, search: search, query: query)
+            if !listed.waitForExistence(timeout: 8) {
+                if springboard.buttons["Clear text"].exists { springboard.buttons["Clear text"].tap() }
+                searchForWidget(springboard, search: search, query: query)
+            }
+            XCTAssertTrue(listed.waitForExistence(timeout: 12), "Gallery has no \(choice).\n\(visibleControls(springboard))")
         }
         listed.tap()
         selectGallerySize(springboard, swipes: swipes)
         let confirm = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-gallery-\(query)")
         confirm.tap()
+    }
+
+    /// The gallery sheet can open before any widget is listed. Searching then stays on "No Results".
+    private func waitForGalleryEntries(_ springboard: XCUIApplication) {
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline {
+            if springboard.cells.firstMatch.exists { return }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        }
+    }
+
+    private func searchForWidget(_ springboard: XCUIApplication, search: XCUIElement, query: String) {
+        search.tap()
+        search.typeText(query)
+        _ = tapControl(springboard, labels: ["search", "Search", "搜索"], timeout: 2)
     }
 
     /// Small is the gallery's first page. Medium and large are the next pages, or a size button when one is exposed.
