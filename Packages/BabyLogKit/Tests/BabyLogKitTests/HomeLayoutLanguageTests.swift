@@ -66,8 +66,8 @@ struct CloudTogglePersistenceTests {
         do {
             let local = PersistenceController(
                 cloudKitContainerIdentifier: "iCloud.com.harrisliangsu.littlebabylog",
-                cloudSyncEnabled: false,
-                storeDirectory: dir
+                storeDirectory: dir,
+                cloudSyncEnabled: false
             )
             #expect(!local.isCloudSyncEnabled)
             let ctx = local.viewContext
@@ -82,8 +82,8 @@ struct CloudTogglePersistenceTests {
         }
         let again = PersistenceController(
             cloudKitContainerIdentifier: "iCloud.com.harrisliangsu.littlebabylog",
-            cloudSyncEnabled: false,
-            storeDirectory: dir
+            storeDirectory: dir,
+            cloudSyncEnabled: false
         )
         let babies = try again.viewContext.fetch(Baby.fetchRequest())
         #expect(babies.count == 1)
