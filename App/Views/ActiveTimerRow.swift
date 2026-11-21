@@ -5,6 +5,7 @@ import BabyLogKit
 struct ActiveTimerRow: View {
     @ObservedObject var event: LogEvent
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     let onWake: () -> Void
     let onOpen: () -> Void
 
@@ -15,7 +16,7 @@ struct ActiveTimerRow: View {
             KindIcon(kind: event.kind, size: 52)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(isNursing ? "Nursing" : "Sleeping")
+                Text(isNursing ? (language == .zh ? "亲喂" : "Nursing") : (language == .zh ? "睡眠中" : "Sleeping"))
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -33,7 +34,7 @@ struct ActiveTimerRow: View {
             Button {
                 if isNursing { onOpen() } else { onWake() }
             } label: {
-                Text(isNursing ? "Open" : "Wake up")
+                Text(isNursing ? (language == .zh ? "打开" : "Open") : (language == .zh ? "醒来" : "Wake up"))
                     .font(.headline)
                     .lineLimit(1)
                     .fixedSize()
@@ -63,12 +64,17 @@ struct ActiveTimerRow: View {
     private var subtitle: String {
         if isNursing {
             if let side = event.activeSide {
-                return "\(side.title) side running"
+                let name = side.title
+                return language == .zh ? "\(name)进行中" : "\(name) side running"
             }
-            return "Paused"
+            return language == .zh ? "已暂停" : "Paused"
         }
         if let start = event.startDate {
-            return "Since " + start.formatted(date: .omitted, time: .shortened)
+            let clock = start.formatted(
+                Date.FormatStyle(date: .omitted, time: .shortened)
+                    .locale(Locale(identifier: language == .zh ? "zh-Hans" : "en"))
+            )
+            return language == .zh ? "从 \(clock)" : "Since \(clock)"
         }
         return ""
     }

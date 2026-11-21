@@ -3,13 +3,14 @@ import SwiftUI
 
 struct WidgetPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.uiLanguage) private var language
     @State private var snapshot: WidgetSnapshot?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("这是主屏幕小组件读到的同一份记录，不是示例数据。")
+                    Text(language == .zh ? "这是主屏幕小组件读到的同一份记录，不是示例数据。" : "This is the same record the Home Screen widget reads. It is not sample data.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if let baby = snapshot?.babies.first {
@@ -24,11 +25,11 @@ struct WidgetPreviewSheet: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .navigationTitle("小组件")
+            .navigationTitle(language == .zh ? "小组件" : "Widget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(language == .zh ? "完成" : "Done") { dismiss() }
                         .accessibilityIdentifier("close-widget-preview")
                 }
             }

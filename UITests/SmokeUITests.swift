@@ -117,6 +117,10 @@ final class SmokeUITests: XCTestCase {
 
     /// Adds the Home Screen widget through Springboard. A missing control fails the test.
     /// The in-app preview is not accepted as the widget.
+    ///
+    /// A long-press on the icon opens a context menu, and on this simulator the
+    /// accessibility server then stops answering. Pressing empty wallpaper is the
+    /// path that enters edit mode without that menu.
     func testAddHomeScreenWidget() throws {
         app.launch()
         app.terminate()
@@ -124,35 +128,19 @@ final class SmokeUITests: XCTestCase {
         springboard.activate()
         let icon = springboard.icons["宝宝小记"]
         XCTAssertTrue(icon.waitForExistence(timeout: 15))
-        icon.press(forDuration: 1.3)
-        let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
-        wallpaper.press(forDuration: 1.4)
-        let menuLabels = ["Edit Home Screen", "编辑主屏幕"]
-        for label in menuLabels {
-            if springboard.buttons[label].waitForExistence(timeout: 1) {
-                springboard.buttons[label].tap()
-                break
-            }
-            if springboard.menuItems[label].waitForExistence(timeout: 1) {
-                springboard.menuItems[label].tap()
-                break
-            }
-        }
-        let addLabels = ["Add Widget", "Add", "添加小组件", "添加"]
-        var addButton = springboard.buttons["Add Widget"]
-        for label in addLabels where springboard.buttons[label].exists {
-            addButton = springboard.buttons[label]
-            break
-        }
-        let seen = springboard.buttons.allElementsBoundByIndex.prefix(20).map(\.label).filter { !$0.isEmpty }.joined(separator: " | ")
-        let shotName = addButton.waitForExistence(timeout: 4) ? "14-widget-gallery" : "14-widget-gallery-missing"
+        let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+        wallpaper.press(forDuration: 1.2)
+        let addButton = springboard.descendants(matching: .any).matching(
+            NSPredicate(format: "label == 'Add Widget' OR label == '添加小组件' OR label == '+'")
+        ).firstMatch
+        let appeared = addButton.waitForExistence(timeout: 6)
+        let shotName = appeared ? "14-widget-gallery" : "14-widget-gallery-missing"
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = shotName
         attachment.lifetime = .keepAlways
         add(attachment)
-        let menus = springboard.menuItems.allElementsBoundByIndex.prefix(12).map(\.label).filter { !$0.isEmpty }.joined(separator: " | ")
-        guard addButton.waitForExistence(timeout: 2) else {
-            XCTFail("Home Screen widget was not added. Springboard buttons: \(seen). Menus: \(menus). See \(shotName). Skipping is not a successful add, and the in-app preview is not the widget.")
+        guard appeared else {
+            XCTFail("Home Screen widget was not added. Edit mode did not show an add control. See \(shotName). Skipping is not a successful add, and the in-app preview is not the widget.")
             return
         }
         addButton.tap()
