@@ -58,6 +58,8 @@ public enum BabyLogModel {
             attribute("headCm", .doubleAttributeType, default: 0.0),
             attribute("medicineName", .stringAttributeType),
             attribute("dose", .stringAttributeType),
+            attribute("importBatchID", .UUIDAttributeType),
+            attribute("externalID", .stringAttributeType),
         ]
 
         let events = NSRelationshipDescription()
