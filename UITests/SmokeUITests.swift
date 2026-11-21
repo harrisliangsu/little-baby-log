@@ -239,7 +239,10 @@ final class SmokeUITests: XCTestCase {
         attachTree("15-before-record", springboard)
         shotSpringboard("15-home-screen-widget-before")
 
-        icon.tap()
+        let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记")).allElementsBoundByIndex
+        let appIcon = named.filter { $0.frame.width < 120 }.first ?? named.first
+        XCTAssertNotNil(appIcon, "The app icon was not separate from the widget.")
+        appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
         if app.textFields["baby-name"].waitForExistence(timeout: 4) {
             let name = app.textFields["baby-name"]
