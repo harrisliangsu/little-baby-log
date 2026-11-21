@@ -7,6 +7,8 @@ enum EditorTarget: Identifiable {
     case edit(LogEvent)
     /// A widget tap. The draft is empty until Save. Home-card history uses a different screen.
     case card(HomeCard)
+    /// An AI or import draft. Nothing is written until Save.
+    case seeded(EventDraft)
 
     var id: String {
         switch self {
@@ -16,6 +18,8 @@ enum EditorTarget: Identifiable {
             return "edit-" + event.objectID.uriRepresentation().absoluteString
         case .card(let card):
             return "card-" + card.rawValue
+        case .seeded(let draft):
+            return "seed-" + draft.kind.rawValue + "-" + String(draft.startDate.timeIntervalSince1970)
         }
     }
 
@@ -50,6 +54,8 @@ struct EventEditorView: View {
             _draft = State(initialValue: EventDraft(event: event))
         case .card(let card):
             _draft = State(initialValue: EventDraft(card: card))
+        case .seeded(let draft):
+            _draft = State(initialValue: draft)
         }
     }
 
@@ -331,7 +337,7 @@ struct EventEditorView: View {
         case .new(let kind):
             let event = LogEvent.create(kind: kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
-        case .card:
+        case .card, .seeded:
             let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
         case .edit(let event):

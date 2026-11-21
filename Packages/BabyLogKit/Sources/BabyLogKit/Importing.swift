@@ -144,6 +144,45 @@ public enum StandardImporter {
         "medicine", "dose", "notes",
     ]
 
+    /// Reads headers and cells without requiring the standard schema. Used to build a mapping preview.
+    public static func rawTable(data: Data) -> (headers: [String], rows: [[String: String]])? {
+        guard var text = String(data: data, encoding: .utf8) else { return nil }
+        if text.hasPrefix("\u{feff}") { text.removeFirst() }
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") { return nil }
+        var lines = splitLines(text)
+        if lines.first?.hasPrefix("#") == true { lines.removeFirst() }
+        guard let headerLine = lines.first else { return nil }
+        let headers = parseCSVLine(headerLine)
+        let rows = lines.dropFirst().compactMap { line -> [String: String]? in
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
+            let cells = parseCSVLine(line)
+            var dict: [String: String] = [:]
+            for (index, name) in headers.enumerated() where index < cells.count {
+                dict[name] = cells[index]
+            }
+            return dict
+        }
+        return (headers, rows)
+    }
+
+    /// Builds a schema-1 CSV from a column mapping. Unmapped sources are dropped. Nothing is written to the store.
+    public static func schemaCSV(headers: [String], rows: [[String: String]], mappings: [ColumnMapping]) -> Data {
+        let bySource = Dictionary(uniqueKeysWithValues: mappings.compactMap { mapping -> (String, String)? in
+            guard let target = mapping.target else { return nil }
+            return (mapping.source, target)
+        })
+        var lines = ["# littlebabylog.import 1", columns.joined(separator: ",")]
+        for row in rows {
+            var values: [String: String] = [:]
+            for (source, cell) in row {
+                if let target = bySource[source] { values[target] = cell }
+            }
+            if values["schemaVersion"] == nil { values["schemaVersion"] = "1" }
+            lines.append(columns.map { field($0, values[$0] ?? "") }.joined(separator: ","))
+        }
+        return Data(lines.joined(separator: "\n").utf8)
+    }
+
     public static func parse(data: Data) -> ImportFile {
         guard var text = String(data: data, encoding: .utf8) else {
             return ImportFile(rows: [], fileProblems: [.badEncoding])
@@ -353,6 +392,13 @@ public enum StandardImporter {
         }
         if !current.isEmpty { lines.append(current) }
         return lines
+    }
+
+    private static func field(_ name: String, _ value: String) -> String {
+        if value.contains(",") || value.contains("\"") || value.contains("\n") {
+            return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        return value
     }
 
     private static func parseCSVLine(_ line: String) -> [String] {

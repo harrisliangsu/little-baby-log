@@ -6,7 +6,7 @@ struct AIPhraseSheet: View {
     var task: AITask
     var seed: String
     var names: [String]
-    var onRecordKind: ((EventKind) -> Void)?
+    var onRecord: ((RecordDraftSuggestion) -> Void)?
     var onReminder: ((CareRule) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -14,14 +14,14 @@ struct AIPhraseSheet: View {
     @State private var sentence: String
     @State private var consent: AISendPreview?
     @State private var result = ""
-    @State private var pendingKind: EventKind?
+    @State private var pendingRecord: RecordDraftSuggestion?
     @State private var pendingRule: CareRule?
 
-    init(task: AITask, seed: String, names: [String], onRecordKind: ((EventKind) -> Void)? = nil, onReminder: ((CareRule) -> Void)? = nil) {
+    init(task: AITask, seed: String, names: [String], onRecord: ((RecordDraftSuggestion) -> Void)? = nil, onReminder: ((CareRule) -> Void)? = nil) {
         self.task = task
         self.seed = seed
         self.names = names
-        self.onRecordKind = onRecordKind
+        self.onRecord = onRecord
         self.onReminder = onReminder
         _sentence = State(initialValue: seed)
     }
@@ -45,14 +45,14 @@ struct AIPhraseSheet: View {
                 if !result.isEmpty {
                     Text(result).font(.footnote)
                 }
-                if let pendingKind {
-                    Button(language == .zh ? "打开编辑器再保存" : "Open the editor, then save") {
-                        onRecordKind?(pendingKind)
+                if let pendingRecord {
+                    Button(language == .zh ? "在记录表单里检查" : "Review in the entry form") {
+                        onRecord?(pendingRecord)
                         dismiss()
                     }
                 }
                 if pendingRule != nil {
-                    Button(language == .zh ? "加到提醒列表" : "Add to reminders") {
+                    Button(language == .zh ? "在提醒表单里检查" : "Review in the reminder form") {
                         if let pendingRule { onReminder?(pendingRule) }
                         dismiss()
                     }
@@ -98,11 +98,11 @@ struct AIPhraseSheet: View {
             switch task {
             case .recordDraft:
                 let draft = try AIProposalDecoder.record(from: data)
-                if let kind = draft.kind.flatMap(EventKind.init(rawValue:)) {
-                    pendingKind = kind
-                    result = language == .zh ? "建议类型：\(kind.rawValue)。时间若为空，编辑器里自己填，不会替你编一个。" : "Suggested type: \(kind.rawValue). If the time is empty, fill it yourself."
+                if draft.kind.flatMap(EventKind.init(rawValue:)) != nil {
+                    pendingRecord = draft
+                    result = language == .zh ? "已得到一条可编辑的记录建议。打开表单后才会保存。" : "There is an editable record suggestion. It is saved only from the form."
                 } else {
-                    result = language == .zh ? "没有可用的类型，没有打开编辑器。" : "No usable type, so the editor stays closed."
+                    result = language == .zh ? "没有可用的类型，没有打开表单。" : "No usable type, so the form stays closed."
                 }
             case .reminderDraft:
                 let draft = try AIProposalDecoder.reminder(from: data)

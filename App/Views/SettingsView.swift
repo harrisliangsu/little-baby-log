@@ -94,10 +94,10 @@ struct SettingsView: View {
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else { return }
-            importRequest = ImportRequest(file: StandardImporter.parse(data: data))
+            importRequest = ImportRequest(file: StandardImporter.parse(data: data), source: data)
         }
         .sheet(item: $importRequest) { request in
-            ImportPreviewSheet(file: request.file) { batch in
+            ImportPreviewSheet(file: request.file, source: request.source) { batch in
                 lastImportBatch = batch.uuidString
             }
         }

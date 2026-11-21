@@ -96,6 +96,18 @@ public struct RecordDraftSuggestion: Codable, Equatable, Sendable {
     public var start: String?
     public var amountML: Double?
     public var note: String?
+
+    /// A form the person can still edit. Missing times stay empty rather than being invented.
+    public func eventDraft() -> EventDraft {
+        let kind = EventKind(rawValue: self.kind ?? "") ?? .bottle
+        var draft = EventDraft(kind: kind)
+        if let start, let date = ISO8601DateFormatter().date(from: start) {
+            draft.startDate = date
+        }
+        if let amountML { draft.amountML = amountML }
+        if let note { draft.notes = note }
+        return draft
+    }
 }
 
 public struct ReminderDraftSuggestion: Codable, Equatable, Sendable {

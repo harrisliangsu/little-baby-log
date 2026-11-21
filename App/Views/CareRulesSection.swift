@@ -63,7 +63,7 @@ struct CareRulesBabySection: View {
         }
         .sheet(isPresented: $showAIDraft) {
             AIPhraseSheet(task: .reminderDraft, seed: "", names: [babyName], onReminder: { rule in
-                settings.rules.append(rule)
+                draft = rule
             })
         }
         .sheet(item: $draft) { rule in

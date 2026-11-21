@@ -31,7 +31,7 @@ struct AIAssistTests {
         #expect(sample.text.components(separatedBy: "\n").filter { $0.contains("|") }.count == 8)
     }
 
-    @Test func badModelOutputIsNotAMapping() {
+    @Test func badModelOutputIsNotAMapping() throws {
         do {
             _ = try AIProposalDecoder.columns(from: Data("not json".utf8))
             Issue.record("garbage should not decode")
@@ -44,6 +44,22 @@ struct AIAssistTests {
         let columns = try? AIProposalDecoder.columns(from: mixed)
         #expect(columns?.first?.target == "start")
         #expect(columns?.last?.target == nil)
+        let csv = Data("时间,宝宝,毫升\n2026-03-10T09:00:00Z,Ada,40\n".utf8)
+        let table = try #require(StandardImporter.rawTable(data: csv))
+        let rebuilt = StandardImporter.schemaCSV(
+            headers: table.headers,
+            rows: table.rows,
+            mappings: [
+                ColumnMapping(source: "时间", target: "start"),
+                ColumnMapping(source: "宝宝", target: "babyName"),
+                ColumnMapping(source: "毫升", target: "amountML"),
+                ColumnMapping(source: "备注", target: nil),
+            ]
+        )
+        let file = StandardImporter.parse(data: rebuilt)
+        #expect(file.rows.first?.field.babyName == "Ada")
+        #expect(file.rows.first?.field.amountML == 40)
+        #expect(file.rows.first?.field.start != nil)
     }
 
     @Test func sendRequiresTheExactApprovedPreview() async throws {

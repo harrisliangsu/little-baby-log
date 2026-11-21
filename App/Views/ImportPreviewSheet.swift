@@ -5,12 +5,20 @@ import BabyLogKit
 struct ImportRequest: Identifiable {
     let id = UUID()
     let file: ImportFile
+    let source: Data
 }
 
 /// Preview for a schema-1 file. Nothing is written until the person confirms.
 struct ImportPreviewSheet: View {
-    let file: ImportFile
+    @State private var file: ImportFile
+    let source: Data
     var onCommitted: (UUID) -> Void
+
+    init(file: ImportFile, source: Data, onCommitted: @escaping (UUID) -> Void) {
+        _file = State(initialValue: file)
+        self.source = source
+        self.onCommitted = onCommitted
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
@@ -155,6 +163,10 @@ struct ImportPreviewSheet: View {
             )
             let columns = try AIProposalDecoder.columns(from: data)
             mappingText = columns.map { "\($0.source) → \($0.target ?? "—")" }.joined(separator: "\n")
+            if let table = StandardImporter.rawTable(data: source) {
+                let rebuilt = StandardImporter.schemaCSV(headers: table.headers, rows: table.rows, mappings: columns)
+                file = StandardImporter.parse(data: rebuilt)
+            }
             if mappingText.isEmpty { mappingText = language == .zh ? "没有可用的列对应" : "No column mapping" }
         } catch {
             errorText = language == .zh ? "AI 没有返回可用的列对应" : "The assistant did not return a usable mapping"

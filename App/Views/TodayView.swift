@@ -146,8 +146,8 @@ struct TodayView: View {
             }
         }
         .sheet(isPresented: $showAIDraft) {
-            AIPhraseSheet(task: .recordDraft, seed: "", names: [baby.displayName], onRecordKind: { kind in
-                editor = .new(kind)
+            AIPhraseSheet(task: .recordDraft, seed: "", names: [baby.displayName], onRecord: { suggestion in
+                editor = .seeded(suggestion.eventDraft())
             })
         }
         .sheet(isPresented: $showWidgetPreview) {
