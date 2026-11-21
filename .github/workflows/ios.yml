@@ -88,10 +88,15 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          UDID="${{ steps.sim.outputs.udid }}"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          CONTAINER=$(xcrun simctl get_app_container "$UDID" com.harrisliangsu.littlebabylog app)
+          CONTAINER=""
+          while read -r UDID; do
+            if FOUND=$(xcrun simctl get_app_container "$UDID" com.harrisliangsu.littlebabylog app 2>/dev/null); then
+              CONTAINER="$FOUND"
+              echo "Installed on $UDID"
+              break
+            fi
+          done < <(xcrun simctl list devices | sed -nE 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/p')
+          test -n "$CONTAINER"
           APPEX="$CONTAINER/PlugIns/LittleBabyLogWidgets.appex"
           test -d "$APPEX"
           echo "Installed app: $CONTAINER"

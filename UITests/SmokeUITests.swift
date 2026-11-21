@@ -319,9 +319,9 @@ final class SmokeUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             for label in labels {
-                let button = app.buttons[label]
+                let button = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
                 if button.exists { return button }
-                let menu = app.menuItems[label]
+                let menu = app.menuItems.matching(NSPredicate(format: "label == %@", label)).firstMatch
                 if menu.exists { return menu }
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
