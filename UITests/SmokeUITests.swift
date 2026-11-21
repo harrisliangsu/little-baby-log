@@ -27,16 +27,16 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(formula.label.contains("还没有"))
         shot("02-empty-cards")
 
-        app.buttons["show-widget-preview"].tap()
+        openWidgetPreview()
         let emptyWidget = element("widget-summary")
         XCTAssertTrue(emptyWidget.waitForExistence(timeout: 8))
         XCTAssertTrue(emptyWidget.label.contains("还没有记录") || emptyWidget.label.contains("奶粉0次"))
         let emptyFace = element("widget-face-small")
         XCTAssertTrue(emptyFace.waitForExistence(timeout: 4))
         XCTAssertTrue(emptyFace.label.contains("还没有"))
-        assertPreviewChrome(title: "小组件", note: "同一份记录", done: "完成")
+        assertPreviewChrome(title: "小组件", done: "完成")
         shot("03-widget-empty")
-        app.buttons["close-widget-preview"].tap()
+        closeWidgetPreview()
 
         logFormula(millilitres: "120")
         tap("add-wet")
@@ -49,7 +49,7 @@ final class SmokeUITests: XCTestCase {
 
         XCTAssertTrue(formula.label.contains("1次"))
         XCTAssertTrue(formula.label.contains("120"))
-        XCTAssertTrue(formula.label.contains("24小时"))
+        XCTAssertTrue(formula.label.contains("今日"))
         XCTAssertTrue(element("summary-wet").label.contains("1次"))
         XCTAssertTrue(element("summary-dirty").label.contains("1次"))
         XCTAssertTrue(element("summary-change").label.contains("1次"))
@@ -57,7 +57,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(element("summary-breast").label.contains("1次"))
         shot("04-after-logging")
 
-        app.buttons["show-widget-preview"].tap()
+        openWidgetPreview()
         let widget = element("widget-summary")
         XCTAssertTrue(widget.waitForExistence(timeout: 8))
         XCTAssertTrue(widget.label.contains("奶粉1次"))
@@ -79,7 +79,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertFalse(sized.label.contains("…"))
         XCTAssertFalse(sized.label.contains("formula"))
         shot("05-widget-filled")
-        app.buttons["close-widget-preview"].tap()
+        closeWidgetPreview()
 
         relaunchFromHomeScreen()
 
@@ -90,13 +90,13 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(element("summary-sleep").label.contains("1次"))
         shot("06-after-relaunch")
 
-        app.buttons["show-widget-preview"].tap()
+        openWidgetPreview()
         let again = element("widget-summary")
         XCTAssertTrue(again.waitForExistence(timeout: 8))
         XCTAssertTrue(again.label.contains("奶粉1次"))
         XCTAssertTrue(again.label.contains("120"))
         shot("07-widget-after-relaunch")
-        app.buttons["close-widget-preview"].tap()
+        closeWidgetPreview()
 
         app.buttons["summary-formula"].tap()
         let total = element("timeline-total")
@@ -125,11 +125,8 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(englishHome.waitForExistence(timeout: 6))
         XCTAssertTrue(englishHome.label.contains("Formula") || englishHome.label.contains("Last"))
         assertEnglishClock()
-        let summary = element("home-compact-summary")
-        XCTAssertTrue(summary.waitForExistence(timeout: 4))
-        XCTAssertTrue(summary.label.contains("Formula"))
         captureCheckedAppearance("light", name: "16-english-home")
-        app.buttons["show-widget-preview"].tap()
+        openWidgetPreview()
         let englishWidget = element("widget-summary")
         XCTAssertTrue(englishWidget.waitForExistence(timeout: 8))
         XCTAssertTrue(englishWidget.label.contains("Formula") || englishWidget.label.contains("Last feed"))
@@ -138,9 +135,9 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(englishFace.label.contains("Formula") || englishFace.label.contains("Since last"))
         XCTAssertFalse(englishFace.label.contains("奶粉"))
         XCTAssertFalse(englishFace.label.contains("距上次"))
-        assertPreviewChrome(title: "Widget", note: "same record", done: "Done")
+        assertPreviewChrome(title: "Widget", done: "Done")
         shot("18-english-widget")
-        app.buttons["close-widget-preview"].tap()
+        closeWidgetPreview()
         requireAppearance("dark", settingsTab: "Settings", homeTab: "Today", name: "17-english-dark")
         assertEnglishClock()
     }
@@ -148,12 +145,17 @@ final class SmokeUITests: XCTestCase {
     /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
     private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
         app.tabBars.buttons[settingsTab].tap()
+        // Settings keeps its scroll offset. The widget preview sits below appearance, so start at the top.
+        for _ in 0..<4 { app.swipeDown() }
         let option = appearanceControl(expected, chinese: settingsTab == "设置")
-        for _ in 0..<5 where !option.exists {
+        for _ in 0..<8 where !option.isHittable {
             app.swipeUp()
         }
         XCTAssertTrue(option.waitForExistence(timeout: 4), "Appearance option \(expected) was not on screen")
         option.tap()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
+        XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
         app.tabBars.buttons[homeTab].tap()
         captureCheckedAppearance(expected, name: name)
     }
@@ -195,10 +197,8 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(since.label.contains("AM") || since.label.contains("PM"))
     }
 
-    private func assertPreviewChrome(title: String, note: String, done: String) {
+    private func assertPreviewChrome(title: String, done: String) {
         XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 4) || app.navigationBars[title].exists)
-        let noteElement = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", note)).firstMatch
-        XCTAssertTrue(noteElement.waitForExistence(timeout: 4))
         XCTAssertTrue(app.buttons[done].waitForExistence(timeout: 4))
     }
 
@@ -655,6 +655,24 @@ final class SmokeUITests: XCTestCase {
             app.swipeUp()
         }
         done.tap()
+    }
+
+    private func openWidgetPreview() {
+        let settings = app.tabBars.buttons["设置"].exists ? app.tabBars.buttons["设置"] : app.tabBars.buttons["Settings"]
+        settings.tap()
+        let button = app.buttons["show-widget-preview"]
+        for _ in 0..<5 where !button.exists { app.swipeUp() }
+        XCTAssertTrue(button.waitForExistence(timeout: 4))
+        button.tap()
+    }
+
+    private func closeWidgetPreview() {
+        app.buttons["close-widget-preview"].tap()
+        if app.tabBars.buttons["今天"].exists {
+            app.tabBars.buttons["今天"].tap()
+        } else if app.tabBars.buttons["Today"].waitForExistence(timeout: 2) {
+            app.tabBars.buttons["Today"].tap()
+        }
     }
 
     private func shot(_ name: String) {

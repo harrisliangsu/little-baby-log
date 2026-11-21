@@ -116,7 +116,7 @@ private struct HistoryListView: View {
                             Button(role: .destructive) {
                                 delete(event)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label(UICopy.t(.delete, language), systemImage: "trash")
                             }
                         }
                     }
@@ -153,7 +153,7 @@ private struct HistoryListView: View {
         if let filter {
             return UICopy.kind(filter, language)
         }
-        return UICopy.t(.everythingShows, language)
+        return ""
     }
 
     private var filterMenu: some View {
@@ -184,7 +184,7 @@ private struct HistoryListView: View {
         } label: {
             Image(systemName: "plus")
         }
-        .accessibilityLabel("Log a past entry")
+        .accessibilityLabel(language == .zh ? "补记一条" : "Log a past entry")
     }
 
     private func open(_ event: LogEvent) {
@@ -203,6 +203,7 @@ private struct HistoryListView: View {
 
 private struct DayHeader: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     let day: Date
     let events: [LogEvent]
@@ -223,8 +224,8 @@ private struct DayHeader: View {
 
     private var title: String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(day) { return "Today" }
-        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        if calendar.isDateInToday(day) { return Copy.today(language) }
+        if calendar.isDateInYesterday(day) { return Copy.yesterday(language) }
         return day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
 
@@ -233,18 +234,18 @@ private struct DayHeader: View {
         let summary = DaySummary(events: events, interval: DateInterval(start: day, end: end))
         var parts: [String] = []
         if summary.sleep > 0 {
-            parts.append("Sleep " + DurationFormat.short(summary.sleep))
+            parts.append((language == .zh ? "睡眠 " : "Sleep ") + DurationFormat.short(summary.sleep))
         }
         if summary.feedCount > 0 {
-            parts.append(summary.feedCount == 1 ? "1 feed" : "\(summary.feedCount) feeds")
+            parts.append(language == .zh ? "\(summary.feedCount)次喂奶" : (summary.feedCount == 1 ? "1 feed" : "\(summary.feedCount) feeds"))
         }
         if summary.diaperCount > 0 {
-            parts.append(summary.diaperCount == 1 ? "1 diaper" : "\(summary.diaperCount) diapers")
+            parts.append(language == .zh ? "\(summary.diaperCount)次尿布" : (summary.diaperCount == 1 ? "1 diaper" : "\(summary.diaperCount) diapers"))
         }
         if summary.pumpML > 0 {
-            parts.append(volumeUnit.format(milliliters: summary.pumpML) + " pumped")
+            parts.append(volumeUnit.format(milliliters: summary.pumpML) + (language == .zh ? " 吸奶" : " pumped"))
         }
-        return parts.isEmpty ? "No sleep, feeds or diapers" : parts.joined(separator: " · ")
+        return parts.isEmpty ? (language == .zh ? "没有睡眠、喂奶或尿布" : "No sleep, feeds or diapers") : parts.joined(separator: " · ")
     }
 }
 

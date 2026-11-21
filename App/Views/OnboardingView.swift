@@ -31,10 +31,6 @@ struct OnboardingView: View {
                     Text(UICopy.t(.welcome, language))
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
-                    Text(UICopy.t(.welcomeBody, language))
-                        .font(.body)
-                        .foregroundStyle(theme.secondary)
-                        .multilineTextAlignment(.center)
                 }
                 .padding(.top, 32)
 
@@ -72,11 +68,6 @@ struct OnboardingView: View {
                 .controlSize(.large)
                 .disabled(trimmedName.isEmpty)
                 .accessibilityIdentifier("start-tracking")
-
-                Text(UICopy.t(.inviteFootnote, language))
-                    .font(.footnote)
-                    .foregroundStyle(theme.secondary)
-                    .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)

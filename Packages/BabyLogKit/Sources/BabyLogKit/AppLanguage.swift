@@ -237,8 +237,8 @@ public enum Copy {
 
     public static func waterFootnote(_ language: ResolvedLanguage) -> String {
         language == .zh
-            ? "「喝水」是提醒照护者自己，不是给宝宝的喝水建议，也不是医学意见。"
-            : "“Drink water” reminds the caregiver, not the baby. It is not a feeding or medical recommendation."
+            ? "提醒照顾者。不是给宝宝，也不是医学意见。"
+            : "For the caregiver. Not for the baby, and not medical advice."
     }
 
     public static func widgetLine(_ title: String, _ window: CareRollup.Window, _ language: ResolvedLanguage) -> String {
@@ -263,9 +263,7 @@ public enum Copy {
     }
 
     public static func deviceReminders(_ language: ResolvedLanguage) -> String {
-        language == .zh
-            ? "提醒只保存在这台设备上，不会通过 iCloud 同步，所以另一台手机不会跟着响。系统最多大约排 60 条，多个宝宝会轮流占用。"
-            : "Reminders stay on this device and are not synced through iCloud, so another phone does not ring too. The system holds about 60 pending alerts, shared across babies."
+        language == .zh ? "只在这台手机上。" : "On this phone only."
     }
 
     public static func sinceLast(_ language: ResolvedLanguage) -> String {
@@ -308,7 +306,7 @@ public enum Copy {
     }
 
     public static func pickWidgetItems(_ language: ResolvedLanguage) -> String {
-        language == .zh ? "在编辑小组件里选择要显示的项目" : "Choose items in Edit Widget"
+        language == .zh ? "选择项目" : "Choose items"
     }
 
     public static func widgetSeparate(_ language: ResolvedLanguage) -> String {

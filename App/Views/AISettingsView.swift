@@ -40,9 +40,7 @@ struct AISettingsView: View {
                 AIKeyStore.delete(provider: provider)
                 savedHint = ""
             }
-            Text(language == .zh
-                 ? "Key 只在这台手机的钥匙串里，不同步到 iCloud。没有 Key 时，记录、同步和标准导入都照常可用。这里不会自动上传记录。"
-                 : "The key stays in this phone's Keychain and is not synced. Records, sync, and standard import work with no key. Nothing is uploaded from this screen automatically.")
+            Text(language == .zh ? "Key 只在这台手机，不同步。" : "The key stays on this phone.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if !message.isEmpty {

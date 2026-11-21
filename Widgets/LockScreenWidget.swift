@@ -7,8 +7,8 @@ struct LockScreenWidget: Widget {
         AppIntentConfiguration(kind: "LockScreenWidget", intent: SelectBabyIntent.self, provider: BabyTimelineProvider()) { entry in
             LockScreenWidgetView(entry: entry)
         }
-        .configurationDisplayName("Last Feed")
-        .description("Time since the last feed and the next side, or the live nursing clock.")
+        .configurationDisplayName("喂奶")
+        .description("最近一次喂奶，或正在进行的亲喂。")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -22,12 +22,12 @@ struct LockScreenWidgetView: View {
             if let baby = entry.baby {
                 switch family {
                 case .accessoryCircular: Circular(baby: baby)
-                case .accessoryInline: Inline(baby: baby)
-                default: Rectangular(baby: baby)
+                case .accessoryInline: Inline(baby: baby, language: entry.language)
+                default: Rectangular(baby: baby, language: entry.language)
                 }
             } else {
                 switch family {
-                case .accessoryInline: Text(entry.language == .zh ? Zh.emptyBaby : "Add a baby")
+                case .accessoryInline: Text(entry.language == .zh ? "添加宝宝" : "Add a baby")
                 default:
                     VStack(spacing: 2) {
                         Image(systemName: "heart.fill")
@@ -77,6 +77,7 @@ private struct Circular: View {
 
 private struct Rectangular: View {
     let baby: WidgetSnapshot.BabySummary
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -84,7 +85,7 @@ private struct Rectangular: View {
                 let values = NursingValues(nursing)
                 HStack(spacing: 4) {
                     Image(systemName: "heart.fill").widgetAccentable()
-                    Text(values.activeSide.map { "Nursing \($0.shortLabel)" } ?? "Nursing paused")
+                    Text(values.activeSide.map { language == .zh ? "亲喂 \(UICopy.side($0, .zh))" : "Nursing \($0.shortLabel)" } ?? (language == .zh ? "亲喂暂停" : "Nursing paused"))
                         .fontWeight(.semibold)
                 }
                 .font(.headline)
@@ -93,7 +94,7 @@ private struct Rectangular: View {
                 HStack(spacing: 4) {
                     ForEach(BreastSide.allCases) { side in
                         HStack(spacing: 3) {
-                            Text(side.shortLabel)
+                            Text(language == .zh ? UICopy.side(side, .zh) : side.shortLabel)
                             NursingSideClock(values: values, side: side)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,12 +107,12 @@ private struct Rectangular: View {
                     Text(baby.name).fontWeight(.semibold).lineLimit(1)
                 }
                 .font(.headline)
-                Text("Fed \(Elapsed.since(feed.referenceDate)) ago")
+                (Text(language == .zh ? "" : "Fed ") + Elapsed.since(feed.referenceDate) + Text(language == .zh ? "前" : " ago"))
                     .font(.system(.subheadline, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 if let side = baby.nextSide {
-                    Text("Next: \(side.title)")
+                    Text(language == .zh ? UICopy.side(side, .zh) : side.title)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if !feed.detail.isEmpty {
@@ -122,7 +123,7 @@ private struct Rectangular: View {
                 }
             } else {
                 Text(baby.name).font(.headline)
-                Text("还没有喂奶").font(.subheadline)
+                Text(language == .zh ? "还没有喂奶" : "No feed yet").font(.subheadline)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -131,23 +132,27 @@ private struct Rectangular: View {
 
 private struct Inline: View {
     let baby: WidgetSnapshot.BabySummary
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         if let nursing = baby.runningNursing {
             let values = NursingValues(nursing)
+            let side = values.activeSide.map { language == .zh ? UICopy.side($0, .zh) : $0.shortLabel } ?? (language == .zh ? "暂停" : "paused")
+            let name = language == .zh ? "亲喂" : "Nursing"
             Label {
-                Text("Nursing \(values.activeSide?.shortLabel ?? "paused") \(values.totalText)")
+                Text("\(name) \(side) \(values.totalText)")
             } icon: {
                 Image(systemName: "heart.fill")
             }
         } else if let feed = baby.lastFeed {
+            let side = baby.nextSide.map { language == .zh ? " · \(UICopy.side($0, .zh))" : " · \($0.shortLabel)" } ?? ""
             Label {
-                Text("Fed \(Elapsed.since(feed.referenceDate)) ago\(baby.nextSide.map { " · next \($0.shortLabel)" } ?? "")")
+                Text(language == .zh ? "" : "Fed ") + Elapsed.since(feed.referenceDate) + Text((language == .zh ? "前" : " ago") + side)
             } icon: {
                 Image(systemName: "heart.fill")
             }
         } else {
-            Text("还没有喂奶")
+            Text(language == .zh ? "还没有喂奶" : "No feed yet")
         }
     }
 }

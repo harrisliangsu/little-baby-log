@@ -40,16 +40,14 @@ struct BabyFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Name", text: $name)
+                    TextField(UICopy.t(.babyName, language), text: $name)
                         .textInputAutocapitalization(.words)
                     DatePicker(
-                        "Birthday",
+                        UICopy.t(.birthday, language),
                         selection: $birthDate,
                         in: ...latestBirthDate,
                         displayedComponents: .date
                     )
-                } footer: {
-                    Text(UICopy.t(.notBorn, language))
                 }
                 .themedSection()
 
@@ -65,25 +63,29 @@ struct BabyFormView: View {
                 }
             }
             .themedList()
-            .navigationTitle(baby == nil ? "Add a baby" : "Edit baby")
+            .navigationTitle(baby == nil
+                ? (language == .zh ? "添加宝宝" : "Add a baby")
+                : (language == .zh ? "编辑宝宝" : "Edit baby"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(UICopy.t(.cancel, language)) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button(UICopy.t(.save, language)) { save() }
                         .fontWeight(.semibold)
                         .disabled(trimmedName.isEmpty)
                 }
             }
             .confirmationDialog(
-                "Delete \(baby?.displayName ?? "this baby")?",
+                language == .zh
+                    ? "删除\(baby?.displayName ?? "这个宝宝")？"
+                    : "Delete \(baby?.displayName ?? "this baby")?",
                 isPresented: $confirmDelete,
                 titleVisibility: .visible
             ) {
-                Button("Delete everything", role: .destructive) { deleteBaby() }
-                Button("Cancel", role: .cancel) {}
+                Button(language == .zh ? "删除全部" : "Delete everything", role: .destructive) { deleteBaby() }
+                Button(UICopy.t(.cancel, language), role: .cancel) {}
             } message: {
                 Text(UICopy.t(.deleteBabyBody, language))
             }

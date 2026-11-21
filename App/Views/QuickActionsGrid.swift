@@ -4,6 +4,7 @@ import BabyLogKit
 /// Big one-tap tiles for every kind of entry.
 struct QuickActionsGrid: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     let isSleeping: Bool
     let onTap: (EventKind) -> Void
@@ -21,8 +22,8 @@ struct QuickActionsGrid: View {
     }
 
     private func title(for kind: EventKind) -> String {
-        if kind == .sleep && isSleeping { return "醒来" }
-        return Zh.kind(kind)
+        if kind == .sleep && isSleeping { return language == .zh ? "醒来" : "Wake" }
+        return UICopy.kind(kind, language)
     }
 
     private func tile(for kind: EventKind) -> some View {
@@ -33,36 +34,36 @@ struct QuickActionsGrid: View {
             Button {
                 onLogPast(kind)
             } label: {
-                Label("补记\(Zh.kind(kind))", systemImage: "clock.arrow.circlepath")
+                Label(language == .zh ? "补记\(UICopy.kind(kind, language))" : "Log past \(UICopy.kind(kind, language))", systemImage: "clock.arrow.circlepath")
             }
             if kind == .diaper {
                 Divider()
                 Button {
                     onQuickDiaper(.wet)
                 } label: {
-                    Label(Zh.diaper(.wet), systemImage: DiaperKind.wet.symbolName)
+                    Label(UICopy.diaper(.wet, language), systemImage: DiaperKind.wet.symbolName)
                 }
                 Button {
                     onQuickDiaper(.dirty)
                 } label: {
-                    Label(Zh.diaper(.dirty), systemImage: DiaperKind.dirty.symbolName)
+                    Label(UICopy.diaper(.dirty, language), systemImage: DiaperKind.dirty.symbolName)
                 }
                 Button {
                     onQuickDiaper(.mixed)
                 } label: {
-                    Label(Zh.diaper(.mixed), systemImage: DiaperKind.mixed.symbolName)
+                    Label(UICopy.diaper(.mixed, language), systemImage: DiaperKind.mixed.symbolName)
                 }
             }
         } label: {
             VStack(spacing: 6) {
-                KindIcon(kind: kind, size: 58)
+                KindIcon(kind: kind, size: 32)
                 Text(title(for: kind))
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(theme.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity, minHeight: 88)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
         } primaryAction: {
             onTap(kind)

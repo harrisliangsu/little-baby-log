@@ -67,7 +67,7 @@ struct QuickLogWidgetView: View {
                 .lineLimit(1)
                 .widgetAccentable()
             } else if let feed = baby.lastFeed {
-                AgoLine(prefix: Copy.lastFeed(entry.language), date: feed.referenceDate)
+                AgoLine(prefix: Copy.lastFeed(entry.language), date: feed.referenceDate, language: entry.language)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }

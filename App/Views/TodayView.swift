@@ -23,7 +23,6 @@ struct TodayView: View {
     /// Same widget URL delivered twice (cold start plus a second open) must not stack another sheet.
     @State private var openedLinkAt: (key: String, date: Date)?
     @State private var feedback = 0
-    @State private var showWidgetPreview = false
     @State private var timelineCard: HomeCard?
     @State private var showAIDraft = false
 
@@ -126,15 +125,6 @@ struct TodayView: View {
         .navigationBarTitleDisplayMode(.large)
         .systemBarChrome()
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showWidgetPreview = true
-                } label: {
-                    Image(systemName: "square.grid.2x2")
-                }
-                .accessibilityIdentifier("show-widget-preview")
-                .accessibilityLabel(language == .zh ? "小组件" : "Widget")
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 BabySwitcherMenu()
             }
@@ -149,9 +139,6 @@ struct TodayView: View {
             AIPhraseSheet(task: .recordDraft, seed: "", names: [baby.displayName], onRecord: { suggestion in
                 editor = .seeded(suggestion.eventDraft())
             })
-        }
-        .sheet(isPresented: $showWidgetPreview) {
-            WidgetPreviewSheet()
         }
         .sensoryFeedback(.success, trigger: feedback)
         .onChange(of: link, initial: true) { _, newLink in
@@ -234,7 +221,7 @@ struct TodayView: View {
     private func add(_ card: HomeCard) {
         switch card {
         case .breast: startNursing()
-        case .formula: editor = .new(.bottle)
+        case .formula: editor = .card(.formula)
         case .wet: quickDiaper(.wet)
         case .dirty: quickDiaper(.dirty)
         case .diaperChange: quickDiaper(.dry)

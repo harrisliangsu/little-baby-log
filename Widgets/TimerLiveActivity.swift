@@ -64,11 +64,19 @@ struct TimerLiveActivityWidget: Widget {
     }
 
     private func subtitle(_ attributes: TimerActivityAttributes, _ state: TimerActivityAttributes.ContentState) -> String {
-        guard attributes.kind == .breastfeed else { return "Sleeping" }
+        let language = activityLanguage()
+        guard attributes.kind == .breastfeed else { return language == .zh ? "睡眠中" : "Sleeping" }
         let values = NursingValues(state)
-        if let side = values.activeSide { return "Nursing · \(side.title)" }
-        return "Nursing · paused"
+        if let side = values.activeSide {
+            return language == .zh ? "亲喂 · \(UICopy.side(side, .zh))" : "Nursing · \(side.title)"
+        }
+        return language == .zh ? "亲喂暂停" : "Nursing paused"
     }
+}
+
+fileprivate func activityLanguage() -> ResolvedLanguage {
+    guard let url = AppGroup.snapshotURL, let snapshot = WidgetSnapshot.read(from: url) else { return .zh }
+    return snapshot.resolvedLanguage
 }
 
 /// The live total: ticking while running, frozen when a nursing timer is paused.
@@ -114,7 +122,7 @@ private struct TimerBanner: View {
                 HStack(spacing: 8) {
                     ForEach(BreastSide.allCases) { side in
                         HStack(spacing: 6) {
-                            Text(side.title)
+                            Text(activityLanguage() == .zh ? UICopy.side(side, .zh) : side.title)
                                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                             NursingSideClock(values: values, side: side)
                                 .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -130,9 +138,12 @@ private struct TimerBanner: View {
     }
 
     private var headline: String {
-        guard attributes.kind == .breastfeed else { return "Sleeping since \(state.startedAt.formatted(date: .omitted, time: .shortened))" }
-        if let side = values.activeSide { return "Nursing · \(side.title) side" }
-        return "Nursing · paused"
+        let language = activityLanguage()
+        guard attributes.kind == .breastfeed else { return language == .zh ? "睡眠中" : "Sleeping" }
+        if let side = values.activeSide {
+            return language == .zh ? "亲喂 · \(UICopy.side(side, .zh))" : "Nursing · \(side.title)"
+        }
+        return language == .zh ? "亲喂暂停" : "Nursing paused"
     }
 }
 
@@ -151,7 +162,7 @@ private struct TimerButtons: View {
                     ForEach(BreastSide.allCases) { side in
                         Button(intent: NursingSideIntent(babyID: babyID, side: side)) {
                             TileLabel(
-                                title: side.title,
+                                title: activityLanguage() == .zh ? UICopy.side(side, .zh) : side.title,
                                 systemImage: values.activeSide == side ? "pause.fill" : "play.fill",
                                 tint: side.color,
                                 filled: values.activeSide == side
@@ -160,13 +171,13 @@ private struct TimerButtons: View {
                         .buttonStyle(.plain)
                     }
                     Button(intent: FinishNursingIntent(babyID: babyID)) {
-                        TileLabel(title: "Done", systemImage: "checkmark", tint: .green, filled: true)
+                        TileLabel(title: activityLanguage() == .zh ? "完成" : "Done", systemImage: "checkmark", tint: .green, filled: true)
                     }
                     .buttonStyle(.plain)
                 }
             } else {
                 Button(intent: ToggleSleepIntent(babyID: babyID)) {
-                    TileLabel(title: "Wake up", systemImage: "sun.max.fill", tint: .orange, filled: true)
+                    TileLabel(title: activityLanguage() == .zh ? "醒来" : "Wake up", systemImage: "sun.max.fill", tint: .orange, filled: true)
                 }
                 .buttonStyle(.plain)
             }

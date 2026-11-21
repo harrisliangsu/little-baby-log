@@ -134,13 +134,14 @@ enum Elapsed {
 /// (it came out black on a dark widget).
 struct AgoStack: View {
     let date: Date
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Elapsed.since(date)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
-            Text("ago")
+            Text(language == .zh ? "前" : "ago")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
         }
@@ -151,12 +152,13 @@ struct AgoStack: View {
 struct AgoLine: View {
     var prefix: String?
     let date: Date
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         HStack(spacing: 4) {
             if let prefix { Text(prefix) }
             Elapsed.since(date)
-            Text("ago")
+            Text(language == .zh ? "前" : "ago")
         }
         .lineLimit(1)
         .minimumScaleFactor(0.6)
@@ -179,10 +181,14 @@ extension WidgetSnapshot.BabySummary {
 /// timeline reload to stay right.
 enum PredictionFormat {
     /// "Nap 2:10 – 2:40 PM" / "Bedtime ~7:15 PM".
-    static func sleepLine(_ next: WidgetSnapshot.NextSleep) -> String {
+    static func sleepLine(_ next: WidgetSnapshot.NextSleep, language: ResolvedLanguage = .en) -> String {
         switch next.kind {
-        case .nap: return "Nap " + (next.start..<next.end).formatted(.interval.hour().minute())
-        case .bedtime: return "Bedtime ~" + next.centre.formatted(date: .omitted, time: .shortened)
+        case .nap:
+            let span = (next.start..<next.end).formatted(.interval.hour().minute())
+            return language == .zh ? "小睡 \(span)" : "Nap \(span)"
+        case .bedtime:
+            let time = next.centre.formatted(date: .omitted, time: .shortened)
+            return language == .zh ? "睡觉 \(time)" : "Bedtime \(time)"
         }
     }
 
@@ -192,8 +198,9 @@ enum PredictionFormat {
     }
 
     /// "Next feed ~4:30".
-    static func feedLine(_ next: WidgetSnapshot.NextFeed) -> String {
-        "Next feed ~" + compactTime(next.centre)
+    static func feedLine(_ next: WidgetSnapshot.NextFeed, language: ResolvedLanguage = .en) -> String {
+        let time = compactTime(next.centre)
+        return language == .zh ? time : "~\(time)"
     }
 }
 
@@ -211,10 +218,6 @@ struct EmptyWidgetView: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .widgetAccentable()
-            Text(language == .zh ? Zh.emptyBaby : "Open Little Baby Log and add a baby")
-                .font(.caption)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .widgetURL(DeepLink.today(babyID: nil).url)

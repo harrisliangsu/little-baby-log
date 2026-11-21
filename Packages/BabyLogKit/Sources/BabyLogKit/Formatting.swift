@@ -87,26 +87,28 @@ public struct EventDescriber {
         self.locale = locale
     }
 
-    /// One-line detail for timeline rows.
-    public func summary(for event: LogEvent, now: Date = .now) -> String {
+    /// One-line detail for timeline rows. English stays the default so existing checks keep their wording.
+    public func summary(for event: LogEvent, now: Date = .now, language: ResolvedLanguage = .en) -> String {
+        let zh = language == .zh
         switch event.kind {
         case .sleep:
             let text = DurationFormat.short(event.duration(at: now))
-            return event.isRunning ? "Asleep for \(text)" : text
+            if event.isRunning { return zh ? "已睡 \(text)" : "Asleep for \(text)" }
+            return text
 
         case .breastfeed:
             var parts: [String] = []
             for side in BreastSide.allCases {
                 let seconds = event.breastSeconds(side, at: now)
-                if seconds > 0 { parts.append("\(side.shortLabel) \(DurationFormat.compact(seconds))") }
+                if seconds > 0 { parts.append("\(zh ? UICopy.side(side, .zh) : side.shortLabel) \(DurationFormat.compact(seconds))") }
             }
-            if parts.isEmpty { return event.isRunning ? "Timer running" : "" }
+            if parts.isEmpty { return event.isRunning ? (zh ? "计时中" : "Timer running") : "" }
             return parts.joined(separator: " · ")
 
         case .bottle:
             var text = volumeUnit.format(milliliters: event.amountML, locale: locale)
             if let content = event.bottleContent, content != .other {
-                text += " " + content.title.lowercased()
+                text += " " + (zh ? UICopy.bottle(content, .zh) : content.title.lowercased())
             }
             return text
 
@@ -114,19 +116,21 @@ public struct EventDescriber {
             return event.foodName ?? ""
 
         case .diaper:
-            return event.diaperKind?.title ?? ""
+            return event.diaperKind.map { zh ? UICopy.diaper($0, .zh) : $0.title } ?? ""
 
         case .pump:
             var parts: [String] = []
-            if event.leftML > 0 { parts.append("L " + volumeUnit.format(milliliters: event.leftML, locale: locale)) }
-            if event.rightML > 0 { parts.append("R " + volumeUnit.format(milliliters: event.rightML, locale: locale)) }
+            if event.leftML > 0 { parts.append((zh ? "左 " : "L ") + volumeUnit.format(milliliters: event.leftML, locale: locale)) }
+            if event.rightML > 0 { parts.append((zh ? "右 " : "R ") + volumeUnit.format(milliliters: event.rightML, locale: locale)) }
             return parts.joined(separator: " · ")
 
         case .growth:
             var parts: [String] = []
             if event.weightKg > 0 { parts.append(unitSystem.formatWeight(kilograms: event.weightKg, locale: locale)) }
             if event.lengthCm > 0 { parts.append(unitSystem.formatLength(centimeters: event.lengthCm, locale: locale)) }
-            if event.headCm > 0 { parts.append("head " + unitSystem.formatLength(centimeters: event.headCm, locale: locale)) }
+            if event.headCm > 0 {
+                parts.append((zh ? "头围 " : "head ") + unitSystem.formatLength(centimeters: event.headCm, locale: locale))
+            }
             return parts.joined(separator: " · ")
 
         case .medicine:

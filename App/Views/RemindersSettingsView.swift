@@ -58,9 +58,7 @@ struct RemindersSettingsView: View {
     private var permissionSection: some View {
         Section {
             Label {
-                Text(language == .zh
-                     ? "通知权限已关闭，提醒不会出现。可以在系统设置里重新打开。"
-                     : "Notifications are off, so reminders cannot appear. You can turn them back on in Settings.")
+                Text(language == .zh ? "通知已关闭。" : "Notifications are off.")
             } icon: {
                 Image(systemName: "bell.slash.fill")
                     .foregroundStyle(theme.isNight ? theme.destructive : .orange)

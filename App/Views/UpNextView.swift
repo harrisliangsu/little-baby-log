@@ -77,7 +77,7 @@ struct UpNextView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(language == .zh ? "预测是怎么来的" : "How predictions work")
+            .accessibilityLabel(language == .zh ? "详情" : "Details")
         }
         .sheet(isPresented: $showsInfo) {
             UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: .now) ?? initial)
@@ -175,9 +175,6 @@ private struct UpNextInfoSheet: View {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(PredictionText.disclaimer(language))
                         .font(.headline)
-                    Text(PredictionText.howItWorks(language))
-                        .foregroundStyle(theme.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
 
                     if !details.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {

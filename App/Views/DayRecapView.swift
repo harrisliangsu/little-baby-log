@@ -94,8 +94,8 @@ struct DayRecapView: View {
 
     private var title: String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(day) { return "Today" }
-        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        if calendar.isDateInToday(day) { return Copy.today(language) }
+        if calendar.isDateInYesterday(day) { return Copy.yesterday(language) }
         return day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
 
@@ -261,7 +261,7 @@ private struct DayRecapDay: View {
     private func shareLink(for recap: DayRecap) -> some View {
         let describer = EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem)
         let name = baby.displayName
-        let text = recap.plainText(babyName: name, describer: describer, calendar: calendar)
+        let text = recap.plainText(babyName: name, describer: describer, calendar: calendar, language: language)
         return ShareLink(item: text, subject: Text(language == .zh ? "\(name)的一天" : "\(name)'s day")) {
             Image(systemName: "square.and.arrow.up")
         }
@@ -281,6 +281,7 @@ private struct DayRecapDay: View {
 
 private struct RecapSummaryStrip: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     let summary: DaySummary
     let napCount: Int
@@ -296,35 +297,38 @@ private struct RecapSummaryStrip: View {
 
     private var tiles: [Tile] {
         var result: [Tile] = []
+        let zh = language == .zh
         result.append(Tile(
             kind: .sleep,
             value: DurationFormat.short(summary.sleep),
-            label: "Sleep",
-            details: [napCount == 1 ? "1 nap" : napCount == 0 ? "No naps" : "\(napCount) naps"]
+            label: zh ? "睡眠" : "Sleep",
+            details: [zh ? "\(napCount)次小睡" : (napCount == 1 ? "1 nap" : napCount == 0 ? "No naps" : "\(napCount) naps")]
         ))
         var feedDetails: [String] = []
-        if summary.nursing > 0 { feedDetails.append("Nursing " + DurationFormat.short(summary.nursing)) }
-        if summary.bottleML > 0 { feedDetails.append("Bottle " + volumeUnit.format(milliliters: summary.bottleML)) }
+        if summary.nursing > 0 { feedDetails.append((zh ? "亲喂 " : "Nursing ") + DurationFormat.short(summary.nursing)) }
+        if summary.bottleML > 0 { feedDetails.append((zh ? "奶瓶 " : "Bottle ") + volumeUnit.format(milliliters: summary.bottleML)) }
         result.append(Tile(
             kind: .breastfeed,
             value: "\(summary.feedCount)",
-            label: summary.feedCount == 1 ? "Feed" : "Feeds",
+            label: zh ? "喂奶" : (summary.feedCount == 1 ? "Feed" : "Feeds"),
             details: feedDetails
         ))
         result.append(Tile(
             kind: .diaper,
             value: "\(summary.diaperCount)",
-            label: summary.diaperCount == 1 ? "Diaper" : "Diapers",
-            details: summary.diaperCount > 0 ? ["\(summary.wetCount) wet · \(summary.dirtyCount) dirty"] : []
+            label: zh ? "尿布" : (summary.diaperCount == 1 ? "Diaper" : "Diapers"),
+            details: summary.diaperCount > 0
+                ? [zh ? "小便\(summary.wetCount) · 大便\(summary.dirtyCount)" : "\(summary.wetCount) wet · \(summary.dirtyCount) dirty"]
+                : []
         ))
         if summary.solidsCount > 0 {
-            result.append(Tile(kind: .solids, value: "\(summary.solidsCount)", label: "Solids"))
+            result.append(Tile(kind: .solids, value: "\(summary.solidsCount)", label: zh ? "辅食" : "Solids"))
         }
         if summary.medicineCount > 0 {
-            result.append(Tile(kind: .medicine, value: "\(summary.medicineCount)", label: "Medicine"))
+            result.append(Tile(kind: .medicine, value: "\(summary.medicineCount)", label: zh ? "用药" : "Medicine"))
         }
         if summary.pumpML > 0 {
-            result.append(Tile(kind: .pump, value: volumeUnit.format(milliliters: summary.pumpML), label: "Pumped"))
+            result.append(Tile(kind: .pump, value: volumeUnit.format(milliliters: summary.pumpML), label: zh ? "吸奶" : "Pumped"))
         }
         return result
     }
@@ -604,7 +608,7 @@ private struct QuietRow: View {
 
             Group {
                 if run.isAsleep {
-                    Label("Asleep · " + DurationFormat.short(run.asleepDuration), systemImage: "moon.zzz.fill")
+                    Label((language == .zh ? "睡眠中 · " : "Asleep · ") + DurationFormat.short(run.asleepDuration), systemImage: "moon.zzz.fill")
                         .labelStyle(.titleAndIcon)
                         .font(.caption)
                         .foregroundStyle(theme.secondary)
@@ -649,6 +653,7 @@ private struct RecapEntryRow: View {
     let system: UnitSystem
 
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .subheadline) private var timeWidth: CGFloat = 64
 
@@ -669,11 +674,16 @@ private struct RecapEntryRow: View {
         entry.time.formatted(date: .omitted, time: .shortened)
     }
 
-    private var title: String { isWakeUp ? "Woke up" : event.kind.title }
+    private var title: String {
+        if isWakeUp { return language == .zh ? "醒来" : "Woke up" }
+        return UICopy.kind(event.kind, language)
+    }
 
     private var detail: String {
-        if isWakeUp { return "slept " + DurationFormat.short(event.duration(at: now)) }
-        return EventDescriber(volumeUnit: unit, unitSystem: system).summary(for: event, now: now)
+        if isWakeUp {
+            return (language == .zh ? "睡了 " : "slept ") + DurationFormat.short(event.duration(at: now))
+        }
+        return EventDescriber(volumeUnit: unit, unitSystem: system).summary(for: event, now: now, language: language)
     }
 
     var body: some View {
@@ -705,7 +715,7 @@ private struct RecapEntryRow: View {
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(time), \(title)" + (detail.isEmpty ? "" : ", \(detail)"))
-            .accessibilityHint("Opens the entry to edit")
+            .accessibilityHint(language == .zh ? "打开这条记录" : "Opens the entry to edit")
         }
     }
 
