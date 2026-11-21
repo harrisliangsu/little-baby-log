@@ -227,9 +227,9 @@ final class SmokeUITests: XCTestCase {
         shotSpringboard("14-widget-gallery")
         attachTree("14-gallery-controls", springboard)
 
-        addGalleryWidget(springboard, query: "Calendar", choice: "Calendar")
+        addGalleryWidget(springboard, query: "Contacts", choice: "Contacts")
         shotSpringboard("15-system-widget")
-        removeOnlyTheTestWidget(springboard, name: "Calendar")
+        removeOnlyTheTestWidget(springboard, name: "Contacts")
         shotSpringboard("15-system-widget-removed")
 
         openWidgetGallery(springboard)
@@ -270,17 +270,40 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String) {
-        let search = springboard.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 8), "Widget gallery did not show a search field.\n\(visibleControls(springboard))")
-        search.tap()
-        search.typeText(query)
-        let cell = springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
-        let button = springboard.buttons.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
-        let match = cell.waitForExistence(timeout: 8) ? cell : button
-        XCTAssertTrue(match.waitForExistence(timeout: 4), "Gallery has no \(choice).\n\(visibleControls(springboard))")
+        if elementContaining(springboard, choice) == nil {
+            let search = springboard.searchFields.firstMatch
+            XCTAssertTrue(search.waitForExistence(timeout: 8), "Widget gallery did not show a search field.\n\(visibleControls(springboard))")
+            search.tap()
+            search.typeText(query)
+            _ = tapControl(springboard, labels: ["search", "Search", "搜索"], timeout: 2)
+        }
+        let deadline = Date().addingTimeInterval(12)
+        var match = elementContaining(springboard, choice)
+        while match == nil && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            match = elementContaining(springboard, choice)
+        }
+        guard let match else {
+            attachTree("14-gallery-missing-\(query)", springboard)
+            shotSpringboard("14-gallery-missing-\(query)")
+            XCTFail("Gallery has no \(choice).\n\(visibleControls(springboard))")
+            return
+        }
         match.tap()
         let confirm = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-gallery-\(query)")
         confirm.tap()
+    }
+
+    /// Uses the elements the hierarchy already lists. A label query can miss a button that enumeration shows.
+    private func elementContaining(_ app: XCUIApplication, _ needle: String) -> XCUIElement? {
+        let queries = [app.cells, app.buttons, app.staticTexts]
+        for query in queries {
+            for element in query.allElementsBoundByIndex.prefix(80) {
+                let text = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.localizedCaseInsensitiveContains(needle) { return element }
+            }
+        }
+        return nil
     }
 
     /// Removes only a widget whose own label names it. Other icons are left alone.
