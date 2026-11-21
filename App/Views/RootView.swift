@@ -35,7 +35,7 @@ struct RootView: View {
             }
         }
         .background(alignment: .topLeading) { AppearanceSchemeProbe() }
-        .task { CloudKitDevelopmentSchema.initializeIfRequested(persistence) }
+        .task { await CloudKitDevelopmentSchema.initializeIfRequested(persistence) }
         .onOpenURL { url in
             if let link = DeepLink(url: url) { open(link) }
         }

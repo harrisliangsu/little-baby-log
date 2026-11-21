@@ -11,12 +11,31 @@ import BabyLogKit
 enum CloudKitDevelopmentSchema {
     private static let log = Logger(subsystem: "app.littlebabylog", category: "cloudkit-schema")
 
-    static func initializeIfRequested(_ persistence: PersistenceController) {
+    static func initializeIfRequested(_ persistence: PersistenceController) async {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("-lbl-init-cloudkit-schema") else { return }
-        guard let cloud = persistence.cloudKitContainer else {
-            log.error("Schema init skipped: this launch is not using CloudKit")
+        let identifier = persistence.cloudKitContainerIdentifier ?? "iCloud.com.harrisliangsu.littlebabylog"
+        // A fresh empty directory. The user's private.sqlite is not opened, so this
+        // call does not mirror existing baby rows. Apple's initializer still uploads
+        // temporary representative records and then deletes them.
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("lbl-cloudkit-schema-\(UUID().uuidString)", isDirectory: true)
+        let empty = PersistenceController(
+            cloudKitContainerIdentifier: identifier,
+            storeDirectory: directory,
+            cloudSyncEnabled: true
+        )
+        let deadline = Date().addingTimeInterval(30)
+        while empty.privateStore == nil && empty.loadError == nil && Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        defer {
+            empty.closeStores()
+            try? FileManager.default.removeItem(at: directory)
+        }
+        guard let cloud = empty.cloudKitContainer, empty.loadError == nil else {
+            log.error("Schema init skipped: empty CloudKit store did not open")
             return
         }
         do {

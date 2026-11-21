@@ -9,8 +9,8 @@
 // Registered for team LIANG SU (D2MBDWD85F), App Store Connect app 宝宝小记
 // Apple ID 6837436742, SKU littlebabylog. Portal ids: app KXRX3U6X8Y, widget F54GF3M8BR.
 // DEVELOPMENT_TEAM stays empty until a signing key is present.
-// CLOUDKIT_CONTAINER_ID is the live container. The parent still has to create it
-// on this App ID in the developer portal and deploy the schema to Production.
+// CLOUDKIT_CONTAINER_ID is the container already associated with this App ID.
+// Development and Production still have no record types. Do not treat that as sync.
 BUNDLE_ID_PREFIX = com.harrisliangsu
 PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog
 
