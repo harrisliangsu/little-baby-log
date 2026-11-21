@@ -290,11 +290,16 @@ final class SmokeUITests: XCTestCase {
     /// Removes the large widget we just added. Its delete badge has no name, so the
     /// badge is the small button at that widget's corner, not a badge on another icon.
     private func removeOnlyTheTestWidget(_ springboard: XCUIApplication, name: String) {
-        let widgets = (springboard.icons.allElementsBoundByIndex + springboard.otherElements.allElementsBoundByIndex)
-            .filter {
-                $0.label.trimmingCharacters(in: .whitespacesAndNewlines) == name && $0.frame.width > 120
-            }
-        guard let widget = widgets.max(by: { $0.frame.width < $1.frame.width }) else {
+        let named = springboard.icons.matching(NSPredicate(format: "label == %@", name))
+        var widget: XCUIElement?
+        var width: CGFloat = 0
+        for index in 0..<min(named.count, 4) {
+            let element = named.element(boundBy: index)
+            guard element.exists, element.frame.width > width else { continue }
+            width = element.frame.width
+            widget = element
+        }
+        guard let widget, width > 120 else {
             attachTree("15-remove-not-named", springboard)
             shotSpringboard("15-remove-not-named")
             XCTFail("Could not find a large \(name) widget to remove.")
