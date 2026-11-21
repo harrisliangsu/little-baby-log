@@ -90,6 +90,29 @@ final class SmokeUITests: XCTestCase {
         XCUIDevice.shared.appearance = .light
         app.navigationBars.buttons["Beibei"].tap()
         shot("11-home-light")
+
+        app.tabBars.buttons["设置"].tap()
+        let languagePicker = app.buttons["app-language"]
+        XCTAssertTrue(languagePicker.waitForExistence(timeout: 6))
+        languagePicker.tap()
+        let english = app.buttons["英文"]
+        XCTAssertTrue(english.waitForExistence(timeout: 4))
+        english.tap()
+        if app.tabBars.buttons["Today"].waitForExistence(timeout: 4) {
+            app.tabBars.buttons["Today"].tap()
+        }
+        let englishHome = element("summary-formula")
+        XCTAssertTrue(englishHome.waitForExistence(timeout: 6))
+        XCTAssertTrue(englishHome.label.contains("Formula") || englishHome.label.contains("Last"))
+        shot("16-english-home")
+        XCUIDevice.shared.appearance = .dark
+        shot("17-english-dark")
+        app.buttons["show-widget-preview"].tap()
+        let englishWidget = element("widget-summary")
+        XCTAssertTrue(englishWidget.waitForExistence(timeout: 8))
+        XCTAssertTrue(englishWidget.label.contains("Formula") || englishWidget.label.contains("Last feed"))
+        shot("18-english-widget")
+        app.buttons["close-widget-preview"].tap()
     }
 
     /// Tries to add the real Home Screen widget from Springboard. If iOS 26 does not expose
@@ -102,20 +125,27 @@ final class SmokeUITests: XCTestCase {
         let icon = springboard.icons["宝宝小记"]
         XCTAssertTrue(icon.waitForExistence(timeout: 15))
         icon.press(forDuration: 1.3)
-        let menu = springboard.buttons["Edit Home Screen"].exists
-            ? springboard.buttons["Edit Home Screen"]
-            : springboard.buttons["编辑主屏幕"]
-        if menu.waitForExistence(timeout: 3) { menu.tap() }
-        let addButton = springboard.buttons["Add Widget"].exists ? springboard.buttons["Add Widget"]
-            : (springboard.buttons["Add"].exists ? springboard.buttons["Add"]
-            : (springboard.buttons["添加小组件"].exists ? springboard.buttons["添加小组件"] : springboard.buttons["添加"]))
-        let shotName = addButton.waitForExistence(timeout: 6) ? "14-widget-gallery" : "14-widget-gallery-missing"
+        let wallpaper = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
+        wallpaper.press(forDuration: 1.4)
+        let menuLabels = ["Edit Home Screen", "编辑主屏幕"]
+        for label in menuLabels where springboard.buttons[label].waitForExistence(timeout: 1) {
+            springboard.buttons[label].tap()
+            break
+        }
+        let addLabels = ["Add Widget", "Add", "添加小组件", "添加"]
+        var addButton = springboard.buttons["Add Widget"]
+        for label in addLabels where springboard.buttons[label].exists {
+            addButton = springboard.buttons[label]
+            break
+        }
+        let seen = springboard.buttons.allElementsBoundByIndex.prefix(20).map(\.label).filter { !$0.isEmpty }.joined(separator: " | ")
+        let shotName = addButton.waitForExistence(timeout: 4) ? "14-widget-gallery" : "14-widget-gallery-missing"
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = shotName
         attachment.lifetime = .keepAlways
         add(attachment)
         guard addButton.waitForExistence(timeout: 1) else {
-            throw XCTSkip("Springboard did not show an Add Widget control. See attachment \(shotName). The in-app preview is not this widget.")
+            throw XCTSkip("Springboard did not show an Add Widget control. Visible buttons: \(seen). See attachment \(shotName). The in-app preview is not this widget.")
         }
         addButton.tap()
         let search = springboard.searchFields.firstMatch

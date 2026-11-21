@@ -104,7 +104,7 @@ struct SettingsView: View {
                 Label("Add a baby", systemImage: "plus.circle.fill")
             }
         } header: {
-            Text("Babies")
+            Text(language == .zh ? "宝宝" : "Babies")
         }
         .themedSection()
     }
@@ -116,6 +116,7 @@ struct SettingsView: View {
                     Text(Copy.languageName(item, language)).tag(item.rawValue)
                 }
             }
+            .accessibilityIdentifier("app-language")
         } header: {
             Text(Copy.languageSection(language))
         }
@@ -187,7 +188,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Units")
+            Text(language == .zh ? "单位" : "Units")
         }
         .themedSection()
     }
@@ -257,7 +258,7 @@ struct SettingsView: View {
                     .foregroundStyle(theme.accent)
             }
         } header: {
-            Text("Widgets")
+            Text(language == .zh ? "小组件" : "Widgets")
         } footer: {
             Text("To show a different baby in a widget, touch and hold it and tap Edit Widget.")
         }
@@ -272,7 +273,7 @@ struct SettingsView: View {
                 Label("Export all data (CSV)", systemImage: "square.and.arrow.up")
             }
         } header: {
-            Text("Your data")
+            Text(language == .zh ? "你的数据" : "Your data")
         } footer: {
             Text("A spreadsheet of every entry for every baby.")
         }

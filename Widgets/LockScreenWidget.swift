@@ -27,11 +27,11 @@ struct LockScreenWidgetView: View {
                 }
             } else {
                 switch family {
-                case .accessoryInline: Text(Zh.emptyBaby)
+                case .accessoryInline: Text(entry.language == .zh ? Zh.emptyBaby : "Add a baby")
                 default:
                     VStack(spacing: 2) {
                         Image(systemName: "heart.fill")
-                        Text("添加宝宝")
+                        Text(entry.language == .zh ? "添加宝宝" : "Add a baby")
                             .font(.caption2)
                     }
                 }

@@ -13,9 +13,9 @@ struct WidgetPreviewSheet: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if let baby = snapshot?.babies.first {
-                        CareSummaryView(baby: baby)
+                        CareSummaryView(baby: baby, language: snapshot?.resolvedLanguage ?? .zh)
                             .padding(16)
-                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .glassChrome(solid: Color(.secondarySystemBackground), reduceTransparency: false)
                     } else {
                         Text(Zh.emptyBaby)
                             .accessibilityIdentifier("widget-summary")

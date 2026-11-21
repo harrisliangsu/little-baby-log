@@ -9,6 +9,11 @@ struct TodayView: View {
 
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
     @FetchRequest private var running: FetchedResults<LogEvent>
     @FetchRequest private var dayEvents: FetchedResults<LogEvent>
 
@@ -58,7 +63,7 @@ struct TodayView: View {
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowBackground(Color.clear)
             } header: {
-                Text("记录").textCase(nil)
+                Text(language == .zh ? "记录" : "Log").textCase(nil)
             }
             .themedSection()
 

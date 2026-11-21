@@ -32,7 +32,7 @@ struct HomeLayoutLanguageTests {
         #expect(layout.cards.last == .sleep)
     }
 
-    @Test func chineseIsTheDefaultAndSystemCanBeEnglish() {
+    @Test func chineseIsTheDefaultAndSystemCanBeEnglish() throws {
         #expect(AppLanguage.storedDefault == .zhHans)
         #expect(AppLanguage.zhHans.resolved() == .zh)
         #expect(AppLanguage.english.resolved() == .en)
@@ -40,6 +40,14 @@ struct HomeLayoutLanguageTests {
         #expect(AppLanguage.system.resolved(preferredIdentifier: "zh-Hans-CN") == .zh)
         #expect(Copy.card(.formula, .zh) == "奶粉")
         #expect(Copy.card(.formula, .en) == "Formula")
+        var snapshot = WidgetSnapshot(languageCode: "en")
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+        #expect(decoded.resolvedLanguage == .en)
+        let old = try JSONDecoder().decode(WidgetSnapshot.self, from: Data(#"{"generatedAt":0,"volumeUnit":"milliliters","babies":[]}"#.utf8))
+        #expect(old.resolvedLanguage == .zh)
+        snapshot.languageCode = "zh"
+        #expect(snapshot.resolvedLanguage == .zh)
         #expect(Copy.ago(Date(timeIntervalSinceNow: -120), .en).contains("ago"))
         #expect(Copy.ago(Date(timeIntervalSinceNow: -120), .zh).contains("分钟前"))
     }

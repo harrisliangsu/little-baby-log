@@ -199,13 +199,15 @@ enum PredictionFormat {
 
 /// Shown when the app hasn't written a snapshot yet (no baby added, or never opened).
 struct EmptyWidgetView: View {
+    var language: ResolvedLanguage = .zh
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "heart.fill")
                 .font(.title)
                 .foregroundStyle(EventKind.breastfeed.color)
                 .widgetAccentable()
-            Text(Zh.emptyBaby)
+            Text(language == .zh ? Zh.emptyBaby : "Open Little Baby Log and add a baby")
                 .font(.footnote.weight(.medium))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

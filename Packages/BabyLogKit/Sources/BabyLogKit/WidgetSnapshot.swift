@@ -14,18 +14,26 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// The app's current baby; the default for widgets that aren't configured for a specific baby.
     public var selectedBabyID: UUID?
     public var volumeUnit: VolumeUnit
+    /// Resolved in-app language (`zh` or `en`) at the time the snapshot was written. Nil in older files, which the widget treats as Chinese.
+    public var languageCode: String?
     public var babies: [BabySummary]
 
     public init(
         generatedAt: Date = .now,
         selectedBabyID: UUID? = nil,
         volumeUnit: VolumeUnit = .milliliters,
+        languageCode: String? = nil,
         babies: [BabySummary] = []
     ) {
         self.generatedAt = generatedAt
         self.selectedBabyID = selectedBabyID
         self.volumeUnit = volumeUnit
+        self.languageCode = languageCode
         self.babies = babies
+    }
+
+    public var resolvedLanguage: ResolvedLanguage {
+        languageCode == ResolvedLanguage.en.rawValue ? .en : .zh
     }
 
     public struct BabySummary: Codable, Equatable, Sendable, Identifiable {
@@ -221,6 +229,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         selectedBabyID: UUID?,
         volumeUnit: VolumeUnit,
         unitSystem: UnitSystem,
+        languageCode: String? = nil,
         now: Date = .now
     ) -> WidgetSnapshot {
         let describer = EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem)
@@ -291,6 +300,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             generatedAt: now,
             selectedBabyID: selectedBabyID,
             volumeUnit: volumeUnit,
+            languageCode: languageCode,
             babies: summaries
         )
     }

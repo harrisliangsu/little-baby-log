@@ -28,7 +28,7 @@ enum AppServices {
         // Selected baby and units are part of the snapshot. UserDefaults posts for every key, so only pass on
         // a change of one of those three values.
         func currentPrefs() -> [String] {
-            [Prefs.selectedBabyID, Prefs.volumeUnit, Prefs.unitSystem].map { UserDefaults.standard.string(forKey: $0) ?? "" }
+            [Prefs.selectedBabyID, Prefs.volumeUnit, Prefs.unitSystem, AppLanguage.storageKey].map { UserDefaults.standard.string(forKey: $0) ?? "" }
         }
         let prefs = center.publisher(for: UserDefaults.didChangeNotification)
             .map { _ in currentPrefs() }

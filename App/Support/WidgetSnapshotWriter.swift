@@ -48,6 +48,8 @@ final class WidgetSnapshotWriter {
         let selected = defaults.string(forKey: Prefs.selectedBabyID).flatMap(UUID.init(uuidString:))
         let volumeUnit = defaults.string(forKey: Prefs.volumeUnit).flatMap(VolumeUnit.init(rawValue:)) ?? Prefs.defaultVolumeUnit
         let unitSystem = defaults.string(forKey: Prefs.unitSystem).flatMap(UnitSystem.init(rawValue:)) ?? Prefs.defaultUnitSystem
+        let storedLanguage = defaults.string(forKey: AppLanguage.storageKey)
+        let languageCode = (AppLanguage(rawValue: storedLanguage ?? "") ?? AppLanguage.storedDefault).resolved().rawValue
 
         var snapshot = WidgetSnapshot()
         context.performAndWait {
@@ -59,7 +61,8 @@ final class WidgetSnapshotWriter {
                 context: context,
                 selectedBabyID: selected,
                 volumeUnit: volumeUnit,
-                unitSystem: unitSystem
+                unitSystem: unitSystem,
+                languageCode: languageCode
             )
             context.reset()
         }

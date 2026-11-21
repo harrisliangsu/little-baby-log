@@ -241,6 +241,27 @@ public enum Copy {
             : "“Drink water” reminds the caregiver, not the baby. It is not a feeding or medical recommendation."
     }
 
+    public static func widgetLine(_ title: String, _ window: CareRollup.Window, _ language: ResolvedLanguage) -> String {
+        switch language {
+        case .zh:
+            return "\(title) 亲喂\(window.breastCount)次 奶粉\(window.formulaCount)次 \(ml(window.formulaML, language)) 小便\(window.wetCount) 大便\(window.dirtyCount) 换尿布\(window.diaperChangeCount) 睡眠\(window.sleepCount)"
+        case .en:
+            return "\(title) Nursing \(window.breastCount) Formula \(window.formulaCount) \(ml(window.formulaML, language)) Pee \(window.wetCount) Poop \(window.dirtyCount) Diaper \(window.diaperChangeCount) Sleep \(window.sleepCount)"
+        }
+    }
+
+    public static func lastFeed(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "最近喂奶" : "Last feed"
+    }
+
+    public static func lastDiaper(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "最近尿布" : "Last diaper"
+    }
+
+    public static func lastSleep(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "最近睡眠" : "Last sleep"
+    }
+
     public static func deviceReminders(_ language: ResolvedLanguage) -> String {
         language == .zh
             ? "提醒只保存在这台设备上，不会通过 iCloud 同步，所以另一台手机不会跟着响。系统最多大约排 60 条，多个宝宝会轮流占用。"

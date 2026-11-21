@@ -88,7 +88,7 @@ struct CareCardsView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .modifier(CareCardChrome(solid: theme.surface, reduceTransparency: reduceTransparency))
+        .glassChrome(solid: theme.surface, reduceTransparency: reduceTransparency)
     }
 
     private func recent(_ card: HomeCard, care: CareRollup, now: Date) -> String {
@@ -175,20 +175,4 @@ struct CareCardsView: View {
         }
     }
 
-}
-
-private struct CareCardChrome: ViewModifier {
-    var solid: Color
-    var reduceTransparency: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceTransparency {
-            content.background(solid, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        } else if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        } else {
-            content.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-    }
 }
