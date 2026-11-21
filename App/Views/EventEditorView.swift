@@ -122,6 +122,9 @@ struct EventEditorView: View {
                     Button(UICopy.t(.done, language)) { UIApplication.endEditing() }
                 }
             }
+            .sheet(isPresented: $editingAmount) {
+                AmountSheet(milliliters: $draft.amountML, unit: volumeUnit, language: language)
+            }
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
@@ -199,7 +202,6 @@ struct EventEditorView: View {
                 .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
             .accessibilityIdentifier("amount-value")
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard != .formula {
@@ -211,9 +213,6 @@ struct EventEditorView: View {
                 .pickerStyle(.segmented)
             }
             saveError
-        }
-        .sheet(isPresented: $editingAmount) {
-            AmountSheet(milliliters: $draft.amountML, unit: volumeUnit, language: language)
         }
     }
 
