@@ -198,7 +198,9 @@ struct SettingsView: View {
         Section {
             Picker(UICopy.t(.appearance, language), selection: $appearanceMode) {
                 ForEach(AppearanceMode.allCases) { mode in
-                    Text(appearanceTitle(mode)).tag(mode)
+                    Text(appearanceTitle(mode))
+                        .tag(mode)
+                        .accessibilityIdentifier("appearance-\(mode.rawValue)")
                 }
             }
             .pickerStyle(.inline)

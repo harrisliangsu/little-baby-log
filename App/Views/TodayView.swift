@@ -60,7 +60,7 @@ struct TodayView: View {
 
             Section {
                 CareCardsView(baby: baby, onOpen: { timelineCard = $0 }, onAdd: { add($0) })
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                 .listRowBackground(Color.clear)
             } header: {
                 Text(UICopy.t(.newPrefix, language)).textCase(nil)
@@ -86,7 +86,7 @@ struct TodayView: View {
                 NavigationLink {
                     DayRecapView(baby: baby, day: day)
                 } label: {
-                    Label("今日回顾", systemImage: "clock.arrow.circlepath")
+                    Label(UICopy.t(.recapTitle, language), systemImage: "clock.arrow.circlepath")
                 }
             }
             .themedSection()
@@ -107,7 +107,7 @@ struct TodayView: View {
                             Button(role: .destructive) {
                                 delete(event)
                             } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(UICopy.t(.deleteEntry, language), systemImage: "trash")
                             }
                         }
                     }
@@ -129,7 +129,7 @@ struct TodayView: View {
                     Image(systemName: "square.grid.2x2")
                 }
                 .accessibilityIdentifier("show-widget-preview")
-                .accessibilityLabel("小组件")
+                .accessibilityLabel(language == .zh ? "小组件" : "Widget")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 BabySwitcherMenu()

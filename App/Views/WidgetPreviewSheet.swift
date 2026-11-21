@@ -11,6 +11,7 @@ struct WidgetPreviewSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(language == .zh ? "这是主屏幕小组件读到的同一份记录，不是示例数据。" : "This is the same record the Home Screen widget reads. It is not sample data.")
+                        .accessibilityIdentifier("widget-preview-note")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if let baby = snapshot?.babies.first {

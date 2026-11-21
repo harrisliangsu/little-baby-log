@@ -53,7 +53,44 @@ struct HomeCardsSettingsView: View {
                 } header: {
                     Text(Copy.homeCards(language))
                 }
-        .themedSection()
+                .themedSection()
+
+                Section {
+                    ForEach(layout.resolved(recorded: recorded)) { card in
+                        HStack {
+                            Text(Copy.card(card, language))
+                            Spacer()
+                            Button {
+                                reorder(card, up: true, layout: layout, recorded: recorded, id: id)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                            }
+                            .accessibilityLabel(language == .zh ? "上移\(Copy.card(card, language))" : "Move \(Copy.card(card, language)) up")
+                            Button {
+                                reorder(card, up: false, layout: layout, recorded: recorded, id: id)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                            }
+                            .accessibilityLabel(language == .zh ? "下移\(Copy.card(card, language))" : "Move \(Copy.card(card, language)) down")
+                        }
+                    }
+                } header: {
+                    Text(language == .zh ? "首页顺序" : "Home order")
+                } footer: {
+                    Text(language == .zh ? "今天页的摘要和卡片按这个顺序排。" : "Today's summary and cards use this order.")
+                }
+                .themedSection()
+    }
+
+    private func reorder(_ card: HomeCard, up: Bool, layout: BabyHomeLayout, recorded: Set<HomeCard>, id: UUID) {
+        var cards = layout.resolved(recorded: recorded)
+        guard let index = cards.firstIndex(of: card) else { return }
+        let next = up ? index - 1 : index + 1
+        guard cards.indices.contains(next) else { return }
+        cards.swapAt(index, next)
+        var copy = layout
+        copy.cards = cards
+        write(copy, id)
     }
 
     private var layoutData: Data? {

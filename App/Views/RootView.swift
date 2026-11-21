@@ -34,6 +34,7 @@ struct RootView: View {
                 }
             }
         }
+        .background(alignment: .topLeading) { AppearanceSchemeProbe() }
         .task { CloudKitDevelopmentSchema.initializeIfRequested(persistence) }
         .onOpenURL { url in
             if let link = DeepLink(url: url) { open(link) }
@@ -53,6 +54,20 @@ struct RootView: View {
             selectedBabyID = id.uuidString
         }
         pendingLink = link
+    }
+}
+
+/// Reports the resolved color scheme so a test can wait for a real appearance change.
+private struct AppearanceSchemeProbe: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Color.clear
+            .frame(width: 4, height: 4)
+            .accessibilityElement()
+            .accessibilityIdentifier("appearance-scheme")
+            .accessibilityLabel(scheme == .dark ? "dark" : "light")
+            .allowsHitTesting(false)
     }
 }
 

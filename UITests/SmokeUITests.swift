@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Simulator smoke test: create a baby, log formula, diapers, sleep, and nursing,
@@ -29,6 +30,7 @@ final class SmokeUITests: XCTestCase {
         let emptyWidget = element("widget-summary")
         XCTAssertTrue(emptyWidget.waitForExistence(timeout: 8))
         XCTAssertTrue(emptyWidget.label.contains("还没有记录") || emptyWidget.label.contains("奶粉0次"))
+        assertPreviewChrome(title: "小组件", note: "同一份记录", done: "完成")
         shot("03-widget-empty")
         app.buttons["close-widget-preview"].tap()
 
@@ -85,11 +87,9 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(total.label.contains("120"))
         XCTAssertTrue(total.label.contains("1次"))
         shot("09-timeline")
-        XCUIDevice.shared.appearance = .dark
-        shot("10-timeline-dark")
-        XCUIDevice.shared.appearance = .light
         app.navigationBars.buttons["Beibei"].tap()
-        shot("11-home-light")
+        requireAppearance("dark", settingsTab: "设置", homeTab: "今天", name: "12-zh-home-dark")
+        requireAppearance("light", settingsTab: "设置", homeTab: "今天", name: "11-home-light")
 
         app.tabBars.buttons["设置"].tap()
         let languagePicker = app.buttons["app-language"]
@@ -104,15 +104,104 @@ final class SmokeUITests: XCTestCase {
         let englishHome = element("summary-formula")
         XCTAssertTrue(englishHome.waitForExistence(timeout: 6))
         XCTAssertTrue(englishHome.label.contains("Formula") || englishHome.label.contains("Last"))
-        shot("16-english-home")
-        XCUIDevice.shared.appearance = .dark
-        shot("17-english-dark")
+        assertEnglishClock()
+        let summary = element("home-compact-summary")
+        XCTAssertTrue(summary.waitForExistence(timeout: 4))
+        XCTAssertTrue(summary.label.contains("Formula"))
+        captureCheckedAppearance("light", name: "16-english-home")
         app.buttons["show-widget-preview"].tap()
         let englishWidget = element("widget-summary")
         XCTAssertTrue(englishWidget.waitForExistence(timeout: 8))
         XCTAssertTrue(englishWidget.label.contains("Formula") || englishWidget.label.contains("Last feed"))
+        assertPreviewChrome(title: "Widget", note: "same record", done: "Done")
         shot("18-english-widget")
         app.buttons["close-widget-preview"].tap()
+        requireAppearance("dark", settingsTab: "Settings", homeTab: "Today", name: "17-english-dark")
+        assertEnglishClock()
+    }
+
+    /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
+    private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
+        app.tabBars.buttons[settingsTab].tap()
+        let option = appearanceControl(expected, chinese: settingsTab == "设置")
+        for _ in 0..<5 where !option.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(option.waitForExistence(timeout: 4), "Appearance option \(expected) was not on screen")
+        option.tap()
+        app.tabBars.buttons[homeTab].tap()
+        captureCheckedAppearance(expected, name: name)
+    }
+
+    private func appearanceControl(_ expected: String, chinese: Bool) -> XCUIElement {
+        let identified = app.descendants(matching: .any)["appearance-\(expected)"]
+        if identified.exists { return identified }
+        let label: String
+        if expected == "dark" {
+            label = chinese ? "深色" : "Dark"
+        } else {
+            label = chinese ? "浅色" : "Light"
+        }
+        return app.buttons[label]
+    }
+
+    private func captureCheckedAppearance(_ expected: String, name: String) {
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 4))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
+        XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label)")
+        let screenshot = XCUIScreen.main.screenshot()
+        let luma = averageLuminance(screenshot.image)
+        if expected == "dark" {
+            XCTAssertLessThan(luma, 0.45, "\(name) luminance \(luma) is still a light screen")
+        } else {
+            XCTAssertGreaterThan(luma, 0.60, "\(name) luminance \(luma) is still a dark screen")
+        }
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func assertEnglishClock() {
+        let since = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Since '")).firstMatch
+        XCTAssertTrue(since.waitForExistence(timeout: 6))
+        XCTAssertFalse(since.label.contains("上午") || since.label.contains("下午"))
+        XCTAssertTrue(since.label.contains("AM") || since.label.contains("PM"))
+    }
+
+    private func assertPreviewChrome(title: String, note: String, done: String) {
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 4) || app.navigationBars[title].exists)
+        let noteElement = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", note)).firstMatch
+        XCTAssertTrue(noteElement.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons[done].waitForExistence(timeout: 4))
+    }
+
+    private func averageLuminance(_ image: UIImage) -> Double {
+        guard let cg = image.cgImage else { return 1 }
+        let width = 24
+        let height = 24
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return 1 }
+        context.interpolationQuality = .medium
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var sum = 0.0
+        let count = width * height
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let red = Double(pixels[index]) / 255
+            let green = Double(pixels[index + 1]) / 255
+            let blue = Double(pixels[index + 2]) / 255
+            sum += 0.2126 * red + 0.7152 * green + 0.0722 * blue
+        }
+        return sum / Double(count)
     }
 
     /// Adds the Home Screen widget through Springboard. A missing control fails the test.

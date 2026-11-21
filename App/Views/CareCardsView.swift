@@ -32,7 +32,12 @@ struct CareCardsView: View {
             let care = CareRollup.make(events: Array(events), now: timeline.date)
             let recorded = HomeCardMatch.recordedCards(in: Array(events))
             let cards = currentLayout.resolved(recorded: recorded)
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
+                Text(compactSummary(cards, care: care, now: timeline.date))
+                    .font(.footnote)
+                    .foregroundStyle(theme.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("home-compact-summary")
                 ForEach(cards) { card in
                     row(card, care: care, now: timeline.date)
                 }
@@ -47,47 +52,50 @@ struct CareCardsView: View {
         return HomeLayoutStore.load(babyID: id, from: data)
     }
 
+    private func compactSummary(_ cards: [HomeCard], care: CareRollup, now: Date) -> String {
+        cards.map { "\(Copy.card($0, language)) \(recent($0, care: care, now: now))" }.joined(separator: " · ")
+    }
+
     private func row(_ card: HomeCard, care: CareRollup, now: Date) -> some View {
         let title = Copy.card(card, language)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol(card))
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(tint(card)))
-                Text(title)
-                    .font(.headline)
-                Spacer(minLength: 8)
-                Button {
-                    onAdd(card)
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityIdentifier(addID(card))
-                .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")
-            }
+        return HStack(alignment: .center, spacing: 10) {
+            Image(systemName: symbol(card))
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(tint(card)))
             Button {
                 onOpen(card)
             } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(Copy.recent(language)) \(recent(card, care: care, now: now))")
-                    Text("\(Copy.todayWord(language)) \(todayLine(card, care: care))")
-                    Text("\(Copy.last24(language)) \(dayLine(card, window: care.last24Hours))")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(theme.primaryText)
+                    Text("\(Copy.recent(language)) \(recent(card, care: care, now: now)) · \(Copy.todayWord(language)) \(todayLine(card, care: care)) · \(Copy.last24(language)) \(dayLine(card, window: care.last24Hours))")
+                        .font(.footnote)
+                        .foregroundStyle(theme.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.subheadline)
-                .foregroundStyle(theme.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier(summaryID(card))
+            Button {
+                onAdd(card)
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier(addID(card))
+            .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")
         }
-        .padding(12)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func recent(_ card: HomeCard, care: CareRollup, now: Date) -> String {
