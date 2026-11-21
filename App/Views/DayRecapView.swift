@@ -72,7 +72,7 @@ struct DayRecapView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Day: \(title). Choose a date")
+            .accessibilityLabel(language == .zh ? "日期：\(title)。选择日期" : "Day: \(title). Choose a date")
 
             Button {
                 shift(by: 1)
@@ -121,6 +121,7 @@ struct DayRecapView: View {
 /// Large titles don't collapse over a fixed header, so the recap uses an inline one.
 private struct RecapTitle: ViewModifier {
     let embedded: Bool
+    @Environment(\.uiLanguage) private var language
 
     func body(content: Content) -> some View {
         if embedded {
@@ -139,6 +140,7 @@ private struct RecapTitle: ViewModifier {
 private struct RecapDatePicker: View {
     @Binding var day: Date
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.uiLanguage) private var language
     @State private var selection: Date
 
     init(day: Binding<Date>) {
@@ -148,7 +150,7 @@ private struct RecapDatePicker: View {
 
     var body: some View {
         NavigationStack {
-            DatePicker("Day", selection: $selection, in: ...Date.now, displayedComponents: .date)
+            DatePicker(language == .zh ? "日期" : "Day", selection: $selection, in: ...Date.now, displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .labelsHidden()
                 .padding(.horizontal)
@@ -180,6 +182,7 @@ private struct DayRecapDay: View {
     @FetchRequest private var events: FetchedResults<LogEvent>
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
 
@@ -226,7 +229,9 @@ private struct DayRecapDay: View {
                 ContentUnavailableView {
                     Label(UICopy.t(.nothingLogged, language), systemImage: "moon.zzz")
                 } description: {
-                    Text(recap.isToday ? "Nothing has been logged yet today." : "Nothing was logged on this day.")
+                    Text(recap.isToday
+                         ? (language == .zh ? "今天还没有记录。" : "Nothing has been logged yet today.")
+                         : (language == .zh ? "这一天没有记录。" : "Nothing was logged on this day."))
                 }
                 .foregroundStyle(theme.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -257,7 +262,7 @@ private struct DayRecapDay: View {
         let describer = EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem)
         let name = baby.displayName
         let text = recap.plainText(babyName: name, describer: describer, calendar: calendar)
-        return ShareLink(item: text, subject: Text("\(name)'s day")) {
+        return ShareLink(item: text, subject: Text(language == .zh ? "\(name)的一天" : "\(name)'s day")) {
             Image(systemName: "square.and.arrow.up")
         }
         .accessibilityLabel(UICopy.t(.shareRecap, language))

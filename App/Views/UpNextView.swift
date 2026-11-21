@@ -77,7 +77,7 @@ struct UpNextView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("How predictions work")
+            .accessibilityLabel(language == .zh ? "预测是怎么来的" : "How predictions work")
         }
         .sheet(isPresented: $showsInfo) {
             UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: .now) ?? initial)
@@ -92,8 +92,8 @@ struct UpNextView: View {
                     kind: .sleep,
                     title: sleep.kind == .nap ? UICopy.t(.napWindow, language) : UICopy.t(.bedtimeAround, language),
                     value: sleep.kind == .nap ? Self.interval(sleep.window) : Self.time(sleep.centre),
-                    timing: PredictionText.timing(of: sleep.window, at: now).text,
-                    caption: PredictionText.caption(basis: sleep.basis, babyName: baby.displayName, ageDays: forecast.ageDays)
+                    timing: PredictionText.timing(of: sleep.window, at: now).labeled(language),
+                    caption: PredictionText.caption(basis: sleep.basis, babyName: baby.displayName, ageDays: forecast.ageDays, language: language)
                 )
             }
             if let feed = forecast.feed {
@@ -101,8 +101,8 @@ struct UpNextView: View {
                     kind: .breastfeed,
                     title: UICopy.t(.nextFeedAround, language),
                     value: Self.time(feed.centre),
-                    timing: PredictionText.timing(of: feed.around, at: now).text,
-                    caption: PredictionText.caption(basis: feed.basis, babyName: baby.displayName, ageDays: forecast.ageDays)
+                    timing: PredictionText.timing(of: feed.around, at: now).labeled(language),
+                    caption: PredictionText.caption(basis: feed.basis, babyName: baby.displayName, ageDays: forecast.ageDays, language: language)
                 )
             }
         }
@@ -164,6 +164,7 @@ private struct UpNextRow: View {
 private struct UpNextInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     let name: String
     let forecast: UpNextView.Forecast
@@ -172,9 +173,9 @@ private struct UpNextInfoSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text(PredictionText.disclaimer)
+                    Text(PredictionText.disclaimer(language))
                         .font(.headline)
-                    Text(PredictionText.howItWorks)
+                    Text(PredictionText.howItWorks(language))
                         .foregroundStyle(theme.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -194,11 +195,11 @@ private struct UpNextInfoSheet: View {
                 .padding()
             }
             .themedScreen()
-            .navigationTitle("How predictions work")
+            .navigationTitle(language == .zh ? "预测是怎么来的" : "How predictions work")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(language == .zh ? "完成" : "Done") { dismiss() }
                 }
             }
         }
@@ -208,27 +209,38 @@ private struct UpNextInfoSheet: View {
 
     private var details: [String] {
         var lines: [String] = []
-        let age = PredictionText.ageLabel(ageDays: forecast.ageDays)
+        let age = PredictionText.ageLabel(ageDays: forecast.ageDays, language: language)
         if let sleep = forecast.sleep {
-            let basis = PredictionText.caption(basis: sleep.basis, babyName: name, ageDays: forecast.ageDays)
+            let basis = PredictionText.caption(basis: sleep.basis, babyName: name, ageDays: forecast.ageDays, language: language)
             if let wake = sleep.lastWake {
                 let gap = DurationFormat.short(sleep.centre.timeIntervalSince(wake))
-                let noun = sleep.kind == .nap ? "nap window" : "bedtime"
-                lines.append("Sleep: \(name) last woke at \(UpNextView.time(wake)). About \(gap) of awake time puts the \(noun) around \(UpNextView.time(sleep.centre)). \(basis).")
+                if language == .zh {
+                    let noun = sleep.kind == .nap ? "小睡" : "入睡"
+                    lines.append("睡眠：\(name)上次醒来是 \(UpNextView.time(wake))。大约醒了 \(gap)，\(noun)大约在 \(UpNextView.time(sleep.centre))。\(basis)。")
+                } else {
+                    let noun = sleep.kind == .nap ? "nap window" : "bedtime"
+                    lines.append("Sleep: \(name) last woke at \(UpNextView.time(wake)). About \(gap) of awake time puts the \(noun) around \(UpNextView.time(sleep.centre)). \(basis).")
+                }
+            } else if language == .zh {
+                lines.append("睡眠：记录里没有最近一次醒来，所以从现在按\(age)的常见清醒窗口估算。")
             } else {
                 lines.append("Sleep: there is no recent wake-up in the log, so this counts from now using typical wake windows for \(age).")
             }
             if sleep.kind == .bedtime {
-                lines.append("Bedtime comes next because today's naps are done, or the next nap would land close to \(name)'s usual bedtime.")
+                lines.append(language == .zh
+                    ? "接下来是入睡，因为今天的小睡已经结束，或者下一次小睡会靠近\(name)平时的入睡时间。"
+                    : "Bedtime comes next because today's naps are done, or the next nap would land close to \(name)'s usual bedtime.")
             }
         }
         if let feed = forecast.feed {
-            let basis = PredictionText.caption(basis: feed.basis, babyName: name, ageDays: forecast.ageDays)
+            let basis = PredictionText.caption(basis: feed.basis, babyName: name, ageDays: forecast.ageDays, language: language)
             if let last = forecast.lastFeedStart {
                 let gap = DurationFormat.short(feed.centre.timeIntervalSince(last))
-                lines.append("Feeding: the last feed started at \(UpNextView.time(last)), and feeds have been about \(gap) apart at this time of day. \(basis).")
+                lines.append(language == .zh
+                    ? "喂奶：上次开始于 \(UpNextView.time(last))，这个时段大约隔 \(gap)。\(basis)。"
+                    : "Feeding: the last feed started at \(UpNextView.time(last)), and feeds have been about \(gap) apart at this time of day. \(basis).")
             } else {
-                lines.append("Feeding: \(basis).")
+                lines.append(language == .zh ? "喂奶：\(basis)。" : "Feeding: \(basis).")
             }
         }
         return lines

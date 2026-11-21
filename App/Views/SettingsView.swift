@@ -155,8 +155,8 @@ struct SettingsView: View {
             Text(Copy.iCloud(language))
         } footer: {
             Text(language == .zh
-                 ? "开关只决定这台设备是否把同一份本地数据库交给 iCloud。关闭不会删除记录。两台设备是否同步成功，需要在真机上再确认。开发者需在 App ID 上启用容器 iCloud.com.harrisliangsu.littlebabylog，并部署到 Production。"
-                 : "This switch chooses whether this device hands the same local database to iCloud. Turning it off does not delete records. Sync between two devices still has to be confirmed on real phones. The container iCloud.com.harrisliangsu.littlebabylog must be enabled for the App ID and deployed to Production.")
+                 ? "开关只决定这台设备是否把同一份本地数据库交给 iCloud。关闭不会删除记录。容器已关联，但还没有记录类型，也还没有部署到 Production。两台手机是否同步，要等 schema 和 Push 都就绪后再用真机确认。"
+                 : "This switch chooses whether this device hands the same local database to iCloud. Turning it off does not delete records. The container is associated, but it still has no record types and Production has not been deployed. Two phones can be checked only after the schema and Push are ready.")
         }
         .themedSection()
     }
@@ -212,7 +212,7 @@ struct SettingsView: View {
             if appearanceMode.canShowNight {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
-                    BatteryImpactNote("Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
+                    BatteryImpactNote(language == .zh ? "夜间界面会降低屏幕亮度，更省电。" : "Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
                 }
                 .padding(.vertical, 2)
             }
@@ -234,8 +234,8 @@ struct SettingsView: View {
     private var nursingTimerSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
-                Toggle("Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
-                BatteryImpactNote("Keeps your screen on while the timer is open, which uses more battery.")
+                Toggle(language == .zh ? "计时中保持屏幕常亮" : "Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
+                BatteryImpactNote(language == .zh ? "计时页面打开时屏幕不熄灭，会更耗电。" : "Keeps your screen on while the timer is open, which uses more battery.")
             }
             .padding(.vertical, 2)
         } header: {
@@ -271,7 +271,7 @@ struct SettingsView: View {
             Button {
                 exportCSV()
             } label: {
-                Label("Export all data (CSV)", systemImage: "square.and.arrow.up")
+                Label(language == .zh ? "导出全部数据 (CSV)" : "Export all data (CSV)", systemImage: "square.and.arrow.up")
             }
         } header: {
             Text(language == .zh ? "你的数据" : "Your data")
@@ -283,9 +283,9 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("版本", value: AppConfig.versionString)
+            LabeledContent(language == .zh ? "版本" : "Version", value: AppConfig.versionString)
             Link(destination: AppConfig.sourceCodeURL) {
-                Label("GitHub 源代码", systemImage: "chevron.left.forwardslash.chevron.right")
+                Label(language == .zh ? "GitHub 源代码" : "GitHub source", systemImage: "chevron.left.forwardslash.chevron.right")
             }
             Link(destination: AppConfig.upstreamSourceCodeURL) {
                 Label("上游 Little Baby Log", systemImage: "arrow.turn.up.right")
@@ -421,7 +421,10 @@ struct CaregiverRow: View {
     }
 
     private var shareButtonTitle: String {
-        persistence.isShared(baby) ? "Manage" : "Invite"
+        if persistence.isShared(baby) {
+            return language == .zh ? "管理" : "Manage"
+        }
+        return language == .zh ? "邀请" : "Invite"
     }
 
     private var statusText: String {
@@ -433,20 +436,22 @@ struct CaregiverRow: View {
             if let share = persistence.existingShare(for: baby),
                let components = share.owner.userIdentity.nameComponents {
                 let name = PersonNameComponentsFormatter().string(from: components)
-                if !name.isEmpty { return "Shared with you by \(name)" }
+                if !name.isEmpty {
+                    return language == .zh ? "由 \(name) 分享给你" : "Shared with you by \(name)"
+                }
             }
-            return "Shared with you"
+            return language == .zh ? "分享给你的" : "Shared with you"
         }
 
         if let share = persistence.existingShare(for: baby) {
             let others = share.participants.filter { $0.role != .owner }.count
             switch others {
-            case 0: return "Not shared"
-            case 1: return "Shared with 1 person"
-            default: return "Shared with \(others) people"
+            case 0: return language == .zh ? "未分享" : "Not shared"
+            case 1: return language == .zh ? "已分享给 1 人" : "Shared with 1 person"
+            default: return language == .zh ? "已分享给 \(others) 人" : "Shared with \(others) people"
             }
         }
-        return "Not shared"
+        return language == .zh ? "未分享" : "Not shared"
     }
 
     private func startSharing() {
