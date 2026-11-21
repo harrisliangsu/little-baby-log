@@ -343,31 +343,42 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String, swipes: Int = 0) {
-        let listed = springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
-        if !listed.waitForExistence(timeout: 4) {
+        func listed(_ name: String) -> XCUIElement {
+            springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
+        }
+        var match = listed(choice)
+        if !match.waitForExistence(timeout: 4) {
             waitForGalleryEntries(springboard)
             let search = springboard.searchFields.firstMatch
             XCTAssertTrue(search.waitForExistence(timeout: 8), "Widget gallery did not show a search field.\n\(visibleControls(springboard))")
             searchForWidget(springboard, search: search, query: query)
-            if !listed.waitForExistence(timeout: 8) {
+            match = listed(choice)
+            if !match.waitForExistence(timeout: 8) {
                 if springboard.buttons["Clear text"].exists { springboard.buttons["Clear text"].tap() }
-                searchForWidget(springboard, search: search, query: query)
+                searchForWidget(springboard, search: search, query: "LittleBabyLog")
+                match = listed("LittleBabyLog")
+                if !match.exists { match = listed(choice) }
             }
-            XCTAssertTrue(listed.waitForExistence(timeout: 12), "Gallery has no \(choice).\n\(visibleControls(springboard))")
+            XCTAssertTrue(match.waitForExistence(timeout: 12), "Gallery has no \(choice).\n\(visibleControls(springboard))")
         }
-        listed.tap()
+        match.tap()
         selectGallerySize(springboard, swipes: swipes)
         let confirm = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-gallery-\(query)")
         confirm.tap()
     }
 
-    /// The gallery sheet can open before any widget is listed. Searching then stays on "No Results".
+    /// The gallery sheet can open blank. Searching then stays on "No Results" for every widget, including the system's.
+    /// Close it and open it again once the list has had a chance to load.
     private func waitForGalleryEntries(_ springboard: XCUIApplication) {
-        let deadline = Date().addingTimeInterval(20)
-        while Date() < deadline {
-            if springboard.cells.firstMatch.exists { return }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        if springboard.cells.firstMatch.waitForExistence(timeout: 8) { return }
+        let lower = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+        lower.press(forDuration: 0.05, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+        if springboard.cells.firstMatch.waitForExistence(timeout: 4) { return }
+        if springboard.buttons["Close"].exists {
+            springboard.buttons["Close"].tap()
         }
+        openWidgetGallery(springboard)
+        _ = springboard.cells.firstMatch.waitForExistence(timeout: 15)
     }
 
     private func searchForWidget(_ springboard: XCUIApplication, search: XCUIElement, query: String) {
