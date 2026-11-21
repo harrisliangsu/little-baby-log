@@ -28,13 +28,26 @@ public final class PersistenceController {
 
     public var isCloudSyncEnabled: Bool { cloudKitContainer != nil }
 
+    /// Drops the open stores so another controller can open the same files. Does not delete them.
+    public func closeStores() {
+        let coordinator = container.persistentStoreCoordinator
+        for store in coordinator.persistentStores {
+            try? coordinator.remove(store)
+        }
+    }
+
     private static let storeName = "LittleBabyLog"
 
-    /// `cloudKitContainerIdentifier` nil/empty → plain local `NSPersistentContainer` (no CloudKit types are touched,
-    /// so it builds and runs without the iCloud entitlement). `inMemory` also forces local mode.
-    public init(cloudKitContainerIdentifier: String? = nil, inMemory: Bool = false, storeDirectory: URL? = nil) {
+    /// `cloudKitContainerIdentifier` nil/empty, or `cloudSyncEnabled == false`, uses the same `private.sqlite`
+    /// without CloudKit. Turning sync off does not copy or delete rows. `inMemory` also forces local mode.
+    public init(
+        cloudKitContainerIdentifier: String? = nil,
+        inMemory: Bool = false,
+        storeDirectory: URL? = nil,
+        cloudSyncEnabled: Bool = true
+    ) {
         let trimmedID = cloudKitContainerIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cloudID = (trimmedID?.isEmpty == false && !inMemory) ? trimmedID : nil
+        let cloudID = (trimmedID?.isEmpty == false && !inMemory && cloudSyncEnabled) ? trimmedID : nil
         self.cloudKitContainerIdentifier = cloudID
 
         let model = BabyLogModel.model

@@ -46,6 +46,8 @@ public struct CareRollup: Codable, Equatable, Sendable {
     public var lastFormulaML: Double?
     /// End of the latest nursing session, or its start while the timer is still running.
     public var lastBreastAt: Date?
+    /// Actual nursing duration. Never a made-up millilitre amount.
+    public var lastBreastSeconds: TimeInterval?
     public var lastWetAt: Date?
     public var lastDirtyAt: Date?
     public var lastDiaperChangeAt: Date?
@@ -67,6 +69,7 @@ public struct CareRollup: Codable, Equatable, Sendable {
         lastFormulaAt: Date? = nil,
         lastFormulaML: Double? = nil,
         lastBreastAt: Date? = nil,
+        lastBreastSeconds: TimeInterval? = nil,
         lastWetAt: Date? = nil,
         lastDirtyAt: Date? = nil,
         lastDiaperChangeAt: Date? = nil,
@@ -80,6 +83,7 @@ public struct CareRollup: Codable, Equatable, Sendable {
         self.lastFormulaAt = lastFormulaAt
         self.lastFormulaML = lastFormulaML
         self.lastBreastAt = lastBreastAt
+        self.lastBreastSeconds = lastBreastSeconds
         self.lastWetAt = lastWetAt
         self.lastDirtyAt = lastDirtyAt
         self.lastDiaperChangeAt = lastDiaperChangeAt
@@ -123,7 +127,10 @@ public struct CareRollup: Codable, Equatable, Sendable {
             case .breastfeed:
                 let reference = event.endDate ?? start
                 consider(reference, current: &rollup.lastFeedAt)
-                consider(reference, current: &rollup.lastBreastAt)
+                if rollup.lastBreastAt == nil || reference > rollup.lastBreastAt! {
+                    rollup.lastBreastAt = reference
+                    rollup.lastBreastSeconds = event.totalBreastSeconds(at: min(now, horizon))
+                }
                 addCount(start, inToday: todayInterval, inRolling: rollingInterval) {
                     today.breastCount += 1
                 } rolling: {

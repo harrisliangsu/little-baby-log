@@ -13,10 +13,11 @@ public enum DeepLink: Equatable, Sendable {
     case log(EventKind, babyID: UUID?)
     case nursing(babyID: UUID?)
     case today(babyID: UUID?)
+    case timeline(HomeCard, babyID: UUID?)
 
     public var babyID: UUID? {
         switch self {
-        case .log(_, let id), .nursing(let id), .today(let id): return id
+        case .log(_, let id), .nursing(let id), .today(let id), .timeline(_, let id): return id
         }
     }
 
@@ -31,6 +32,9 @@ public enum DeepLink: Equatable, Sendable {
             components.host = "nursing"
         case .today:
             components.host = "today"
+        case .timeline(let card, _):
+            components.host = "timeline"
+            components.path = "/" + card.rawValue
         }
         if let babyID {
             components.queryItems = [URLQueryItem(name: "baby", value: babyID.uuidString)]
@@ -57,6 +61,10 @@ public enum DeepLink: Equatable, Sendable {
             self = .nursing(babyID: babyID)
         case "today":
             self = .today(babyID: babyID)
+        case "timeline":
+            let name = components.path.split(separator: "/").first.map(String.init)?.lowercased()
+            guard let name, let card = HomeCard.allCases.first(where: { $0.rawValue.lowercased() == name }) else { return nil }
+            self = .timeline(card, babyID: babyID)
         default:
             return nil
         }

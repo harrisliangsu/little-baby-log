@@ -179,6 +179,7 @@ jobs:
           EOF
           xcodebuild -project LittleBabyLog.xcodeproj -scheme LittleBabyLog -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates \
+            APS_ENVIRONMENT=production \
             -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER" \

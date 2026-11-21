@@ -205,34 +205,73 @@ public struct BabyReminderSettings: Codable, Equatable, Sendable {
     public var feedEvery: FeedIntervalReminder
     public var napWindow: NapWindowReminder
     public var daily: [DailyReminder]
+    /// The editable rules. When this is non-empty, planning uses it instead of `feedEvery` and `daily`.
+    public var rules: [CareRule]
 
     public init(
         feedEvery: FeedIntervalReminder = FeedIntervalReminder(),
         napWindow: NapWindowReminder = NapWindowReminder(),
-        daily: [DailyReminder] = []
+        daily: [DailyReminder] = [],
+        rules: [CareRule] = []
     ) {
         self.feedEvery = feedEvery
         self.napWindow = napWindow
         self.daily = daily
+        self.rules = rules
     }
 
     /// True when at least one reminder would schedule something.
     public var hasAnythingEnabled: Bool {
-        feedEvery.isEnabled || napWindow.isEnabled || daily.contains(where: \.isEnabled)
+        feedEvery.isEnabled || napWindow.isEnabled || daily.contains(where: \.isEnabled) || rules.contains(where: \.isEnabled)
     }
 
-    private enum CodingKeys: String, CodingKey { case feedEvery, napWindow, daily }
+    /// Copies an enabled feed interval and daily rows into rules, then turns those older rows off.
+    /// Does nothing when rules already exist, so a person can keep both representations from stacking.
+    public func adoptingRules() -> BabyReminderSettings {
+        guard rules.isEmpty else { return self }
+        var copy = self
+        var made: [CareRule] = []
+        if feedEvery.isEnabled {
+            made.append(CareRule(
+                id: CareRule.legacyFeedID,
+                isEnabled: true,
+                title: "Feed",
+                reminderText: "Time to feed",
+                source: .anyFeed,
+                trigger: .intervalSinceLast(minutes: feedEvery.intervalMinutes, anchor: feedEvery.anchor),
+                quietHours: feedEvery.quietHours
+            ))
+            copy.feedEvery.isEnabled = false
+        }
+        for reminder in daily where reminder.isEnabled {
+            made.append(CareRule(
+                id: reminder.id,
+                isEnabled: true,
+                reminderText: reminder.displayLabel,
+                source: .custom,
+                trigger: .fixedTime(minutesOfDay: reminder.minutesOfDay)
+            ))
+        }
+        if made.isEmpty { return self }
+        copy.daily = []
+        copy.rules = made
+        return copy
+    }
+
+    private enum CodingKeys: String, CodingKey { case feedEvery, napWindow, daily, rules }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         feedEvery = try c.decodeIfPresent(FeedIntervalReminder.self, forKey: .feedEvery) ?? FeedIntervalReminder()
         napWindow = (try? c.decodeIfPresent(NapWindowReminder.self, forKey: .napWindow)) ?? NapWindowReminder()
         daily = try c.decodeIfPresent([DailyReminder].self, forKey: .daily) ?? []
+        rules = try c.decodeIfPresent([CareRule].self, forKey: .rules) ?? []
     }
 }
 
 /// Per-device storage for `BabyReminderSettings`: one JSON blob in `UserDefaults`, keyed by baby uuid string.
-/// Never goes to iCloud, so each caregiver chooses their own reminders.
+/// This is not `NSUbiquitousKeyValueStore` and not a CloudKit record. A rule enabled on this phone is not
+/// scheduled on another phone unless that phone's own settings turn it on.
 public struct ReminderSettingsStore {
     public static let defaultsKey = "reminderSettings"
 

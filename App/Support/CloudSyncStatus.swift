@@ -30,6 +30,7 @@ final class CloudSyncStatus {
 
     @ObservationIgnored private var persistence: PersistenceController?
     @ObservationIgnored private var started = false
+    @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var accountStatus: CKAccountStatus?
     @ObservationIgnored private var inFlight = Set<UUID>()
     @ObservationIgnored private var errors: [Int: CloudSyncProblem] = [:]
@@ -46,7 +47,7 @@ final class CloudSyncStatus {
             return
         }
 
-        NotificationCenter.default.addObserver(
+        observers.append(NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification, object: cloud, queue: .main
         ) { [weak self] notification in
             let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
@@ -58,11 +59,25 @@ final class CloudSyncStatus {
                 succeeded: event.succeeded, error: event.error
             )
             MainActor.assumeIsolated { self?.handle(info) }
-        }
-        NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { [weak self] _ in
+        })
+        observers.append(NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshAccount() }
-        }
+        })
         refreshAccount()
+    }
+
+    /// Forgets the previous container so a replacement store can be watched.
+    func stop() {
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        observers.removeAll()
+        started = false
+        inFlight.removeAll()
+        errors.removeAll()
+        sawEvent = false
+        accountStatus = nil
+        state = .checking
     }
 
     /// Reads the iCloud account status (a cheap, cached call) and recomputes the state.

@@ -38,6 +38,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         case ReminderCategory.startLeft: action = .startLeft
         case ReminderCategory.startRight: action = .startRight
         case ReminderCategory.snooze: action = .snooze
+        case ReminderCategory.done: action = .done
+        case ReminderCategory.openLog: action = .openLog
         default: action = .other
         }
         let reminder = ReminderResponse(

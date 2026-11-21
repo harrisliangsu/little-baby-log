@@ -22,6 +22,12 @@ public enum ReminderIdentifier {
         prefix + "daily." + babyID.uuidString + "." + reminderID.uuidString
     }
     public static func snooze(babyID: UUID) -> String { snoozePrefix + babyID.uuidString }
+    public static func snooze(babyID: UUID, ruleID: UUID) -> String {
+        snoozePrefix + babyID.uuidString + "." + ruleID.uuidString
+    }
+    public static func rule(babyID: UUID, ruleID: UUID) -> String {
+        prefix + "rule." + babyID.uuidString + "." + ruleID.uuidString
+    }
 }
 
 /// Category and action identifiers for feed reminders (registered in the app; handled in its notification delegate).
@@ -31,12 +37,21 @@ public enum ReminderCategory {
     public static let startRight = "lbl.action.startRight"
     public static let snooze = "lbl.action.snooze15"
     public static let snoozeMinutes = 15
+    /// A rule reminder: snooze, mark done, or open the related card.
+    public static let rule = "lbl.category.rule"
+    public static let done = "lbl.action.done"
+    public static let openLog = "lbl.action.openLog"
 }
 
 public enum ReminderUserInfoKey {
     public static let babyID = "babyID"
     /// JSON of `FeedReminderInfo`: present on reminders that are about a specific feed.
     public static let feedInfo = "feedInfo"
+    public static let ruleID = "ruleID"
+    /// `timeIntervalSince1970` of the record the rule was measured from.
+    public static let since = "since"
+    /// `HomeCard` raw value, when the rule is about one card.
+    public static let card = "card"
 }
 
 public enum ReminderUrgency: Equatable, Sendable {
@@ -117,6 +132,10 @@ public struct ReminderBaby: Equatable, Sendable {
     /// in when that reminder is on; a baby without a birth date has no prediction.
     public var birthDate: Date?
     public var sleeps: [SleepSession]
+    /// Latest record per home card. Empty unless a care rule needs it.
+    public var stamps: [HomeCard: RecordStamp]
+    /// Latest nursing or bottle.
+    public var anyFeed: RecordStamp?
 
     public init(
         id: UUID,
@@ -124,7 +143,9 @@ public struct ReminderBaby: Equatable, Sendable {
         settings: BabyReminderSettings,
         lastFeed: LastFeed?,
         birthDate: Date? = nil,
-        sleeps: [SleepSession] = []
+        sleeps: [SleepSession] = [],
+        stamps: [HomeCard: RecordStamp] = [:],
+        anyFeed: RecordStamp? = nil
     ) {
         self.id = id
         self.name = name
@@ -132,6 +153,8 @@ public struct ReminderBaby: Equatable, Sendable {
         self.lastFeed = lastFeed
         self.birthDate = birthDate
         self.sleeps = sleeps
+        self.stamps = stamps
+        self.anyFeed = anyFeed
     }
 }
 
@@ -179,7 +202,8 @@ public enum ReminderPlanner {
         calendar: Calendar = .current,
         locale: Locale = .autoupdatingCurrent
     ) -> [ReminderRequest] {
-        babies.flatMap { requests(for: $0, now: now, calendar: calendar, locale: locale) }
+        let planned = babies.flatMap { requests(for: $0, now: now, calendar: calendar, locale: locale) }
+        return CareRulePlanner.fairlyLimited(planned)
     }
 
     public static func requests(
@@ -189,10 +213,12 @@ public enum ReminderPlanner {
         locale: Locale = .autoupdatingCurrent
     ) -> [ReminderRequest] {
         var result: [ReminderRequest] = []
-        if let request = feedIntervalRequest(for: baby, now: now, calendar: calendar) { result.append(request) }
+        // Saved rules replace the older feed-interval and daily rows so the two don't both fire.
+        let rulesOn = !baby.settings.rules.isEmpty
+        if !rulesOn, let request = feedIntervalRequest(for: baby, now: now, calendar: calendar) { result.append(request) }
         if let request = napWindowRequest(for: baby, now: now, calendar: calendar, locale: locale) { result.append(request) }
-        result += dailyRequests(for: baby)
-        // Future reminder types append here.
+        if !rulesOn { result += dailyRequests(for: baby) }
+        result += CareRulePlanner.requests(for: baby, now: now, calendar: calendar)
         return result
     }
 
@@ -342,11 +368,13 @@ public enum ReminderPlanner {
     ) -> ReminderRequest? {
         guard let babyID = userInfo[ReminderUserInfoKey.babyID].flatMap(UUID.init(uuidString:)) else { return nil }
         let fire = now.addingTimeInterval(delay)
+        let ruleID = userInfo[ReminderUserInfoKey.ruleID].flatMap(UUID.init(uuidString:))
+        let snoozeID = ruleID.map { ReminderIdentifier.snooze(babyID: babyID, ruleID: $0) } ?? ReminderIdentifier.snooze(babyID: babyID)
         if let info = FeedReminderInfo(userInfo: userInfo) {
-            return feedRequest(babyID: babyID, identifier: ReminderIdentifier.snooze(babyID: babyID), info: info, fire: fire)
+            return feedRequest(babyID: babyID, identifier: snoozeID, info: info, fire: fire)
         }
         return ReminderRequest(
-            identifier: ReminderIdentifier.snooze(babyID: babyID),
+            identifier: snoozeID,
             babyID: babyID,
             title: title,
             body: body,
@@ -363,6 +391,14 @@ public enum ReminderPlanner {
     public static func isStale(userInfo: [String: String], babies: [ReminderBaby]) -> Bool {
         guard let babyID = userInfo[ReminderUserInfoKey.babyID].flatMap(UUID.init(uuidString:)) else { return false }
         guard let baby = babies.first(where: { $0.id == babyID }) else { return true }
+        if let ruleID = userInfo[ReminderUserInfoKey.ruleID].flatMap(UUID.init(uuidString:)) {
+            guard baby.settings.rules.contains(where: { $0.id == ruleID && $0.isEnabled }) else { return true }
+            guard let since = userInfo[ReminderUserInfoKey.since].flatMap(Double.init),
+                  let rule = baby.settings.rules.first(where: { $0.id == ruleID }),
+                  let current = CareRulePlanner.measuredFrom(rule: rule, baby: baby) else { return false }
+            return abs(current.timeIntervalSince1970 - since) > 0.5
+        }
+        if !baby.settings.rules.isEmpty, FeedReminderInfo(userInfo: userInfo) != nil { return true }
         guard let info = FeedReminderInfo(userInfo: userInfo) else { return false }
         guard baby.settings.feedEvery.isEnabled, let feed = baby.lastFeed else { return true }
         return abs(feed.start.timeIntervalSince1970 - info.feedStart) > 0.5

@@ -83,6 +83,15 @@ enum AppServices {
         }
     }
 
+    /// Drops the subscriptions bound to the previous store and watches the replacement.
+    static func restart(persistence: PersistenceController) {
+        cancellables.removeAll()
+        started = false
+        CloudSyncStatus.shared.stop()
+        ReminderScheduler.shared.resetReadContext()
+        start(persistence: persistence)
+    }
+
     /// The scene became active (launch, return from the background, unlock): the one moment Live Activities
     /// that were waiting for the foreground can start.
     static func sceneDidBecomeActive() async {

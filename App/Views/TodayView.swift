@@ -16,6 +16,7 @@ struct TodayView: View {
     @State private var nursing: NursingSheetItem?
     @State private var feedback = 0
     @State private var showWidgetPreview = false
+    @State private var timelineCard: HomeCard?
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -53,13 +54,7 @@ struct TodayView: View {
             }
 
             Section {
-                CareCardsView(
-                    baby: baby,
-                    onFormula: { editor = .new(.bottle) },
-                    onBreast: { startNursing() },
-                    onSleep: { toggleSleep() },
-                    onDiaper: { quickDiaper($0) }
-                )
+                CareCardsView(baby: baby, onOpen: { timelineCard = $0 }, onAdd: { add($0) })
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowBackground(Color.clear)
             } header: {
@@ -149,6 +144,9 @@ struct TodayView: View {
         .sheet(item: $nursing) { item in
             BreastTimerView(event: item.event, suggestedSide: item.suggestedSide)
         }
+        .navigationDestination(item: $timelineCard) { card in
+            CategoryTimelineView(baby: baby, card: card)
+        }
     }
 
     // MARK: Actions
@@ -159,6 +157,8 @@ struct TodayView: View {
         switch link {
         case .today:
             return
+        case .timeline(let card, _):
+            present = { timelineCard = card }
         case .nursing, .log(.breastfeed, _):
             present = { startNursing() }
         case .log(let kind, _):
@@ -171,6 +171,17 @@ struct TodayView: View {
             DispatchQueue.main.async(execute: present)
         } else {
             present()
+        }
+    }
+
+    private func add(_ card: HomeCard) {
+        switch card {
+        case .breast: startNursing()
+        case .formula: editor = .new(.bottle)
+        case .wet: quickDiaper(.wet)
+        case .dirty: quickDiaper(.dirty)
+        case .diaperChange: quickDiaper(.dry)
+        case .sleep: toggleSleep()
         }
     }
 

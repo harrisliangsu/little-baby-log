@@ -1,0 +1,249 @@
+import Foundation
+
+/// In-app language. Simplified Chinese is the default. `system` follows the phone.
+public enum AppLanguage: String, Codable, CaseIterable, Identifiable, Sendable {
+    case system
+    case zhHans = "zh-Hans"
+    case english = "en"
+
+    public var id: String { rawValue }
+
+    public static let storageKey = "appLanguage"
+
+    public static var storedDefault: AppLanguage { .zhHans }
+
+    public func resolved(preferredIdentifier: String? = Locale.preferredLanguages.first) -> ResolvedLanguage {
+        switch self {
+        case .zhHans: return .zh
+        case .english: return .en
+        case .system:
+            let id = preferredIdentifier ?? "zh-Hans"
+            if id.hasPrefix("zh") { return .zh }
+            return .en
+        }
+    }
+}
+
+public enum ResolvedLanguage: String, Codable, Sendable {
+    case zh
+    case en
+}
+
+public enum Copy {
+    public static func card(_ card: HomeCard, _ language: ResolvedLanguage) -> String {
+        switch (card, language) {
+        case (.breast, .zh): return "亲喂"
+        case (.breast, .en): return "Nursing"
+        case (.formula, .zh): return "奶粉"
+        case (.formula, .en): return "Formula"
+        case (.wet, .zh): return "小便"
+        case (.wet, .en): return "Pee"
+        case (.dirty, .zh): return "大便"
+        case (.dirty, .en): return "Poop"
+        case (.diaperChange, .zh): return "换尿布"
+        case (.diaperChange, .en): return "Diaper"
+        case (.sleep, .zh): return "睡眠"
+        case (.sleep, .en): return "Sleep"
+        }
+    }
+
+    public static func preference(_ preference: FeedPreference, _ language: ResolvedLanguage) -> String {
+        switch (preference, language) {
+        case (.breast, .zh): return "母乳"
+        case (.breast, .en): return "Breast"
+        case (.formula, .zh): return "奶粉"
+        case (.formula, .en): return "Formula"
+        case (.mixed, .zh): return "混合"
+        case (.mixed, .en): return "Both"
+        }
+    }
+
+    public static func languageName(_ language: AppLanguage, _ resolved: ResolvedLanguage) -> String {
+        switch (language, resolved) {
+        case (.system, .zh): return "跟随系统"
+        case (.system, .en): return "System"
+        case (.zhHans, .zh): return "简体中文"
+        case (.zhHans, .en): return "Simplified Chinese"
+        case (.english, .zh): return "英文"
+        case (.english, .en): return "English"
+        }
+    }
+
+    public static func count(_ n: Int, _ language: ResolvedLanguage) -> String {
+        switch language {
+        case .zh: return "\(n)次"
+        case .en: return n == 1 ? "1 time" : "\(n) times"
+        }
+    }
+
+    public static func ml(_ value: Double, _ language: ResolvedLanguage) -> String {
+        let whole = value.rounded()
+        let number = abs(value - whole) < 0.05 ? "\(Int(whole))" : String(format: "%.1f", value)
+        switch language {
+        case .zh, .en: return "\(number) ml"
+        }
+    }
+
+    public static func ago(_ date: Date, now: Date = .now, _ language: ResolvedLanguage) -> String {
+        let seconds = now.timeIntervalSince(date)
+        if seconds < 60 {
+            return language == .zh ? "刚刚" : "Just now"
+        }
+        let minutes = Int(seconds / 60)
+        if minutes < 60 {
+            return language == .zh ? "\(minutes)分钟前" : (minutes == 1 ? "1 min ago" : "\(minutes) min ago")
+        }
+        let hours = minutes / 60
+        let remain = minutes % 60
+        if hours < 24 {
+            if language == .zh {
+                return remain == 0 ? "\(hours)小时前" : "\(hours)小时\(remain)分前"
+            }
+            return remain == 0 ? "\(hours)h ago" : "\(hours)h \(remain)m ago"
+        }
+        let days = hours / 24
+        return language == .zh ? "\(days)天前" : (days == 1 ? "1 day ago" : "\(days) days ago")
+    }
+
+    public static func duration(_ interval: TimeInterval, _ language: ResolvedLanguage) -> String {
+        let minutes = max(0, Int((interval / 60).rounded()))
+        if language == .zh {
+            if minutes < 60 { return "\(minutes)分钟" }
+            return "\(minutes / 60)小时\(minutes % 60)分"
+        }
+        if minutes < 60 { return "\(minutes) min" }
+        return "\(minutes / 60)h \(minutes % 60)m"
+    }
+
+    public static func none(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "还没有" : "None yet"
+    }
+
+    public static func noRecords(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "还没有记录" : "No records yet"
+    }
+
+    public static func today(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "今天" : "Today"
+    }
+
+    public static func yesterday(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "昨天" : "Yesterday"
+    }
+
+    public static func last7(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "近7天" : "7 days"
+    }
+
+    public static func all(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "全部" : "All"
+    }
+
+    public static func pickDate(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "选择日期" : "Pick a date"
+    }
+
+    public static func settings(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "设置" : "Settings"
+    }
+
+    public static func addBaby(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "添加宝宝" : "Add a baby"
+    }
+
+    public static func iCloud(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "iCloud 同步" : "iCloud sync"
+    }
+
+    public static func iCloudOn(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "已开启" : "On"
+    }
+
+    public static func iCloudPaused(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "已暂停，记录仍在这台手机" : "Paused. Records stay on this phone"
+    }
+
+    public static func retry(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "重试" : "Retry"
+    }
+
+    public static func languageSection(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "语言" : "Language"
+    }
+
+    public static func homeCards(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "首页卡片" : "Home cards"
+    }
+
+    public static func feedStyle(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "喂养方式" : "Feeding"
+    }
+
+    public static func feedStyleFootnote(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "只影响新的首页建议。已有的亲喂或奶粉记录都会保留，也可以再显示出来。" : "This only suggests which cards to show. Existing nursing and formula records stay, and you can show them again."
+    }
+
+    public static func reminders(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "提醒" : "Reminders"
+    }
+
+    public static func on(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "开" : "On"
+    }
+
+    public static func off(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "关" : "Off"
+    }
+
+    public static func recent(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "最近" : "Last"
+    }
+
+    public static func todayWord(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "今日" : "Today"
+    }
+
+    public static func last24(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "24小时" : "24h"
+    }
+
+    public static func sleeping(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "睡眠中" : "Sleeping"
+    }
+
+    public static func anchorStart(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "从开始算" : "From the start"
+    }
+
+    public static func anchorEnd(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "从结束算" : "From the end"
+    }
+
+    public static func noBaseline(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "还没有可计算的记录。记一笔之后才会提醒。" : "Nothing to count from yet. A reminder starts after you log one."
+    }
+
+    public static func waitingForEnd(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "这条还没结束，结束后才开始计时。" : "This one is still running. Timing starts when it ends."
+    }
+
+    public static func overdue(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "预计时间已过。记一笔新的之后会重新计算。" : "That time already passed. A new record schedules the next one."
+    }
+
+    public static func acknowledged(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "这次已标为完成。下一条新记录之后才会再提醒。" : "Marked done for this one. It waits for a newer record."
+    }
+
+    public static func waterFootnote(_ language: ResolvedLanguage) -> String {
+        language == .zh
+            ? "「喝水」是提醒照护者自己，不是给宝宝的喝水建议，也不是医学意见。"
+            : "“Drink water” reminds the caregiver, not the baby. It is not a feeding or medical recommendation."
+    }
+
+    public static func deviceReminders(_ language: ResolvedLanguage) -> String {
+        language == .zh
+            ? "提醒只保存在这台设备上，不会通过 iCloud 同步，所以另一台手机不会跟着响。系统最多大约排 60 条，多个宝宝会轮流占用。"
+            : "Reminders stay on this device and are not synced through iCloud, so another phone does not ring too. The system holds about 60 pending alerts, shared across babies."
+    }
+}

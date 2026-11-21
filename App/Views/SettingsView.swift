@@ -36,10 +36,17 @@ struct SettingsView: View {
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
     @State private var remindersOn = false
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+    @Environment(PersistenceGate.self) private var gate
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
 
     var body: some View {
         Form {
             babiesSection
+            languageSection
             remindersSection
             caregiversSection
             syncSection
@@ -102,20 +109,38 @@ struct SettingsView: View {
         .themedSection()
     }
 
+    private var languageSection: some View {
+        Section {
+            Picker(Copy.languageSection(language), selection: $languageRaw) {
+                ForEach(AppLanguage.allCases) { item in
+                    Text(Copy.languageName(item, language)).tag(item.rawValue)
+                }
+            }
+        } header: {
+            Text(Copy.languageSection(language))
+        }
+        .themedSection()
+    }
+
     private var remindersSection: some View {
         Section {
             NavigationLink {
                 RemindersSettingsView()
             } label: {
                 HStack {
-                    Label("Reminders", systemImage: "bell.badge.fill")
+                    Label(Copy.reminders(language), systemImage: "bell.badge.fill")
                     Spacer()
-                    Text(remindersOn ? "On" : "Off")
+                    Text(remindersOn ? Copy.on(language) : Copy.off(language))
                         .foregroundStyle(theme.secondary)
                 }
             }
+            NavigationLink {
+                HomeCardsSettingsView()
+            } label: {
+                Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
+            }
         } footer: {
-            Text("Feed every few hours, a heads-up before nap windows, or set times each day. Reminders stay on this phone.")
+            Text(Copy.deviceReminders(language))
         }
         .themedSection()
         .onAppear { remindersOn = ReminderSettingsStore().hasAnythingEnabled }
@@ -125,7 +150,11 @@ struct SettingsView: View {
         Section {
             ICloudSyncRow()
         } header: {
-            Text("iCloud sync")
+            Text(Copy.iCloud(language))
+        } footer: {
+            Text(language == .zh
+                 ? "开关只决定这台设备是否把同一份本地数据库交给 iCloud。关闭不会删除记录。两台设备是否同步成功，需要在真机上再确认。开发者需在 App ID 上启用容器 iCloud.com.harrisliangsu.littlebabylog，并部署到 Production。"
+                 : "This switch chooses whether this device hands the same local database to iCloud. Turning it off does not delete records. Sync between two devices still has to be confirmed on real phones. The container iCloud.com.harrisliangsu.littlebabylog must be enabled for the App ID and deployed to Production.")
         }
         .themedSection()
     }
@@ -138,11 +167,9 @@ struct SettingsView: View {
         } header: {
             Text("Caregivers")
         } footer: {
-            if persistence.isCloudSyncEnabled {
-                Text("Invite a partner or another caregiver. Everything you log appears on their phone, and theirs on yours, through iCloud.")
-            } else {
-                Text("This build of the app was made without iCloud turned on, so sharing isn't available. Your data stays on this phone.")
-            }
+            Text(language == .zh
+                 ? "分享依赖 iCloud。这里没有验证过邀请是否成功，失败时会显示系统给出的原因。"
+                 : "Sharing depends on iCloud. An invitation has not been verified here; a failure shows the system reason.")
         }
         .themedSection()
     }
@@ -343,6 +370,11 @@ struct CaregiverRow: View {
     @ObservedObject var baby: Baby
 
     @Environment(\.persistence) private var persistence
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
     @State private var coordinator: CloudSharingCoordinator?
     @State private var isWorking = false
     @State private var refreshTick = 0
@@ -381,7 +413,9 @@ struct CaregiverRow: View {
     }
 
     private var statusText: String {
-        guard persistence.isCloudSyncEnabled else { return "iCloud is off in this build" }
+        guard persistence.isCloudSyncEnabled else {
+            return language == .zh ? "同步已暂停，记录仍在这台手机" : "Sync is paused. Records stay on this phone"
+        }
 
         if persistence.isInSharedStore(baby) {
             if let share = persistence.existingShare(for: baby),
@@ -435,22 +469,38 @@ struct CaregiverRow: View {
 private struct ICloudSyncRow: View {
     @State private var status = CloudSyncStatus.shared
     @Environment(\.appTheme) private var theme
+    @Environment(PersistenceGate.self) private var gate
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            Toggle(isOn: Binding(
+                get: { gate.cloudSyncEnabled },
+                set: { gate.setCloudSync($0) }
+            )) {
                 Label {
-                    Text("iCloud sync")
+                    Text(Copy.iCloud(language))
                 } icon: {
                     Image(systemName: symbol)
                         .foregroundStyle(tint)
                 }
-                Spacer(minLength: 8)
+            }
+            .disabled(!gate.canToggle)
+            HStack {
                 if status.state == .syncing {
                     ProgressView()
                 }
                 Text(title)
                     .foregroundStyle(theme.secondary)
+                Spacer()
+                if case .error = status.state {
+                    Button(Copy.retry(language)) { status.refreshAccount() }
+                        .buttonStyle(.borderless)
+                }
             }
             if case .error(let problem) = status.state {
                 SyncProblemView(problem: problem, onDismiss: nil)
@@ -465,19 +515,18 @@ private struct ICloudSyncRow: View {
             }
         }
         .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
         .onAppear { status.refreshAccount() }
     }
 
     private var title: String {
         switch status.state {
-        case .off: return "Off in this build"
-        case .checking: return "Checking"
-        case .notSignedIn: return "Not signed in"
-        case .unavailable: return "Unavailable"
-        case .syncing: return "Syncing"
-        case .upToDate: return "Up to date"
-        case .error: return "Error"
+        case .off: return language == .zh ? "已暂停" : "Paused"
+        case .checking: return language == .zh ? "正在检查" : "Checking"
+        case .notSignedIn: return language == .zh ? "未登录 iCloud" : "Not signed in"
+        case .unavailable: return language == .zh ? "暂不可用" : "Unavailable"
+        case .syncing: return language == .zh ? "同步中" : "Syncing"
+        case .upToDate: return language == .zh ? "已同步" : "Up to date"
+        case .error: return language == .zh ? "出错" : "Error"
         }
     }
 

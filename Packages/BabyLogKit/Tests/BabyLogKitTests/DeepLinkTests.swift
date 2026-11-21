@@ -35,5 +35,7 @@ struct DeepLinkTests {
             #expect(DeepLink(url: link.url) == link)
         }
         #expect(DeepLink.log(.bottle, babyID: nil).url.absoluteString == "littlebabylog://log/bottle")
+        let timeline = DeepLink.timeline(.formula, babyID: baby)
+        #expect(DeepLink(url: timeline.url) == timeline)
     }
 }

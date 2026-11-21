@@ -77,6 +77,63 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(again.label.contains("奶粉1次"))
         XCTAssertTrue(again.label.contains("120"))
         shot("07-widget-after-relaunch")
+        app.buttons["close-widget-preview"].tap()
+
+        app.buttons["summary-formula"].tap()
+        let total = element("timeline-total")
+        XCTAssertTrue(total.waitForExistence(timeout: 8))
+        XCTAssertTrue(total.label.contains("120"))
+        XCTAssertTrue(total.label.contains("1次"))
+        shot("09-timeline")
+        XCUIDevice.shared.appearance = .dark
+        shot("10-timeline-dark")
+        XCUIDevice.shared.appearance = .light
+        app.navigationBars.buttons["Beibei"].tap()
+        shot("11-home-light")
+    }
+
+    /// Tries to add the real Home Screen widget from Springboard. If iOS 26 does not expose
+    /// the gallery control to the test runner, the test is skipped and the screen is attached.
+    func testAddHomeScreenWidget() throws {
+        app.launch()
+        app.terminate()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        springboard.activate()
+        let icon = springboard.icons["宝宝小记"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 15))
+        icon.press(forDuration: 1.3)
+        let menu = springboard.buttons["Edit Home Screen"].exists
+            ? springboard.buttons["Edit Home Screen"]
+            : springboard.buttons["编辑主屏幕"]
+        if menu.waitForExistence(timeout: 3) { menu.tap() }
+        let add = springboard.buttons["Add Widget"].exists ? springboard.buttons["Add Widget"]
+            : (springboard.buttons["Add"].exists ? springboard.buttons["Add"]
+            : (springboard.buttons["添加小组件"].exists ? springboard.buttons["添加小组件"] : springboard.buttons["添加"]))
+        let shotName = add.waitForExistence(timeout: 6) ? "14-widget-gallery" : "14-widget-gallery-missing"
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = shotName
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        guard add.waitForExistence(timeout: 1) else {
+            throw XCTSkip("Springboard did not show an Add Widget control. See attachment \(shotName). The in-app preview is not this widget.")
+        }
+        add.tap()
+        let search = springboard.searchFields.firstMatch
+        if search.waitForExistence(timeout: 4) {
+            search.tap()
+            search.typeText("宝宝小记")
+        }
+        let choice = springboard.cells.matching(NSPredicate(format: "label CONTAINS '宝宝小记' OR label CONTAINS 'Little Baby Log'")).firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 8))
+        choice.tap()
+        let confirm = springboard.buttons["Add Widget"].exists ? springboard.buttons["Add Widget"] : springboard.buttons["添加小组件"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 6))
+        confirm.tap()
+        springboard.activate()
+        let placed = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        placed.name = "15-home-screen-widget"
+        placed.lifetime = .keepAlways
+        add(placed)
     }
 
     /// Xcode 26 times out when the test runner launches the same app a second time

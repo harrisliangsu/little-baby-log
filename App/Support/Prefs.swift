@@ -20,6 +20,8 @@ enum Prefs {
     static let dimScreenAtNight = "dimScreenAtNight"
     /// Keep the screen on while the nursing timer is open. Off by default: it costs battery.
     static let keepScreenOnWhileNursing = "keepScreenOnWhileNursing"
+    /// When false, the same private.sqlite stays local even if this build has a CloudKit container.
+    static let cloudSyncEnabled = "cloudSyncEnabled"
 
     static let defaultAppearanceMode = AppearanceMode.system
 
