@@ -94,7 +94,8 @@ jobs:
           xcrun simctl launch "$UDID" com.harrisliangsu.littlebabylog || true
           sleep 5
           xcrun simctl terminate "$UDID" com.harrisliangsu.littlebabylog || true
-          xcrun simctl spawn "$UDID" launchctl kickstart -k system/com.apple.chronod || true
+          # system/com.apple.chronod is the wrong domain. The simulator says to use the user one.
+          xcrun simctl spawn "$UDID" launchctl kickstart -k user/foreground/com.apple.chronod || true
           sleep 3
           xcodebuild test-without-building \
             -project LittleBabyLog.xcodeproj \
