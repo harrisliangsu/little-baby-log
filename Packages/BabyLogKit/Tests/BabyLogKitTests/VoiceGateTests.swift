@@ -46,6 +46,8 @@ struct VoiceGateTests {
             Issue.record("a late result must not come back")
         } catch let error as AIClientError {
             #expect(error == .cancelled)
+        } catch {
+            Issue.record("unexpected error")
         }
         #expect(!flight.isCurrent(ticket))
         let next = flight.ticket()
