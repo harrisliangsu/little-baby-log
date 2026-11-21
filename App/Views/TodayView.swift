@@ -24,6 +24,7 @@ struct TodayView: View {
     @State private var openedLinkAt: (key: String, date: Date)?
     @State private var feedback = 0
     @State private var timelineCard: HomeCard?
+    @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showAIDraft = false
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
@@ -118,9 +119,12 @@ struct TodayView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 BabySwitcherMenu()
             }
-            if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+            if aiEnabled, AIRuntime.access().maySend {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAIDraft = true } label: { Image(systemName: "sparkles") }
+                    Button {
+                        guard AIRuntime.access().maySend else { return }
+                        showAIDraft = true
+                    } label: { Image(systemName: "sparkles") }
                         .accessibilityIdentifier("ai-record-draft")
                 }
             }

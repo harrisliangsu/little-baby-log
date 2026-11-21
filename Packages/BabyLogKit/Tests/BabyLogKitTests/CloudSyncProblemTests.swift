@@ -77,6 +77,11 @@ struct CloudSyncProblemTests {
         ])
         let chinese = CloudSyncProblem.classify(zones, language: .zh)
         #expect(chinese.kind == .schemaNotReady)
+        let missingType = NSError(
+            domain: NSCocoaErrorDomain, code: 134400,
+            userInfo: [NSLocalizedDescriptionKey: "Did not find record type: CD_LogEvent"]
+        )
+        #expect(CloudSyncProblem.classify(missingType, language: .zh).kind == .schemaNotReady)
         #expect(chinese.message.contains("还不能同步"))
         #expect(chinese.message.contains("仍在"))
         #expect(!chinese.message.contains("记录结构"))

@@ -121,8 +121,29 @@ public struct RangeSummarySuggestion: Codable, Equatable, Sendable {
 }
 
 public enum AIProposalDecoder {
+    /// Chat replies arrive as `choices[0].message.content`. Tests and a raw JSON body stay as they are.
+    public static func modelJSON(from data: Data) throws -> Data {
+        let trimmed = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let root = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8)) else {
+            throw AIClientError.unreadable
+        }
+        if let object = root as? [String: Any],
+           let choices = object["choices"] as? [[String: Any]],
+           let message = choices.first?["message"] as? [String: Any],
+           let content = message["content"] as? String {
+            let inner = stripFences(content)
+            guard !inner.isEmpty else { throw AIClientError.unreadable }
+            return Data(inner.utf8)
+        }
+        return Data(trimmed.utf8)
+    }
+
+    public static func payload(from data: Data) throws -> [String: Any] {
+        try jsonObject(try modelJSON(from: data))
+    }
+
     public static func columns(from data: Data) throws -> [ColumnMapping] {
-        let object = try jsonObject(data)
+        let object = try payload(from: data)
         guard let rows = object["columns"] as? [[String: Any]] else { throw AIClientError.unreadable }
         return rows.compactMap { row in
             guard let source = row["source"] as? String, !source.isEmpty else { return nil }
@@ -133,7 +154,7 @@ public enum AIProposalDecoder {
     }
 
     public static func record(from data: Data) throws -> RecordDraftSuggestion {
-        let object = try jsonObject(data)
+        let object = try payload(from: data)
         return RecordDraftSuggestion(
             kind: object["kind"] as? String,
             start: object["start"] as? String,
@@ -143,7 +164,7 @@ public enum AIProposalDecoder {
     }
 
     public static func reminder(from data: Data) throws -> ReminderDraftSuggestion {
-        let object = try jsonObject(data)
+        let object = try payload(from: data)
         return ReminderDraftSuggestion(
             text: object["text"] as? String,
             minutes: object["minutes"] as? Int,
@@ -152,7 +173,21 @@ public enum AIProposalDecoder {
     }
 
     public static func summary(from data: Data) throws -> RangeSummarySuggestion {
-        RangeSummarySuggestion(text: (try jsonObject(data))["text"] as? String)
+        RangeSummarySuggestion(text: (try payload(from: data))["text"] as? String)
+    }
+
+    private static func stripFences(_ text: String) -> String {
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.hasPrefix("```") {
+            if let firstNewline = result.firstIndex(of: "\n") {
+                result = String(result[result.index(after: firstNewline)...])
+            }
+            if result.hasSuffix("```") {
+                result.removeLast(3)
+            }
+            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 
     private static func jsonObject(_ data: Data) throws -> [String: Any] {
@@ -173,6 +208,7 @@ public enum AIClientError: Error, Equatable {
     case unreadable
     case wrongHost
     case http(Int)
+    case cancelled
 }
 
 public enum AIRequestBuilder {
@@ -220,11 +256,23 @@ public struct AIClient {
     }
 
     /// Sends only when `approved` is the same preview the person just confirmed.
-    public func send(provider: AIProviderID, preview: AISendPreview, token: String, approved: AISendPreview) async throws -> Data {
+    /// `access` and `flight` are the master switch: a closed switch or a cancelled ticket never reaches the network,
+    /// and a ticket cancelled while the request is out drops the body instead of returning it.
+    public func send(
+        provider: AIProviderID,
+        preview: AISendPreview,
+        token: String,
+        approved: AISendPreview,
+        access: AIAccess = .ready,
+        flight: AIFlight? = nil,
+        ticket: Int = 0
+    ) async throws -> Data {
         guard preview == approved, preview.provider == provider else { throw AIClientError.wrongHost }
+        guard AISendGuard.shouldSend(access: access, flight: flight, ticket: ticket) else { throw AIClientError.cancelled }
         let request = AIRequestBuilder.request(provider: provider, userText: preview.userText, token: token)
         guard !AIRequestBuilder.refusesOtherHost(request, provider: provider) else { throw AIClientError.wrongHost }
         let (data, response) = try await transport.data(for: request)
+        guard AISendGuard.shouldSend(access: access, flight: flight, ticket: ticket) else { throw AIClientError.cancelled }
         guard (200..<300).contains(response.statusCode) else { throw AIClientError.http(response.statusCode) }
         return data
     }

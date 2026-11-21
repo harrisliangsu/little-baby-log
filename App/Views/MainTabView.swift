@@ -14,6 +14,9 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var day = Calendar.current.startOfDay(for: .now)
+    @State private var settingsPath: [SettingsRoute] = []
+    @State private var assistantNotice = ""
+    @State private var showVoice = false
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
@@ -41,11 +44,33 @@ struct MainTabView: View {
             .tabItem { Label(language == .zh ? "趋势" : "Trends", systemImage: "chart.bar.fill") }
             .tag(Tab.trends)
 
-            NavigationStack {
+            NavigationStack(path: $settingsPath) {
                 SettingsView()
+                    .navigationDestination(for: SettingsRoute.self) { _ in
+                        AISettingsView(notice: assistantNotice)
+                    }
             }
             .tabItem { Label(Copy.settings(language), systemImage: "gearshape.fill") }
             .tag(Tab.settings)
+        }
+        .overlay(alignment: .bottom) {
+            Button(action: voiceTapped) {
+                Image(systemName: "mic.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 64, height: 64)
+                    .background(Circle().fill(Color.accentColor))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("voice-log")
+            .accessibilityLabel(language == .zh ? "语音记录" : "Voice log")
+            .offset(y: -8)
+            .zIndex(1)
+        }
+        .sheet(isPresented: $showVoice) {
+            VoiceLogSheet(current: baby) {
+                tab = .today
+            }
         }
         .onChange(of: link, initial: true) { _, newLink in
             if newLink != nil { tab = .today }
@@ -58,10 +83,37 @@ struct MainTabView: View {
         }
     }
 
+    private func voiceTapped() {
+        switch AIRuntime.access() {
+        case .ready:
+            showVoice = true
+        case .offline:
+            assistantNotice = language == .zh ? "没有网络。" : "No network."
+            openAssistant()
+        case .missingCredential:
+            let rejected = UserDefaults.standard.bool(forKey: AIPreferences.rejectedKey)
+            assistantNotice = rejected ? (language == .zh ? "Key 不可用。" : "The key was rejected.") : ""
+            openAssistant()
+        case .off:
+            assistantNotice = ""
+            openAssistant()
+        }
+    }
+
+    private func openAssistant() {
+        showVoice = false
+        tab = .settings
+        settingsPath = [.assistant]
+    }
+
     private func refreshDay() {
         let today = Calendar.current.startOfDay(for: .now)
         if today != day { day = today }
     }
+}
+
+private enum SettingsRoute: Hashable {
+    case assistant
 }
 
 #Preview {

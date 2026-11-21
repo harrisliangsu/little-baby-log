@@ -3,6 +3,7 @@ import BabyLogKit
 
 /// Optional assistant. Off until a key is saved here. Nothing is sent from this screen except a connection test the person confirms.
 struct AISettingsView: View {
+    var notice: String = ""
     @AppStorage(AIPreferences.enabledKey) private var enabled = false
     @AppStorage(AIPreferences.providerKey) private var providerRaw = AIProviderID.deepseek.rawValue
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
@@ -17,7 +18,11 @@ struct AISettingsView: View {
 
     var body: some View {
         Form {
+            if !notice.isEmpty {
+                Text(notice)
+            }
             Toggle(language == .zh ? "使用 AI 助手" : "Use the assistant", isOn: $enabled)
+                .accessibilityIdentifier("ai-enabled")
             Picker(language == .zh ? "供应商" : "Provider", selection: $providerRaw) {
                 ForEach(AIProviderID.allCases) { item in
                     Text(item.displayName).tag(item.rawValue)
@@ -33,11 +38,13 @@ struct AISettingsView: View {
                 let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
                 AIKeyStore.save(trimmed, provider: provider)
+                UserDefaults.standard.set(false, forKey: AIPreferences.rejectedKey)
                 draft = ""
                 savedHint = AIKeyStore.lastFour(provider: provider)
             }
             Button(language == .zh ? "删除 Key" : "Delete key", role: .destructive) {
                 AIKeyStore.delete(provider: provider)
+                AITasks.shared.cancelAll()
                 savedHint = ""
             }
             Text(language == .zh ? "Key 只在这台手机，不同步。" : "The key stays on this phone.")
@@ -49,5 +56,8 @@ struct AISettingsView: View {
         }
         .navigationTitle(language == .zh ? "AI 助手" : "Assistant")
         .onAppear { savedHint = AIKeyStore.lastFour(provider: provider) }
+        .onChange(of: enabled) { _, isOn in
+            if !isOn { AITasks.shared.cancelAll() }
+        }
     }
 }

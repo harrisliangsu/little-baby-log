@@ -34,19 +34,35 @@ enum CloudKitDevelopmentSchema {
             empty.closeStores()
             try? FileManager.default.removeItem(at: directory)
         }
+        print("LBL: Development CloudKit schema init started container=\(identifier)")
+        print("LBL: schema init uses a temporary store, not the phone's private.sqlite")
         guard let cloud = empty.cloudKitContainer, empty.loadError == nil else {
             log.error("Schema init skipped: empty CloudKit store did not open")
+            print("LBL: Development CloudKit schema initialization failed: temporary store did not open")
             return
         }
-        do {
-            if arguments.contains("-lbl-cloudkit-schema-dry-run") {
-                try cloud.initializeCloudKitSchema(options: [.dryRun])
-            } else {
-                try cloud.initializeCloudKitSchema()
+        let dryRun = arguments.contains("-lbl-cloudkit-schema-dry-run")
+        let outcome: Result<Void, Error> = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    if dryRun {
+                        try cloud.initializeCloudKitSchema(options: [.dryRun])
+                    } else {
+                        try cloud.initializeCloudKitSchema()
+                    }
+                    continuation.resume(returning: .success(()))
+                } catch {
+                    continuation.resume(returning: .failure(error))
+                }
             }
+        }
+        switch outcome {
+        case .success:
             log.notice("Development CloudKit schema initialization returned")
-        } catch {
+            print("LBL: Development CloudKit schema initialization returned")
+        case .failure(let error):
             log.error("Development schema initialization failed: \(error.localizedDescription, privacy: .public)")
+            print("LBL: Development CloudKit schema initialization failed: \(error.localizedDescription)")
         }
         #endif
     }

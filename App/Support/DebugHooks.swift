@@ -14,9 +14,8 @@ import BabyLogKit
 /// - `-lblTestDailyReminder <minutes>`: add a daily "Vitamin D drops" medicine reminder for the first baby that many
 ///   minutes from now.
 /// - `-lblClearReminders`: forget every reminder setting on this device (and so cancel their notifications).
-/// - `-lblInitializeCloudKitSchema`: create every record type and field in the CloudKit Development
-///   environment (CloudKit only creates fields for values it has seen), so the schema can be deployed to
-///   Production before a TestFlight or App Store build. Run on a device signed in to iCloud.
+/// Schema initialization is not done here. `-lbl-init-cloudkit-schema` opens a temporary store
+/// (`CloudKitDevelopmentSchema`) and does not touch the phone's private.sqlite.
 @MainActor
 enum DebugHooks {
     private static let log = Logger(subsystem: "app.littlebabylog", category: "debug")
@@ -24,19 +23,8 @@ enum DebugHooks {
 
     static func prepare() async {
         let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-lblInitializeCloudKitSchema"),
-           let container = PersistenceController.shared.cloudKitContainer {
-            let log = Self.log
-            Task.detached(priority: .utility) {
-                do {
-                    try container.initializeCloudKitSchema(options: [])
-                    log.notice("debug: CloudKit schema initialized")
-                    print("LBL: CloudKit schema initialized")
-                } catch {
-                    log.error("debug: CloudKit schema initialization failed: \(error.localizedDescription, privacy: .public)")
-                    print("LBL: CloudKit schema initialization failed: \(error)")
-                }
-            }
+        if arguments.contains("-lblInitializeCloudKitSchema") {
+            print("LBL: -lblInitializeCloudKitSchema is ignored. Use -lbl-init-cloudkit-schema. The phone's private.sqlite is not opened.")
         }
         if let index = arguments.firstIndex(of: "-lblTestFeedReminder"), index + 1 < arguments.count,
            let seconds = TimeInterval(arguments[index + 1]) {

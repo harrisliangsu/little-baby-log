@@ -699,6 +699,26 @@ final class SmokeUITests: XCTestCase {
         }
     }
 
+    func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
+        app.launchArguments += ["-lbl-ui-reset"]
+        app.launch()
+        let name = app.textFields["baby-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        name.tap()
+        name.typeText("Beibei")
+        app.buttons["start-tracking"].tap()
+
+        let voice = app.buttons["voice-log"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 6))
+        XCTAssertGreaterThanOrEqual(voice.frame.height, 44)
+        voice.tap()
+        XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
+        XCTAssertFalse(app.buttons["voice-start"].exists)
+        XCTAssertTrue(app.tabBars.buttons["历史"].exists)
+        XCTAssertTrue(app.tabBars.buttons["趋势"].exists)
+        XCTAssertTrue(app.tabBars.buttons["设置"].exists)
+    }
+
     private func shot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name

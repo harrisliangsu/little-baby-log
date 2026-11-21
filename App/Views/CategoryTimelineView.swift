@@ -15,7 +15,9 @@ struct CategoryTimelineView: View {
     @State private var range: TimelineChoice = .today
     @State private var pickedDay = Date()
     @State private var editor: EditorTarget?
+    @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showSummary = false
+    @State private var summaryOpenID: String?
 
     init(baby: Baby, card: HomeCard) {
         self.baby = baby
@@ -64,8 +66,9 @@ struct CategoryTimelineView: View {
                 Text(totalLine)
                     .font(.headline)
                     .accessibilityIdentifier("timeline-total")
-                if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
-                    Button(language == .zh ? "总结这段已显示的合计" : "Summarize these totals") {
+                if aiEnabled, AIRuntime.access().maySend, !rows.isEmpty {
+                    Button(language == .zh ? "总结" : "Summarize") {
+                        guard AIRuntime.access().maySend else { return }
                         showSummary = true
                     }
                 }
@@ -106,7 +109,24 @@ struct CategoryTimelineView: View {
             EventEditorView(baby: baby, target: target)
         }
         .sheet(isPresented: $showSummary) {
-            AIPhraseSheet(task: .rangeSummary, seed: totalLine, names: [baby.displayName])
+            RangeSummarySheet(total: totalLine, facts: facts, names: [baby.displayName]) { id in
+                summaryOpenID = id
+                showSummary = false
+            }
+        }
+        .onChange(of: showSummary) { _, showing in
+            guard !showing, let id = summaryOpenID else { return }
+            summaryOpenID = nil
+            if let event = rows.first(where: { $0.uuid?.uuidString == id }) {
+                editor = .edit(event)
+            }
+        }
+    }
+
+    private var facts: [SummaryFact] {
+        rows.compactMap { event in
+            guard let id = event.uuid?.uuidString else { return nil }
+            return SummaryFact(id: id, line: "\(timeLine(event)) \(detail(event))")
         }
     }
 

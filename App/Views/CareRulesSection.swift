@@ -15,6 +15,7 @@ struct CareRulesBabySection: View {
     @State private var settings: BabyReminderSettings
     @State private var editing: CareRule?
     @State private var draft: CareRule?
+    @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showAIDraft = false
 
     private let store = ReminderSettingsStore()
@@ -90,7 +91,7 @@ struct CareRulesBabySection: View {
             } label: {
                 Label(language == .zh ? "每天固定时间" : "Every day at a set time", systemImage: "clock.fill")
             }
-            if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+            if aiEnabled, AIRuntime.access().maySend {
                 Button {
                     showAIDraft = true
                 } label: {
