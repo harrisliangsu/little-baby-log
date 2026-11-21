@@ -45,7 +45,7 @@ struct TodayView: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: day, by: 30)) { tick in
+        TimelineView(.periodic(from: .now, by: 30)) { tick in
             let care = CareRollup.make(events: Array(allEvents), now: tick.date)
             List {
                 if !running.isEmpty {
@@ -109,6 +109,7 @@ struct TodayView: View {
                 UpNextView(baby: baby)
             }
             .themedList()
+            .id(day)
         }
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
