@@ -15,6 +15,7 @@ struct CategoryTimelineView: View {
     @State private var range: TimelineChoice = .today
     @State private var pickedDay = Date()
     @State private var editor: EditorTarget?
+    @State private var showSummary = false
 
     init(baby: Baby, card: HomeCard) {
         self.baby = baby
@@ -63,6 +64,11 @@ struct CategoryTimelineView: View {
                 Text(totalLine)
                     .font(.headline)
                     .accessibilityIdentifier("timeline-total")
+                if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+                    Button(language == .zh ? "总结这段已显示的合计" : "Summarize these totals") {
+                        showSummary = true
+                    }
+                }
             }
             .themedSection()
 
@@ -98,6 +104,9 @@ struct CategoryTimelineView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+        }
+        .sheet(isPresented: $showSummary) {
+            AIPhraseSheet(task: .rangeSummary, seed: totalLine, names: [baby.displayName])
         }
     }
 

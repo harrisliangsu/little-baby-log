@@ -94,10 +94,10 @@ struct SettingsView: View {
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else { return }
-            importRequest = ImportRequest(file: StandardImporter.parse(data: data))
+            importRequest = ImportRequest(file: StandardImporter.parse(data: data), source: data)
         }
         .sheet(item: $importRequest) { request in
-            ImportPreviewSheet(file: request.file) { batch in
+            ImportPreviewSheet(file: request.file, source: request.source) { batch in
                 lastImportBatch = batch.uuidString
             }
         }
@@ -156,6 +156,11 @@ struct SettingsView: View {
                 HomeCardsSettingsView()
             } label: {
                 Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
+            }
+            NavigationLink {
+                AISettingsView()
+            } label: {
+                Label(language == .zh ? "AI 助手" : "Assistant", systemImage: "sparkles")
             }
         } footer: {
             Text(Copy.deviceReminders(language))
