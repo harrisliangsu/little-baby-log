@@ -12,6 +12,7 @@ final class SmokeUITests: XCTestCase {
     }
 
     func testLogPersistAndWidgetSnapshot() throws {
+        app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
         shot("01-launch")
 
@@ -228,11 +229,11 @@ final class SmokeUITests: XCTestCase {
 
         addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记")
         _ = tapControl(springboard, labels: ["Done", "完成"], timeout: 4)
-        shotSpringboard("15-home-screen-widget-before")
         let empty = springboard.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS '还没有记录' OR label CONTAINS '打开宝宝小记' OR label CONTAINS 'Nothing logged yet'")
         ).firstMatch
         XCTAssertTrue(empty.waitForExistence(timeout: 20), "The Home Screen widget is blank. Empty data must show the empty-state words, not only the name under a white square.")
+        shotSpringboard("15-home-screen-widget-before")
 
         let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记")).allElementsBoundByIndex
         let appIcon = named.filter { $0.frame.width < 120 }.first ?? named.first
