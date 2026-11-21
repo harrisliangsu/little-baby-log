@@ -139,6 +139,7 @@ public struct CloudSyncProblem: Equatable, Sendable {
         let text = error.localizedDescription
         return text.localizedCaseInsensitiveContains("production schema")
             || text.localizedCaseInsensitiveContains("cannot create new type")
+            || text.localizedCaseInsensitiveContains("did not find record type")
             || text.localizedCaseInsensitiveContains("failed to modify some record zones")
     }
 }

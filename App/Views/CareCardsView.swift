@@ -1,158 +1,78 @@
 import BabyLogKit
 import SwiftUI
 
-/// One card per chosen category. The card body opens that timeline. + adds a record.
-struct CareCardsView: View {
-    @ObservedObject var baby: Baby
+/// One function. The body opens its timeline. Plus opens a new form. They do not share a hit target.
+struct CareCardRow: View {
+    let card: HomeCard
+    var prominent: Bool
+    var detailed: Bool
+    var care: CareRollup
+    var now: Date
+    let onOpen: () -> Void
+    let onAdd: () -> Void
 
-    let onOpen: (HomeCard) -> Void
-    let onAdd: (HomeCard) -> Void
-
-    @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
-    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
-    @AppStorage(HomeLayoutStore.storageKey) private var layoutJSON = ""
-    @FetchRequest private var events: FetchedResults<LogEvent>
-    @State private var changeTick = 0
-
-    init(baby: Baby, onOpen: @escaping (HomeCard) -> Void, onAdd: @escaping (HomeCard) -> Void) {
-        self.baby = baby
-        self.onOpen = onOpen
-        self.onAdd = onAdd
-        _events = FetchRequest(fetchRequest: LogEvent.requestAll(baby: baby))
-    }
-
-    private var language: ResolvedLanguage {
-        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
-    }
+    @Environment(\.uiLanguage) private var language
+    @AppStorage(Prefs.volumeUnit) private var volume: VolumeUnit = Prefs.defaultVolumeUnit
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { timeline in
-            let _ = changeTick
-            let care = CareRollup.make(events: Array(events), now: timeline.date)
-            let chosen = currentLayout.cards
-            let extra = HomeCard.defaultOrder.filter { !chosen.contains($0) }
-            VStack(spacing: 8) {
-                Text(compactSummary(chosen, care: care, now: timeline.date))
-                    .font(.footnote)
-                    .foregroundStyle(theme.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("home-compact-summary")
-                ForEach(chosen) { card in
-                    row(card, care: care, now: timeline.date, prominent: true)
-                }
-                if !extra.isEmpty {
-                    Text(language == .zh ? "其他" : "Other")
-                        .font(.caption)
-                        .foregroundStyle(theme.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    ForEach(extra) { card in
-                        row(card, care: care, now: timeline.date, prominent: false)
-                    }
-                }
-            }
-        }
-        .onContextChange(context) { changeTick += 1 }
-    }
-
-    private var currentLayout: BabyHomeLayout {
-        guard let id = baby.uuid else { return BabyHomeLayout() }
-        let data = layoutJSON.isEmpty ? nil : Data(layoutJSON.utf8)
-        return HomeLayoutStore.load(babyID: id, from: data)
-    }
-
-    private func compactSummary(_ cards: [HomeCard], care: CareRollup, now: Date) -> String {
-        cards.map { "\(Copy.card($0, language)) \(recent($0, care: care, now: now))" }.joined(separator: " · ")
-    }
-
-    private func row(_ card: HomeCard, care: CareRollup, now: Date, prominent: Bool) -> some View {
+        let face = CardFaces.make(
+            card: card,
+            care: care,
+            detailed: detailed,
+            language: language,
+            volume: volume,
+            now: now
+        )
         let title = Copy.card(card, language)
-        let iconSide: CGFloat = prominent ? 36 : 22
-        return HStack(alignment: .center, spacing: prominent ? 12 : 8) {
-            Image(systemName: symbol(card))
-                .font((prominent ? Font.body : Font.caption).weight(.semibold))
+        let iconSide: CGFloat = prominent ? 44 : 28
+        let plusSide: CGFloat = prominent ? 56 : 44
+        HStack(alignment: .center, spacing: prominent ? 12 : 8) {
+            Image(systemName: symbol)
+                .font((prominent ? Font.title3 : Font.caption).weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(width: iconSide, height: iconSide)
-                .background(Circle().fill(tint(card)))
-            Button {
-                onOpen(card)
-            } label: {
-                VStack(alignment: .leading, spacing: prominent ? 3 : 0) {
+                .background(Circle().fill(tint))
+            Button(action: onOpen) {
+                VStack(alignment: .leading, spacing: prominent ? 4 : 2) {
                     Text(title)
-                        .font(prominent ? .headline : .subheadline.weight(.semibold))
+                        .font(prominent ? .title3.weight(.semibold) : .subheadline.weight(.semibold))
                         .foregroundStyle(theme.primaryText)
-                    if prominent {
-                        Text("\(Copy.recent(language)) \(recent(card, care: care, now: now)) · \(Copy.todayWord(language)) \(todayLine(card, care: care))")
-                            .font(.subheadline)
+                    Text(face.primary)
+                        .font(prominent ? .title3 : .subheadline)
+                        .foregroundStyle(theme.secondary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                    if let detail = face.detail {
+                        Text(detail)
+                            .font(prominent ? .body : .footnote)
                             .foregroundStyle(theme.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: prominent ? 72 : 48, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier(summaryID(card))
-            Button {
-                onAdd(card)
-            } label: {
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier(summaryID)
+            Button(action: onAdd) {
                 Image(systemName: "plus.circle.fill")
-                    .font(prominent ? .title2 : .title3)
-                    .frame(width: 44, height: 44)
+                    .font(prominent ? .largeTitle : .title2)
+                    .frame(width: plusSide, height: plusSide)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .accessibilityIdentifier(addID(card))
+            .accessibilityIdentifier(addID)
             .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")
         }
-        .padding(.vertical, prominent ? 10 : 4)
-        .padding(.horizontal, prominent ? 12 : 8)
+        .padding(.vertical, prominent ? 12 : 6)
+        .padding(.horizontal, prominent ? 14 : 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: prominent ? 16 : 12, style: .continuous))
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: prominent ? 18 : 12, style: .continuous))
     }
 
-    private func recent(_ card: HomeCard, care: CareRollup, now: Date) -> String {
-        if card == .sleep, care.sleepRunning { return Copy.sleeping(language) }
-        let date: Date?
-        switch card {
-        case .breast: date = care.lastBreastAt
-        case .formula: date = care.lastFormulaAt
-        case .wet: date = care.lastWetAt
-        case .dirty: date = care.lastDirtyAt
-        case .diaperChange: date = care.lastDiaperChangeAt
-        case .sleep: date = care.lastSleepAt
-        }
-        guard let date else { return Copy.none(language) }
-        var text = Copy.ago(date, now: now, language)
-        if card == .breast, let seconds = care.lastBreastSeconds, seconds > 0 {
-            text += " · " + Copy.duration(seconds, language)
-        }
-        if card == .formula, care.today.formulaML > 0, let amount = lastFormulaAmount() {
-            text += " · " + Copy.ml(amount, language)
-        }
-        return text
-    }
-
-    private func lastFormulaAmount() -> Double? {
-        events.first { HomeCardMatch.matches($0, card: .formula) }?.amountML
-    }
-
-    private func todayLine(_ card: HomeCard, care: CareRollup) -> String {
-        dayLine(card, window: care.today)
-    }
-
-    private func dayLine(_ card: HomeCard, window: CareRollup.Window) -> String {
-        switch card {
-        case .breast: return Copy.count(window.breastCount, language)
-        case .formula: return "\(Copy.count(window.formulaCount, language)) · \(Copy.ml(window.formulaML, language))"
-        case .wet: return Copy.count(window.wetCount, language)
-        case .dirty: return Copy.count(window.dirtyCount, language)
-        case .diaperChange: return Copy.count(window.diaperChangeCount, language)
-        case .sleep: return Copy.count(window.sleepCount, language)
-        }
-    }
-
-    private func symbol(_ card: HomeCard) -> String {
+    private var symbol: String {
         switch card {
         case .breast: return EventKind.breastfeed.symbolName
         case .formula: return EventKind.bottle.symbolName
@@ -163,7 +83,7 @@ struct CareCardsView: View {
         }
     }
 
-    private func tint(_ card: HomeCard) -> Color {
+    private var tint: Color {
         switch card {
         case .breast: return EventKind.breastfeed.color
         case .formula: return EventKind.bottle.color
@@ -173,7 +93,7 @@ struct CareCardsView: View {
         }
     }
 
-    private func addID(_ card: HomeCard) -> String {
+    private var addID: String {
         switch card {
         case .breast: return "add-breast"
         case .formula: return "add-formula"
@@ -184,7 +104,7 @@ struct CareCardsView: View {
         }
     }
 
-    private func summaryID(_ card: HomeCard) -> String {
+    private var summaryID: String {
         switch card {
         case .breast: return "summary-breast"
         case .formula: return "summary-formula"
@@ -194,5 +114,40 @@ struct CareCardsView: View {
         case .sleep: return "summary-sleep"
         }
     }
+}
 
+/// A function that is not a home card. The whole row opens its form.
+struct OtherKindRow: View {
+    let kind: EventKind
+    let onAdd: () -> Void
+
+    @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
+
+    var body: some View {
+        Button(action: onAdd) {
+            HStack(spacing: 10) {
+                KindIcon(kind: kind, size: 28)
+                Text(UICopy.kind(kind, language))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.primaryText)
+                Spacer(minLength: 8)
+                Image(systemName: "plus.circle.fill")
+                    .font(.title2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("add-\(kind.rawValue)")
+        .accessibilityLabel(language == .zh ? "添加\(UICopy.kind(kind, language))" : "Add \(UICopy.kind(kind, language))")
+        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+enum OtherLogKinds {
+    /// Event kinds that are not one of the home cards. They only appear in the other-log area.
+    static let kinds: [EventKind] = [.solids, .pump, .growth, .medicine]
 }

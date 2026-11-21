@@ -6,15 +6,11 @@
 //   app        com.harrisliangsu.littlebabylog
 //   widgets    com.harrisliangsu.littlebabylog.widgets
 //   app group  group.com.harrisliangsu.littlebabylog
-//   CloudKit   iCloud.com.harrisliangsu.littlebabylog  (reserved, not active)
+//   CloudKit   iCloud.com.harrisliangsu.littlebabylog
+// App.xcconfig already sets that container. Do not clear it here.
+// Development and Production schemas are still empty until a Debug run
+// with -lbl-init-cloudkit-schema and a CloudKit Console deploy.
 //
 // Leave the team unset until it is confirmed on the Apple Developer account.
 // A historical team to verify is D2MBDWD85F; do not assume it until App Store Connect says so.
 // DEVELOPMENT_TEAM =
-//
-// Uncomment both lines to turn iCloud on after that container and the app group
-// are registered for the confirmed team. Offline and signed-out use stays on the local store.
-// Also set CKSharingSupported and UIBackgroundModes remote-notification again;
-// this build leaves them off so a local export does not request CloudKit or push.
-// CLOUDKIT_CONTAINER = $(CLOUDKIT_CONTAINER_ID)
-// CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog-iCloud.entitlements

@@ -54,22 +54,25 @@ xcodegen generate
 open LittleBabyLog.xcodeproj
 ```
 
-Pick an iPhone simulator and run. iCloud is off by default, so the app runs in the simulator with no paid Apple Developer account; data is stored locally. The widgets use an App Group (`group.<BUNDLE_ID_PREFIX>.littlebabylog`), which also works in the simulator without a team. To try them, touch and hold the Home Screen, tap Edit, then Add Widget, and pick Little Baby Log.
+Pick an iPhone simulator and run. The signed app already includes the CloudKit container, but Development and Production still have no record types, so a phone keeps its records locally and Settings says sync is not available yet. The widgets use an App Group (`group.com.harrisliangsu.littlebabylog`). To try them, touch and hold the Home Screen, tap Edit, then Add Widget, and pick 宝宝小记.
 
 The `.xcodeproj` is generated from `project.yml` and is not checked in. Re-run `xcodegen generate` after pulling changes.
 
-## Enabling iCloud sync and sharing
+## iCloud schema
 
-CloudKit sync and caregiver sharing need a paid Apple Developer Program account and a real device (or a simulator signed in to iCloud).
+The container is `iCloud.com.harrisliangsu.littlebabylog`. The app group is `group.com.harrisliangsu.littlebabylog`. Team `D2MBDWD85F`. Development and Production schemas are still empty. This is not fixed by turning sync off, and the app does not delete `private.sqlite`.
 
-1. Copy `Config/Local.xcconfig.example` to `Config/Local.xcconfig` (it is git-ignored).
-2. Set `DEVELOPMENT_TEAM` only after that team is confirmed. This fork's bundle prefix is already `com.harrisliangsu`; leave it unless you are publishing a different fork. Uncomment the CloudKit lines in the example only when that container is registered.
-3. Run `xcodegen generate` again.
-4. Open the project. If Xcode complains under Signing & Capabilities, add or refresh the iCloud capability so the container (`iCloud.<prefix>.littlebabylog`) is registered for your team.
-5. Register the App Group `group.<prefix>.littlebabylog` for your team as well, for both the app and the widget extension (`<prefix>.littlebabylog.widgets`). Xcode does this under Signing & Capabilities > App Groups, or add it at developer.apple.com > Identifiers > App Groups. Without it the widgets can't read the app's data, and the app itself needs it because the Core Data store lives in this group container.
-6. Run on a device signed in to iCloud.
+Initialize the Development schema on a Mac that is signed into the same iCloud account as the phone, with a Debug build and a development provisioning profile (not a TestFlight install):
 
-Before releasing to the App Store, deploy the CloudKit schema to **Production** in the [CloudKit Console](https://icloud.developer.apple.com/). Until you do, sync works only in the development environment.
+1. `xcodegen generate`, then open the project in Xcode.
+2. Scheme LittleBabyLog, Run, Debug. Add the launch argument `-lbl-init-cloudkit-schema`.
+3. Run on that Mac's simulator or a development-signed device. The flag opens a temporary store. It does not open the phone's `private.sqlite`.
+4. Success is the console line `LBL: Development CloudKit schema initialization returned`. A failure line means it did not. Do not use `-lblInitializeCloudKitSchema`.
+5. In [CloudKit Console](https://icloud.developer.apple.com/), open container `iCloud.com.harrisliangsu.littlebabylog`, Development, and confirm record types `CD_Baby` and `CD_LogEvent`.
+6. Deploy Schema Changes to Production. Do not choose Reset Development Environment.
+7. Install the production-signed build on a second device with the same iCloud account. A new record on one device should show on the other. Until this deploy, the phone still shows “iCloud 还不能同步。记录仍在这台手机。”
+
+Copy `Config/Local.xcconfig.example` to `Config/Local.xcconfig` only to set `DEVELOPMENT_TEAM` for a local Debug run. Do not clear `CLOUDKIT_CONTAINER`.
 
 ## Running tests
 

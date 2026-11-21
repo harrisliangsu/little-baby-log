@@ -15,6 +15,7 @@ enum AppServices {
     static func start(persistence: PersistenceController = .shared) {
         guard !started else { return }
         started = true
+        NetworkGate.shared.start()
 
         let center = NotificationCenter.default
         let coordinator = persistence.container.persistentStoreCoordinator

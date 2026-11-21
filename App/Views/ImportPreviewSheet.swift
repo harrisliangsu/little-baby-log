@@ -100,9 +100,10 @@ struct ImportPreviewSheet: View {
                         }
                     }
                 }
-                if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+                if AIRuntime.access().maySend {
                     Section {
                         Button(language == .zh ? "看列名" : "Columns") {
+                            guard AIRuntime.access().maySend else { return }
                             consent = mappingPreview
                         }
                         if !mappingText.isEmpty {
@@ -118,7 +119,7 @@ struct ImportPreviewSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $consent) { preview in
                 AIConsentSheet(preview: preview) {
-                    Task { await requestMapping(preview) }
+                    AITasks.shared.run { await requestMapping(preview) }
                 }
             }
             .toolbar {
@@ -152,11 +153,11 @@ struct ImportPreviewSheet: View {
     }
 
     private func requestMapping(_ preview: AISendPreview) async {
-        guard let token = AIKeyStore.token(provider: preview.provider) else { return }
+        let ticket = AIFlight.shared.ticket()
+        guard AIRuntime.access().maySend else { return }
         do {
-            let data = try await AIClient(transport: LockedHostTransport()).send(
-                provider: preview.provider, preview: preview, token: token, approved: preview
-            )
+            let data = try await AIRuntime.send(preview: preview, ticket: ticket)
+            guard AIFlight.shared.isCurrent(ticket), AIPreferences.isEnabled else { return }
             let columns = try AIProposalDecoder.columns(from: data)
             mappingText = columns.map { "\($0.source) → \($0.target ?? "—")" }.joined(separator: "\n")
             if let table = StandardImporter.rawTable(data: source) {
@@ -164,6 +165,10 @@ struct ImportPreviewSheet: View {
                 file = StandardImporter.parse(data: rebuilt)
             }
             if mappingText.isEmpty { mappingText = language == .zh ? "没有可用的列对应" : "No column mapping" }
+        } catch AIClientError.cancelled {
+            return
+        } catch is CancellationError {
+            return
         } catch {
             errorText = language == .zh ? "AI 没有返回可用的列对应" : "The assistant did not return a usable mapping"
         }

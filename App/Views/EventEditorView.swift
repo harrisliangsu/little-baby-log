@@ -43,8 +43,9 @@ struct EventEditorView: View {
 
     @State private var draft: EventDraft
     @State private var confirmDelete = false
-    @State private var showNotes = false
     @State private var attemptedSave = false
+    @State private var seededFormula = false
+    @State private var editingAmount = false
 
     init(baby: Baby, target: EditorTarget) {
         self.baby = baby
@@ -75,36 +76,7 @@ struct EventEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if target.homeCard == nil {
-                    Section {
-                        Text(Copy.forBaby(baby.displayName, language))
-                            .accessibilityIdentifier("composer-baby")
-                    }
-                } else if let card = target.homeCard {
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        .accessibilityIdentifier("composer-baby")
-                        .accessibilityLabel(baby.displayName)
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        .accessibilityIdentifier("composer-card")
-                        .accessibilityLabel(card.rawValue)
-                }
                 kindFields
-
-                Section {
-                    DisclosureGroup(UICopy.t(.notes, language), isExpanded: $showNotes) {
-                        TextField(UICopy.t(.notes, language), text: $draft.notes, axis: .vertical)
-                            .lineLimit(1...5)
-                    }
-                } footer: {
-                    if attemptedSave, let message = draft.validationMessage {
-                        Text(UICopy.validation(message, language))
-                            .foregroundStyle(theme.destructive)
-                    }
-                }
-                .themedSection()
-
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
@@ -116,6 +88,21 @@ struct EventEditorView: View {
                     .themedSection()
                 }
             }
+            .background(alignment: .topLeading) {
+                VStack(alignment: .leading) {
+                    Text(baby.displayName)
+                        .frame(width: 1, height: 1)
+                        .accessibilityIdentifier("composer-baby")
+                    if let card = target.homeCard {
+                        Text(card.rawValue)
+                            .frame(width: 1, height: 1)
+                            .accessibilityIdentifier("composer-card")
+                    }
+                }
+                .opacity(0.01)
+                .accessibilityElement(children: .contain)
+            }
+            .onAppear(perform: seedFormulaAmountIfNeeded)
             .themedList()
             .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)
@@ -135,6 +122,9 @@ struct EventEditorView: View {
                     Button(UICopy.t(.done, language)) { UIApplication.endEditing() }
                 }
             }
+            .sheet(isPresented: $editingAmount) {
+                AmountSheet(milliliters: $draft.amountML, unit: volumeUnit, language: language)
+            }
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
@@ -145,7 +135,8 @@ struct EventEditorView: View {
     // MARK: Fields by kind
 
     private var kindFields: some View {
-        kindSection.themedSection()
+        kindSection
+            .themedSection()
     }
 
     @ViewBuilder
@@ -172,40 +163,47 @@ struct EventEditorView: View {
 
     private var sleepFields: some View {
         Section {
-            DatePicker(UICopy.t(.start, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.start, language), date: $draft.startDate)
             Toggle(UICopy.t(.stillAsleep, language), isOn: stillAsleep)
             if draft.endDate != nil {
-                DatePicker(UICopy.t(.end, language), selection: endDateBinding)
+                TimeValueRow(title: UICopy.t(.end, language), date: endDateBinding)
                 LabeledContent(UICopy.t(.duration, language), value: DurationFormat.short(sleepSeconds))
             }
+            saveError
         }
     }
 
     private var nursingFields: some View {
         Section {
-            DatePicker(UICopy.t(.start, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.start, language), date: $draft.startDate)
             if draft.isRunning {
                 Text(UICopy.t(.timerRunning, language))
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
             } else {
-                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min")
+                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-left-minutes")
+                    .frame(minHeight: 56)
                 NumberField(UICopy.t(.rightMinutes, language), value: minutesBinding(\.rightSeconds), unit: language == .zh ? "分钟" : "min")
-                Picker(UICopy.t(.lastSide, language), selection: $draft.lastSide) {
-                    Text(UICopy.t(.none, language)).tag(BreastSide?.none)
-                    ForEach(BreastSide.allCases) { side in
-                        Text(UICopy.side(side, language)).tag(Optional(side))
-                    }
-                }
-                .pickerStyle(.segmented)
+                    .frame(minHeight: 56)
             }
+            saveError
         }
     }
 
     private var bottleFields: some View {
         Section {
-            NumberField(UICopy.t(.amount, language), value: volumeBinding(\.amountML), unit: volumeUnit.symbol, identifier: "bottle-amount")
-            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            Button { editingAmount = true } label: {
+                HStack {
+                    Text(UICopy.t(.amount, language))
+                    Spacer(minLength: 12)
+                    Text(draft.amountML > 0 ? Copy.amount(draft.amountML, unit: volumeUnit, language) : volumeUnit.symbol)
+                        .font(.title2.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .accessibilityIdentifier("amount-value")
+            TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard != .formula {
                 Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
                     ForEach(BottleContent.allCases) { content in
@@ -214,20 +212,23 @@ struct EventEditorView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            saveError
         }
     }
 
     private var solidsFields: some View {
         Section {
-            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             TextField(UICopy.t(.food, language), text: $draft.foodName)
                 .textInputAutocapitalization(.sentences)
+                .frame(minHeight: 56)
+            saveError
         }
     }
 
     private var diaperFields: some View {
         Section {
-            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard == nil {
                 Picker(UICopy.kind(.diaper, language), selection: $draft.diaperKind) {
                     ForEach(DiaperKind.allCases) { kind in
@@ -236,21 +237,26 @@ struct EventEditorView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            saveError
         }
     }
 
     private var pumpFields: some View {
         Section {
-            DatePicker(UICopy.t(.start, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.start, language), date: $draft.startDate)
             NumberField(UICopy.t(.pumpDuration, language), value: minutesBinding(\.pumpDuration), unit: language == .zh ? "分钟" : "min")
+                .frame(minHeight: 56)
             NumberField(UICopy.t(.left, language), value: volumeBinding(\.leftML), unit: volumeUnit.symbol)
+                .frame(minHeight: 56)
             NumberField(UICopy.t(.right, language), value: volumeBinding(\.rightML), unit: volumeUnit.symbol)
+                .frame(minHeight: 56)
+            saveError
         }
     }
 
     private var growthFields: some View {
         Section {
-            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if unitSystem == .metric {
                 NumberField(UICopy.t(.weight, language), value: $draft.weightKg, unit: "kg", digits: 3)
             } else {
@@ -259,15 +265,40 @@ struct EventEditorView: View {
             }
             NumberField(UICopy.t(.length, language), value: lengthBinding(\.lengthCm), unit: unitSystem.lengthSymbol)
             NumberField(UICopy.t(.head, language), value: lengthBinding(\.headCm), unit: unitSystem.lengthSymbol)
+                .frame(minHeight: 56)
+            saveError
         }
     }
 
     private var medicineFields: some View {
         Section {
-            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             TextField(UICopy.t(.medicine, language), text: $draft.medicineName)
                 .textInputAutocapitalization(.words)
+                .frame(minHeight: 56)
             TextField(UICopy.t(.dose, language), text: $draft.dose)
+                .frame(minHeight: 56)
+            saveError
+        }
+    }
+
+    @ViewBuilder
+    private var saveError: some View {
+        if attemptedSave, let message = draft.validationMessage {
+            Text(UICopy.validation(message, language))
+                .font(.footnote)
+                .foregroundStyle(theme.destructive)
+        }
+    }
+
+    private func seedFormulaAmountIfNeeded() {
+        guard !seededFormula else { return }
+        seededFormula = true
+        guard case .card(.formula) = target, draft.amountML <= 0 else { return }
+        let request = LogEvent.requestAll(baby: baby, kinds: [.bottle], ascending: false)
+        let events = (try? context.fetch(request)) ?? []
+        if let amount = FormulaAmountSeed.milliliters(newestFirst: events) {
+            draft.amountML = amount
         }
     }
 
@@ -375,4 +406,117 @@ struct EventEditorView: View {
 #Preview("New growth") {
     EventEditorView(baby: PreviewData.baby, target: .new(.growth))
         .previewEnvironment()
+}
+
+/// A tall time row. Shortcuts are calculated from the moment they are tapped.
+private struct TimeValueRow: View {
+    let title: String
+    @Binding var date: Date
+    @Environment(\.uiLanguage) private var language
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            HStack {
+                Text(title)
+                Spacer(minLength: 12)
+                Text(date.formatted(date: .omitted, time: .shortened))
+                    .font(.title3.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("time-value")
+        .sheet(isPresented: $open) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 12) {
+                    shortcut(.now, UICopy.t(.now, language), "time-now")
+                    shortcut(.tenMinutes, language == .zh ? "10分钟前" : "10 min ago", "time-10")
+                    shortcut(.twentyMinutes, language == .zh ? "20分钟前" : "20 min ago", "time-20")
+                    DatePicker(title, selection: $date)
+                        .datePickerStyle(.compact)
+                        .frame(minHeight: 44)
+                }
+                .padding(20)
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(UICopy.t(.done, language)) { open = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+
+    private func shortcut(_ choice: LogTimeShortcut, _ title: String, _ identifier: String) -> some View {
+        Button {
+            date = choice.date(from: .now)
+            open = false
+        } label: {
+            Text(title)
+                .frame(maxWidth: .infinity, minHeight: 48)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct AmountSheet: View {
+    @Binding var milliliters: Double
+    let unit: VolumeUnit
+    let language: ResolvedLanguage
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    TextField("0", text: $text)
+                        .keyboardType(.decimalPad)
+                        .font(.largeTitle.weight(.semibold))
+                        .accessibilityIdentifier("bottle-amount")
+                    Text(unit.symbol)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(minHeight: 64)
+                let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
+                    ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
+                        Button(Copy.amount(value, unit: unit, language)) {
+                            milliliters = value
+                            dismiss()
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(minHeight: 48)
+                    }
+                }
+            }
+            .padding(20)
+            .navigationTitle(UICopy.t(.amount, language))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(UICopy.t(.done, language)) {
+                        applyTyped()
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("amount-done")
+                }
+            }
+            .onAppear {
+                text = milliliters > 0 ? NumberField.format(unit.value(fromMilliliters: milliliters), digits: 1) : ""
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func applyTyped() {
+        guard let parsed = NumberField.parse(text) else { return }
+        milliliters = unit.milliliters(from: parsed)
+    }
 }

@@ -20,12 +20,8 @@ public enum AIProviderID: String, Codable, CaseIterable, Identifiable, Sendable 
         }
     }
 
-    public var model: String {
-        switch self {
-        case .kimiAI, .kimiCN: return "kimi-k3.1-pro"
-        case .deepseek: return "deepseek-flash"
-        }
-    }
+    /// The provider's default model. A chosen model is resolved separately so one vendor's ID cannot ride on another.
+    public var model: String { AIModelCatalog.defaultID(for: self) }
 
     public var displayName: String {
         switch self {
@@ -33,6 +29,82 @@ public enum AIProviderID: String, Codable, CaseIterable, Identifiable, Sendable 
         case .kimiCN: return "Kimi 中国站"
         case .deepseek: return "DeepSeek"
         }
+    }
+}
+
+public struct AIModelChoice: Equatable, Identifiable, Sendable {
+    public var id: String { rawID }
+    public var rawID: String
+    public var title: String
+
+    public init(rawID: String, title: String) {
+        self.rawID = rawID
+        self.title = title
+    }
+}
+
+/// Official model IDs checked on 2026-11-22. The app does not fetch this list or accept a typed name.
+public enum AIModelCatalog {
+    public static func choices(for provider: AIProviderID) -> [AIModelChoice] {
+        switch provider {
+        case .deepseek:
+            return [
+                AIModelChoice(rawID: "deepseek-flash", title: "Flash"),
+                AIModelChoice(rawID: "deepseek-v4-pro", title: "V4 Pro"),
+            ]
+        case .kimiAI, .kimiCN:
+            return [
+                AIModelChoice(rawID: "kimi-k3.1-pro", title: "K3.1 Pro"),
+                AIModelChoice(rawID: "kimi-k3.1-pro-highspeed", title: "K3.1 Pro 高速"),
+                AIModelChoice(rawID: "kimi-k3", title: "K3"),
+            ]
+        }
+    }
+
+    public static func defaultID(for provider: AIProviderID) -> String {
+        choices(for: provider)[0].rawID
+    }
+
+    /// Unknown IDs, including another provider's model, become this provider's default.
+    public static func resolve(_ stored: String?, for provider: AIProviderID) -> String {
+        let known = choices(for: provider).map(\.rawID)
+        if let stored, known.contains(stored) { return stored }
+        return defaultID(for: provider)
+    }
+}
+
+/// Per-provider model memory. Selecting a model for one provider does not change the others.
+public struct AIModelSelection: Equatable, Sendable {
+    public var byProvider: [String: String]
+
+    public init(byProvider: [String: String] = [:]) {
+        self.byProvider = byProvider
+    }
+
+    public func current(for provider: AIProviderID) -> String {
+        AIModelCatalog.resolve(byProvider[provider.rawValue], for: provider)
+    }
+
+    public func choosing(_ rawID: String, for provider: AIProviderID) -> AIModelSelection {
+        var copy = self
+        copy.byProvider[provider.rawValue] = AIModelCatalog.resolve(rawID, for: provider)
+        return copy
+    }
+
+    public var json: String {
+        guard JSONSerialization.isValidJSONObject(byProvider),
+              let data = try? JSONSerialization.data(withJSONObject: byProvider),
+              let text = String(data: data, encoding: .utf8) else { return "{}" }
+        return text
+    }
+
+    public init(json: String) {
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
+            self.byProvider = [:]
+            return
+        }
+        self.byProvider = object
     }
 }
 
@@ -121,8 +193,29 @@ public struct RangeSummarySuggestion: Codable, Equatable, Sendable {
 }
 
 public enum AIProposalDecoder {
+    /// Chat replies arrive as `choices[0].message.content`. Tests and a raw JSON body stay as they are.
+    public static func modelJSON(from data: Data) throws -> Data {
+        let trimmed = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let root = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8)) else {
+            throw AIClientError.unreadable
+        }
+        if let object = root as? [String: Any],
+           let choices = object["choices"] as? [[String: Any]],
+           let message = choices.first?["message"] as? [String: Any],
+           let content = message["content"] as? String {
+            let inner = stripFences(content)
+            guard !inner.isEmpty else { throw AIClientError.unreadable }
+            return Data(inner.utf8)
+        }
+        return Data(trimmed.utf8)
+    }
+
+    public static func payload(from data: Data) throws -> [String: Any] {
+        try jsonObject(try modelJSON(from: data))
+    }
+
     public static func columns(from data: Data) throws -> [ColumnMapping] {
-        let object = try jsonObject(data)
+        let object = try payload(from: data)
         guard let rows = object["columns"] as? [[String: Any]] else { throw AIClientError.unreadable }
         return rows.compactMap { row in
             guard let source = row["source"] as? String, !source.isEmpty else { return nil }
@@ -133,7 +226,7 @@ public enum AIProposalDecoder {
     }
 
     public static func record(from data: Data) throws -> RecordDraftSuggestion {
-        let object = try jsonObject(data)
+        let object = try payload(from: data)
         return RecordDraftSuggestion(
             kind: object["kind"] as? String,
             start: object["start"] as? String,
@@ -143,7 +236,7 @@ public enum AIProposalDecoder {
     }
 
     public static func reminder(from data: Data) throws -> ReminderDraftSuggestion {
-        let object = try jsonObject(data)
+        let object = try payload(from: data)
         return ReminderDraftSuggestion(
             text: object["text"] as? String,
             minutes: object["minutes"] as? Int,
@@ -152,7 +245,21 @@ public enum AIProposalDecoder {
     }
 
     public static func summary(from data: Data) throws -> RangeSummarySuggestion {
-        RangeSummarySuggestion(text: (try jsonObject(data))["text"] as? String)
+        RangeSummarySuggestion(text: (try payload(from: data))["text"] as? String)
+    }
+
+    private static func stripFences(_ text: String) -> String {
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.hasPrefix("```") {
+            if let firstNewline = result.firstIndex(of: "\n") {
+                result = String(result[result.index(after: firstNewline)...])
+            }
+            if result.hasSuffix("```") {
+                result.removeLast(3)
+            }
+            result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 
     private static func jsonObject(_ data: Data) throws -> [String: Any] {
@@ -173,11 +280,12 @@ public enum AIClientError: Error, Equatable {
     case unreadable
     case wrongHost
     case http(Int)
+    case cancelled
 }
 
 public enum AIRequestBuilder {
     /// Builds the chat request. `tools` is never set. The token is only the Authorization header.
-    public static func request(provider: AIProviderID, userText: String, token: String) -> URLRequest {
+    public static func request(provider: AIProviderID, model explicit: String? = nil, userText: String, token: String) -> URLRequest {
         var request = URLRequest(url: provider.endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
@@ -185,7 +293,7 @@ public enum AIRequestBuilder {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let system = "Return only the JSON object asked for. Do not give medical advice. Do not invent times or amounts. If a value is missing, use null."
         var body: [String: Any] = [
-            "model": provider.model,
+            "model": AIModelCatalog.resolve(explicit, for: provider),
             "messages": [
                 ["role": "system", "content": system],
                 ["role": "user", "content": userText],
@@ -220,11 +328,24 @@ public struct AIClient {
     }
 
     /// Sends only when `approved` is the same preview the person just confirmed.
-    public func send(provider: AIProviderID, preview: AISendPreview, token: String, approved: AISendPreview) async throws -> Data {
+    /// `access` and `flight` are the master switch: a closed switch or a cancelled ticket never reaches the network,
+    /// and a ticket cancelled while the request is out drops the body instead of returning it.
+    public func send(
+        provider: AIProviderID,
+        preview: AISendPreview,
+        token: String,
+        approved: AISendPreview,
+        model: String? = nil,
+        access: AIAccess = .ready,
+        flight: AIFlight? = nil,
+        ticket: Int = 0
+    ) async throws -> Data {
         guard preview == approved, preview.provider == provider else { throw AIClientError.wrongHost }
-        let request = AIRequestBuilder.request(provider: provider, userText: preview.userText, token: token)
+        guard AISendGuard.shouldSend(access: access, flight: flight, ticket: ticket) else { throw AIClientError.cancelled }
+        let request = AIRequestBuilder.request(provider: provider, model: model, userText: preview.userText, token: token)
         guard !AIRequestBuilder.refusesOtherHost(request, provider: provider) else { throw AIClientError.wrongHost }
         let (data, response) = try await transport.data(for: request)
+        guard AISendGuard.shouldSend(access: access, flight: flight, ticket: ticket) else { throw AIClientError.cancelled }
         guard (200..<300).contains(response.statusCode) else { throw AIClientError.http(response.statusCode) }
         return data
     }

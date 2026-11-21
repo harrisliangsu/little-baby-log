@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.1.1"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "1.1.2"
+    CURRENT_PROJECT_VERSION: "4"
 
 packages:
   BabyLogKit:
@@ -64,6 +64,8 @@ targets:
         LBLCloudKitContainer: $(CLOUDKIT_CONTAINER)
         LBLReservedCloudKitContainer: $(CLOUDKIT_CONTAINER_ID)
         LBLAppGroup: $(APP_GROUP_ID)
+        NSMicrophoneUsageDescription: 用来把你说的话转成记录草稿。
+        NSSpeechRecognitionUsageDescription: 用来把你说的话转成文字。系统可能会把声音发给 Apple。
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)

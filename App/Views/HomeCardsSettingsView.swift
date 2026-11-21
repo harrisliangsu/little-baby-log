@@ -43,7 +43,15 @@ struct HomeCardsSettingsView: View {
 
                 Section {
                     ForEach(HomeCard.allCases) { card in
-                        Toggle(Copy.card(card, language), isOn: visible(id, layout, card))
+                        HStack(spacing: 12) {
+                            Toggle(Copy.card(card, language), isOn: visible(id, layout, card))
+                            Button(layout.isDetailed(card) ? (language == .zh ? "详细" : "Detail") : (language == .zh ? "基础" : "Basic")) {
+                                write(layout.settingDetail(card, detailed: !layout.isDetailed(card)), id)
+                            }
+                            .buttonStyle(.bordered)
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("detail-\(card.rawValue)")
+                        }
                     }
                 } header: {
                     Text(Copy.homeCards(language))

@@ -38,12 +38,59 @@ public enum FeedPreference: String, Codable, CaseIterable, Identifiable, Sendabl
 
 public struct BabyHomeLayout: Codable, Equatable, Sendable {
     public var preference: FeedPreference
-    /// Visible cards, in display order. Hidden cards are simply absent.
+    /// Functions in the record area, in the user's order. Absent cards belong in the other-log area.
     public var cards: [HomeCard]
+    /// Cards that show today's extra figures. Missing from older saves, so the default is basic.
+    public var detailCards: [HomeCard]
 
-    public init(preference: FeedPreference = .mixed, cards: [HomeCard]? = nil) {
+    public init(preference: FeedPreference = .mixed, cards: [HomeCard]? = nil, detailCards: [HomeCard] = []) {
         self.preference = preference
         self.cards = cards ?? preference.suggestedCards
+        self.detailCards = detailCards
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case preference, cards, detailCards
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        preference = try container.decode(FeedPreference.self, forKey: .preference)
+        cards = try container.decode([HomeCard].self, forKey: .cards)
+        detailCards = try container.decodeIfPresent([HomeCard].self, forKey: .detailCards) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(preference, forKey: .preference)
+        try container.encode(cards, forKey: .cards)
+        try container.encode(detailCards, forKey: .detailCards)
+    }
+
+    /// Selected functions, user's order, without duplicates.
+    public var recordCards: [HomeCard] {
+        var seen = Set<HomeCard>()
+        return cards.filter { seen.insert($0).inserted }
+    }
+
+    /// Functions that are not in the record area. History is untouched; the card only moves sections.
+    public var otherCards: [HomeCard] {
+        let selected = Set(recordCards)
+        return HomeCard.defaultOrder.filter { !selected.contains($0) }
+    }
+
+    public func isDetailed(_ card: HomeCard) -> Bool {
+        detailCards.contains(card)
+    }
+
+    public func settingDetail(_ card: HomeCard, detailed: Bool) -> BabyHomeLayout {
+        var copy = self
+        if detailed {
+            if !copy.detailCards.contains(card) { copy.detailCards.append(card) }
+        } else {
+            copy.detailCards.removeAll { $0 == card }
+        }
+        return copy
     }
 
     /// Keeps the user's order, drops duplicates, and appends any card that already has records

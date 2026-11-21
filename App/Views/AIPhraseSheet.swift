@@ -11,6 +11,7 @@ struct AIPhraseSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+    @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var sentence: String
     @State private var consent: AISendPreview?
     @State private var result = ""
@@ -39,9 +40,10 @@ struct AIPhraseSheet: View {
                     Text(sentence).font(.footnote)
                 }
                 Button(language == .zh ? "查看将发送的内容" : "Review what would be sent") {
+                    guard AIRuntime.access().maySend else { return }
                     consent = preview
                 }
-                .disabled(sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!aiEnabled || !AIRuntime.access().maySend || sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 if !result.isEmpty {
                     Text(result).font(.footnote)
                 }
@@ -66,7 +68,7 @@ struct AIPhraseSheet: View {
             }
             .sheet(item: $consent) { preview in
                 AIConsentSheet(preview: preview) {
-                    Task { await run(preview) }
+                    AITasks.shared.run { await run(preview) }
                 }
             }
         }
@@ -90,11 +92,11 @@ struct AIPhraseSheet: View {
     }
 
     private func run(_ preview: AISendPreview) async {
-        guard let token = AIKeyStore.token(provider: preview.provider) else { return }
+        let ticket = AIFlight.shared.ticket()
+        guard AIRuntime.access().maySend else { return }
         do {
-            let data = try await AIClient(transport: LockedHostTransport()).send(
-                provider: preview.provider, preview: preview, token: token, approved: preview
-            )
+            let data = try await AIRuntime.send(preview: preview, ticket: ticket)
+            guard AIFlight.shared.isCurrent(ticket), AIPreferences.isEnabled else { return }
             switch task {
             case .recordDraft:
                 let draft = try AIProposalDecoder.record(from: data)
@@ -119,6 +121,10 @@ struct AIPhraseSheet: View {
             default:
                 break
             }
+        } catch AIClientError.cancelled {
+            return
+        } catch is CancellationError {
+            return
         } catch {
             result = language == .zh ? "没有得到可用的回复，没有保存任何东西。" : "No usable reply, and nothing was saved."
         }

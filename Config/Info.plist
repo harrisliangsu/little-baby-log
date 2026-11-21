@@ -41,6 +41,10 @@
 	<string>$(CLOUDKIT_CONTAINER)</string>
 	<key>LBLReservedCloudKitContainer</key>
 	<string>$(CLOUDKIT_CONTAINER_ID)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>用来把你说的话转成记录草稿。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>用来把你说的话转成文字。系统可能会把声音发给 Apple。</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
