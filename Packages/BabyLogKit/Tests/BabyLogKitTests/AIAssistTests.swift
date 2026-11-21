@@ -28,7 +28,9 @@ struct AIAssistTests {
         #expect(sample.removedNames)
         #expect(!sample.text.contains("月月"))
         #expect(sample.text.contains("Baby"))
-        #expect(sample.text.components(separatedBy: "\n").filter { $0.contains("|") }.count == 8)
+        let dataRows = sample.text.components(separatedBy: "\nrows:\n").last?
+            .components(separatedBy: "\n").filter { $0.contains("|") } ?? []
+        #expect(dataRows.count == 8)
     }
 
     @Test func badModelOutputIsNotAMapping() throws {

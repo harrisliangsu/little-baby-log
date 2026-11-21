@@ -157,9 +157,14 @@ public enum AIProposalDecoder {
 
     private static func jsonObject(_ data: Data) throws -> [String: Any] {
         let trimmed = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty, let object = try JSONSerialization.jsonObject(with: Data(trimmed.utf8)) as? [String: Any] else {
+        guard !trimmed.isEmpty else { throw AIClientError.unreadable }
+        let parsed: Any
+        do {
+            parsed = try JSONSerialization.jsonObject(with: Data(trimmed.utf8))
+        } catch {
             throw AIClientError.unreadable
         }
+        guard let object = parsed as? [String: Any] else { throw AIClientError.unreadable }
         return object
     }
 }
