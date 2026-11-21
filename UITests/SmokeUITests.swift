@@ -270,40 +270,18 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String) {
-        if elementContaining(springboard, choice) == nil {
+        let listed = springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
+        if !listed.waitForExistence(timeout: 4) {
             let search = springboard.searchFields.firstMatch
             XCTAssertTrue(search.waitForExistence(timeout: 8), "Widget gallery did not show a search field.\n\(visibleControls(springboard))")
             search.tap()
             search.typeText(query)
             _ = tapControl(springboard, labels: ["search", "Search", "搜索"], timeout: 2)
+            XCTAssertTrue(listed.waitForExistence(timeout: 8), "Gallery has no \(choice).\n\(visibleControls(springboard))")
         }
-        let deadline = Date().addingTimeInterval(12)
-        var match = elementContaining(springboard, choice)
-        while match == nil && Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-            match = elementContaining(springboard, choice)
-        }
-        guard let match else {
-            attachTree("14-gallery-missing-\(query)", springboard)
-            shotSpringboard("14-gallery-missing-\(query)")
-            XCTFail("Gallery has no \(choice).\n\(visibleControls(springboard))")
-            return
-        }
-        match.tap()
+        listed.tap()
         let confirm = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-gallery-\(query)")
         confirm.tap()
-    }
-
-    /// Uses the elements the hierarchy already lists. A label query can miss a button that enumeration shows.
-    private func elementContaining(_ app: XCUIApplication, _ needle: String) -> XCUIElement? {
-        let queries = [app.cells, app.buttons, app.staticTexts]
-        for query in queries {
-            for element in query.allElementsBoundByIndex.prefix(80) {
-                let text = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
-                if text.localizedCaseInsensitiveContains(needle) { return element }
-            }
-        }
-        return nil
     }
 
     /// Removes the large widget we just added. Its delete badge has no name, so the
@@ -354,12 +332,11 @@ final class SmokeUITests: XCTestCase {
     private func waitControl(_ app: XCUIApplication, labels: [String], timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            for query in [app.buttons, app.menuItems] {
-                for element in query.allElementsBoundByIndex {
-                    let text = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if labels.contains(where: { text == $0 || text.hasPrefix($0 + " ") || text.hasPrefix($0 + ",") }) {
-                        return element
-                    }
+            for label in labels {
+                let predicate = NSPredicate(format: "label CONTAINS %@", label)
+                for query in [app.buttons, app.menuItems] {
+                    let match = query.matching(predicate).firstMatch
+                    if match.exists { return match }
                 }
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
