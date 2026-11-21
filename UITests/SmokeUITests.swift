@@ -49,7 +49,7 @@ final class SmokeUITests: XCTestCase {
 
         XCTAssertTrue(formula.label.contains("1次"))
         XCTAssertTrue(formula.label.contains("120"))
-        XCTAssertTrue(formula.label.contains("24小时"))
+        XCTAssertTrue(formula.label.contains("今日"))
         XCTAssertTrue(element("summary-wet").label.contains("1次"))
         XCTAssertTrue(element("summary-dirty").label.contains("1次"))
         XCTAssertTrue(element("summary-change").label.contains("1次"))
