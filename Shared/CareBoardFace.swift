@@ -23,7 +23,8 @@ struct CareBoardFace: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(spoken)
         .accessibilityIdentifier("widget-face-\(size.rawValue)")
     }
 
@@ -147,6 +148,16 @@ struct CareBoardFace: View {
                 .minimumScaleFactor(0.7)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var spoken: String {
+        var parts = face.items.map(\.accessibilityText)
+        if let hint = face.tapHint { parts.append(hint) }
+        if let note = face.limitNote { parts.append(note) }
+        if let line = face.reminderLine { parts.append(line) }
+        parts.append(contentsOf: face.recentLines)
+        if let missing = face.missingBaby { parts.append(missing) }
+        return parts.joined(separator: " ")
     }
 
     private func missingView(_ text: String) -> some View {

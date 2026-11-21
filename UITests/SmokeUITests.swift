@@ -289,11 +289,18 @@ final class SmokeUITests: XCTestCase {
         XCTAssertFalse(springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Next feed'")).firstMatch.exists)
         XCTAssertFalse(springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'minutes ago'")).firstMatch.exists)
         let pee = springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '小便'")).firstMatch
-        if !pee.waitForExistence(timeout: 8) {
-            springboard.swipeLeft()
-            XCTAssertTrue(pee.waitForExistence(timeout: 12), "The medium or large widget did not show 小便 next to the feed.")
-            springboard.swipeRight()
+        var showedPee = pee.waitForExistence(timeout: 4)
+        if !showedPee {
+            for page in 1...3 {
+                springboard.swipeLeft()
+                shotSpringboard("15-after-page-\(page)")
+                if pee.waitForExistence(timeout: 8) {
+                    showedPee = true
+                    break
+                }
+            }
         }
+        XCTAssertTrue(showedPee, "The medium or large widget did not show 小便 next to the feed.")
 
         XCUIDevice.shared.appearance = .dark
         shotSpringboard("15-widget-dark")
