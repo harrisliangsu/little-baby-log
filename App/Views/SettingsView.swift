@@ -1,6 +1,7 @@
 import SwiftUI
 import CloudKit
 import CoreData
+import UniformTypeIdentifiers
 import BabyLogKit
 
 private enum BabySheet: Identifiable {
@@ -35,6 +36,9 @@ struct SettingsView: View {
     @State private var babySheet: BabySheet?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
+    @State private var showImporter = false
+    @State private var importRequest: ImportRequest?
+    @AppStorage("lastImportBatchID") private var lastImportBatch = ""
     @State private var remindersOn = false
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @Environment(PersistenceGate.self) private var gate
@@ -84,6 +88,18 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(exportError ?? "")
+        }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .json, .plainText]) { result in
+            guard case .success(let url) = result else { return }
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else { return }
+            importRequest = ImportRequest(file: StandardImporter.parse(data: data))
+        }
+        .sheet(item: $importRequest) { request in
+            ImportPreviewSheet(file: request.file) { batch in
+                lastImportBatch = batch.uuidString
+            }
         }
     }
 
@@ -275,6 +291,16 @@ struct SettingsView: View {
             } label: {
                 Label(language == .zh ? "导出全部数据 (CSV)" : "Export all data (CSV)", systemImage: "square.and.arrow.up")
             }
+            Button {
+                showImporter = true
+            } label: {
+                Label(language == .zh ? "导入标准 CSV / JSON" : "Import standard CSV / JSON", systemImage: "square.and.arrow.down")
+            }
+            if !lastImportBatch.isEmpty {
+                Button(language == .zh ? "撤销上一批导入" : "Undo last import", role: .destructive) {
+                    undoLastImport()
+                }
+            }
         } header: {
             Text(language == .zh ? "你的数据" : "Your data")
         } footer: {
@@ -329,6 +355,16 @@ struct SettingsView: View {
         case .dark: return language == .zh ? "深色" : "Dark"
         case .night: return language == .zh ? "夜间" : "Night"
         case .nightSchedule: return language == .zh ? "按时夜间" : "Night on a schedule"
+        }
+    }
+
+    private func undoLastImport() {
+        guard let id = UUID(uuidString: lastImportBatch) else { return }
+        do {
+            _ = try ImportCommit.undo(batchID: id, in: context)
+            lastImportBatch = ""
+        } catch {
+            exportError = error.localizedDescription
         }
     }
 

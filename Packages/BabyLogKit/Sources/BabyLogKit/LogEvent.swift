@@ -39,6 +39,10 @@ public final class LogEvent: NSManagedObject {
     // Medicine
     @NSManaged public var medicineName: String?
     @NSManaged public var dose: String?
+    /// Set when this row was created by a confirmed import. Nil for records typed in the app.
+    @NSManaged public var importBatchID: UUID?
+    /// Stable id from a schema-1 file, used so importing the same file again does not insert a second row.
+    @NSManaged public var externalID: String?
 
     @NSManaged public var baby: Baby?
 }
