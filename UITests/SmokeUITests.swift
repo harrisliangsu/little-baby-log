@@ -306,20 +306,33 @@ final class SmokeUITests: XCTestCase {
         return nil
     }
 
-    /// Removes only a widget whose own label names it. Other icons are left alone.
+    /// Removes the large widget we just added. Its delete badge has no name, so the
+    /// badge is the small button at that widget's corner, not a badge on another icon.
     private func removeOnlyTheTestWidget(_ springboard: XCUIApplication, name: String) {
-        let remove = springboard.buttons.matching(NSPredicate(
-            format: "label CONTAINS %@ AND (label CONTAINS 'Remove' OR label CONTAINS 'Delete' OR label CONTAINS '移除' OR label CONTAINS '删除')",
-            name
-        )).firstMatch
-        guard remove.waitForExistence(timeout: 4) else {
+        let widgets = (springboard.icons.allElementsBoundByIndex + springboard.otherElements.allElementsBoundByIndex)
+            .filter {
+                $0.label.trimmingCharacters(in: .whitespacesAndNewlines) == name && $0.frame.width > 120
+            }
+        guard let widget = widgets.max(by: { $0.frame.width < $1.frame.width }) else {
             attachTree("15-remove-not-named", springboard)
             shotSpringboard("15-remove-not-named")
-            XCTFail("Refused to tap an unnamed delete control. No button both names \(name) and says remove.")
+            XCTFail("Could not find a large \(name) widget to remove.")
             return
         }
-        remove.tap()
-        _ = tapControl(springboard, labels: ["Remove Widget", "Remove App", "移除小组件", "删除小组件"], timeout: 4)
+        let corner = CGPoint(x: widget.frame.minX, y: widget.frame.minY)
+        let badges = springboard.buttons.allElementsBoundByIndex.filter { $0.frame.width < 44 && $0.frame.height < 44 }
+        let nearest = badges.min { lhs, rhs in
+            hypot(lhs.frame.midX - corner.x, lhs.frame.midY - corner.y)
+                < hypot(rhs.frame.midX - corner.x, rhs.frame.midY - corner.y)
+        }
+        guard let nearest, hypot(nearest.frame.midX - corner.x, nearest.frame.midY - corner.y) < 40 else {
+            attachTree("15-remove-not-named", springboard)
+            shotSpringboard("15-remove-not-named")
+            XCTFail("No delete badge sits on the \(name) widget. Other icons were left alone.")
+            return
+        }
+        nearest.tap()
+        _ = tapControl(springboard, labels: ["Remove Widget", "Remove", "移除小组件", "删除小组件"], timeout: 4)
     }
 
     private func requireControl(_ app: XCUIApplication, labels: [String], shot name: String) -> XCUIElement {
