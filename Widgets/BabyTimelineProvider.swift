@@ -9,6 +9,8 @@ struct BabyEntry: TimelineEntry {
     let volumeUnit: VolumeUnit
     /// When the app wrote the snapshot; counts for "today" are stale if that was a previous day.
     let generatedAt: Date?
+    /// `zh` or `en` from the snapshot. Missing means Chinese, matching older snapshot files.
+    let language: ResolvedLanguage
 
     var babyID: UUID? { baby?.id }
 
@@ -32,11 +34,11 @@ struct BabyEntry: TimelineEntry {
     }
 
     static func sample(date: Date = .now, _ baby: WidgetSnapshot.BabySummary = SampleSnapshot.resting(now: .now)) -> BabyEntry {
-        BabyEntry(date: date, baby: baby, volumeUnit: .milliliters, generatedAt: date)
+        BabyEntry(date: date, baby: baby, volumeUnit: .milliliters, generatedAt: date, language: .zh)
     }
 
     static var empty: BabyEntry {
-        BabyEntry(date: .now, baby: nil, volumeUnit: .milliliters, generatedAt: nil)
+        BabyEntry(date: .now, baby: nil, volumeUnit: .milliliters, generatedAt: nil, language: .zh)
     }
 }
 
@@ -70,7 +72,7 @@ struct BabyTimelineProvider: AppIntentTimelineProvider {
 
         var entries = [first]
         for date in Set(changeDates).sorted() where date > first.date {
-            entries.append(BabyEntry(date: date, baby: first.baby, volumeUnit: first.volumeUnit, generatedAt: first.generatedAt))
+            entries.append(BabyEntry(date: date, baby: first.baby, volumeUnit: first.volumeUnit, generatedAt: first.generatedAt, language: first.language))
         }
         return Timeline(entries: entries, policy: .never)
     }
@@ -78,6 +80,6 @@ struct BabyTimelineProvider: AppIntentTimelineProvider {
     private func load(_ configuration: SelectBabyIntent) -> BabyEntry {
         guard let url = AppGroup.snapshotURL, let snapshot = WidgetSnapshot.read(from: url) else { return .empty }
         let baby = snapshot.baby(id: configuration.baby?.uuid)
-        return BabyEntry(date: .now, baby: baby, volumeUnit: snapshot.volumeUnit, generatedAt: snapshot.generatedAt)
+        return BabyEntry(date: .now, baby: baby, volumeUnit: snapshot.volumeUnit, generatedAt: snapshot.generatedAt, language: snapshot.resolvedLanguage)
     }
 }

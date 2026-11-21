@@ -22,11 +22,11 @@ struct FeedingWidgetView: View {
         Group {
             if let baby = entry.baby {
                 switch family {
-                case .systemMedium: MediumFeeding(baby: baby, nextFeed: entry.nextFeed)
-                default: SmallFeeding(baby: baby, nextFeed: entry.nextFeed)
+                case .systemMedium: MediumFeeding(baby: baby, nextFeed: entry.nextFeed, language: entry.language)
+                default: SmallFeeding(baby: baby, nextFeed: entry.nextFeed, language: entry.language)
                 }
             } else {
-                EmptyWidgetView()
+                EmptyWidgetView(language: entry.language)
             }
         }
         .widgetBackground()
@@ -39,6 +39,7 @@ struct FeedingWidgetView: View {
 private struct FeedSummary: View {
     let baby: WidgetSnapshot.BabySummary
     var compact = false
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -66,7 +67,7 @@ private struct FeedSummary: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             } else if let feed = baby.lastFeed {
-                Text("最近喂奶")
+                Text(Copy.lastFeed(language))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(feed.kind.color)
                     .widgetAccentable()
@@ -79,7 +80,7 @@ private struct FeedSummary: View {
                         .lineLimit(1)
                 }
             } else {
-                Text("还没有喂奶")
+                Text(language == .zh ? "还没有喂奶" : "No feed yet")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -92,6 +93,7 @@ private struct FeedSummary: View {
 private struct SmallFeeding: View {
     let baby: WidgetSnapshot.BabySummary
     let nextFeed: WidgetSnapshot.NextFeed?
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -104,7 +106,7 @@ private struct SmallFeeding: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
-            FeedSummary(baby: baby, compact: true)
+            FeedSummary(baby: baby, compact: true, language: language)
             Spacer(minLength: 4)
             if baby.isNursing {
                 Text("Open to manage")
@@ -148,6 +150,7 @@ private struct SmallFeeding: View {
 private struct MediumFeeding: View {
     let baby: WidgetSnapshot.BabySummary
     let nextFeed: WidgetSnapshot.NextFeed?
+    var language: ResolvedLanguage = .zh
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -161,7 +164,7 @@ private struct MediumFeeding: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                FeedSummary(baby: baby)
+                FeedSummary(baby: baby, language: language)
                 Spacer(minLength: 4)
                 if !baby.isNursing, let nextFeed {
                     Text(PredictionFormat.feedLine(nextFeed))

@@ -10,6 +10,12 @@ struct RootView: View {
     /// A `littlebabylog://` link waiting for Today to act on it. Lives here, not in a tab, because
     /// switching babies rebuilds `MainTabView`.
     @State private var pendingLink: DeepLink?
+    @State private var showMissingBaby = false
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
 
     private var selectedBaby: Baby? {
         babies.first(where: { $0.uuid?.uuidString == selectedBabyID }) ?? babies.first
@@ -19,7 +25,7 @@ struct RootView: View {
         Group {
             if let error = persistence.loadError {
                 ContentUnavailableView {
-                    Label("Couldn't open your data", systemImage: "exclamationmark.triangle")
+                    Label(UICopy.t(.couldntOpen, L10n.resolved), systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(error.localizedDescription)
                 }
@@ -34,6 +40,11 @@ struct RootView: View {
                 }
             }
         }
+        .alert(Copy.missingBaby(language), isPresented: $showMissingBaby) {
+            Button(language == .zh ? "知道了" : "OK", role: .cancel) {}
+        }
+        .background(alignment: .topLeading) { AppearanceSchemeProbe() }
+        .task { await CloudKitDevelopmentSchema.initializeIfRequested(persistence) }
         .onOpenURL { url in
             if let link = DeepLink(url: url) { open(link) }
         }
@@ -48,10 +59,32 @@ struct RootView: View {
     }
 
     private func open(_ link: DeepLink) {
-        if let id = link.babyID, babies.contains(where: { $0.uuid == id }) {
+        let known = Set(babies.compactMap(\.uuid))
+        guard !known.isEmpty else { return }
+        guard StartRouting.knownBaby(link, knownBabyIDs: known) else {
+            pendingLink = nil
+            showMissingBaby = true
+            return
+        }
+        if let id = link.babyID {
             selectedBabyID = id.uuidString
         }
+        showMissingBaby = false
         pendingLink = link
+    }
+}
+
+/// Reports the resolved color scheme so a test can wait for a real appearance change.
+private struct AppearanceSchemeProbe: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Color.clear
+            .frame(width: 4, height: 4)
+            .accessibilityElement()
+            .accessibilityIdentifier("appearance-scheme")
+            .accessibilityLabel(scheme == .dark ? "dark" : "light")
+            .allowsHitTesting(false)
     }
 }
 

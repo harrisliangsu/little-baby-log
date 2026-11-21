@@ -5,6 +5,8 @@ import BabyLogKit
 enum EditorTarget: Identifiable {
     case new(EventKind)
     case edit(LogEvent)
+    /// A widget tap. The draft is empty until Save. Home-card history uses a different screen.
+    case card(HomeCard)
 
     var id: String {
         switch self {
@@ -12,7 +14,14 @@ enum EditorTarget: Identifiable {
             return "new-" + kind.rawValue
         case .edit(let event):
             return "edit-" + event.objectID.uriRepresentation().absoluteString
+        case .card(let card):
+            return "card-" + card.rawValue
         }
+    }
+
+    var homeCard: HomeCard? {
+        if case .card(let card) = self { return card }
+        return nil
     }
 }
 
@@ -24,6 +33,7 @@ struct EventEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
 
@@ -38,6 +48,8 @@ struct EventEditorView: View {
             _draft = State(initialValue: EventDraft(kind: kind))
         case .edit(let event):
             _draft = State(initialValue: EventDraft(event: event))
+        case .card(let card):
+            _draft = State(initialValue: EventDraft(card: card))
         }
     }
 
@@ -47,23 +59,35 @@ struct EventEditorView: View {
     }
 
     private var screenTitle: String {
-        let name = draft.kind == .bottle ? "奶粉" : Zh.kind(draft.kind)
-        return isEditing ? "修改\(name)" : "记录\(name)"
+        let name = UICopy.kind(draft.kind == .bottle ? .bottle : draft.kind, language)
+        return isEditing ? "\(UICopy.t(.editPrefix, language))\(name)" : "\(UICopy.t(.newPrefix, language))\(language == .zh ? "" : " ")\(name)"
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Text(Copy.forBaby(baby.displayName, language))
+                        .accessibilityIdentifier("composer-baby")
+                    if let card = target.homeCard {
+                        Text(card.rawValue)
+                            .font(.system(size: 1))
+                            .foregroundStyle(.clear)
+                            .frame(width: 1, height: 1)
+                            .accessibilityIdentifier("composer-card")
+                            .accessibilityLabel(card.rawValue)
+                    }
+                }
                 kindFields
 
                 Section {
-                    TextField("备注", text: $draft.notes, axis: .vertical)
+                    TextField(UICopy.t(.notes, language), text: $draft.notes, axis: .vertical)
                         .lineLimit(1...5)
                 } header: {
-                    Text("备注")
+                    Text(UICopy.t(.notes, language))
                 } footer: {
                     if let message = draft.validationMessage {
-                        Text(message)
+                        Text(UICopy.validation(message, language))
                             .foregroundStyle(theme.destructive)
                     }
                 }
@@ -74,34 +98,35 @@ struct EventEditorView: View {
                         Button(role: .destructive) {
                             confirmDelete = true
                         } label: {
-                            Text("删除这条记录").themedDestructive()
+                            Text(UICopy.t(.deleteEntry, language)).themedDestructive()
                         }
                     }
                     .themedSection()
                 }
             }
             .themedList()
+            .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(UICopy.t(.cancel, language)) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
+                    Button(UICopy.t(.save, language)) { save() }
                         .fontWeight(.semibold)
                         .disabled(draft.validationMessage != nil)
                         .accessibilityIdentifier("save-entry")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完成") { UIApplication.endEditing() }
+                    Button(UICopy.t(.done, language)) { UIApplication.endEditing() }
                 }
             }
-            .confirmationDialog("删除这条记录？", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("删除", role: .destructive) { deleteEntry() }
-                Button("取消", role: .cancel) {}
+            .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
+                Button(UICopy.t(.cancel, language), role: .cancel) {}
             }
         }
     }
@@ -136,29 +161,29 @@ struct EventEditorView: View {
 
     private var sleepFields: some View {
         Section {
-            DatePicker("开始", selection: $draft.startDate)
-            Toggle("还在睡", isOn: stillAsleep)
+            DatePicker(UICopy.t(.start, language), selection: $draft.startDate)
+            Toggle(UICopy.t(.stillAsleep, language), isOn: stillAsleep)
             if draft.endDate != nil {
-                DatePicker("结束", selection: endDateBinding)
-                LabeledContent("时长", value: DurationFormat.short(sleepSeconds))
+                DatePicker(UICopy.t(.end, language), selection: endDateBinding)
+                LabeledContent(UICopy.t(.duration, language), value: DurationFormat.short(sleepSeconds))
             }
         }
     }
 
     private var nursingFields: some View {
         Section {
-            DatePicker("开始", selection: $draft.startDate)
+            DatePicker(UICopy.t(.start, language), selection: $draft.startDate)
             if draft.isRunning {
-                Text("计时还在进行。回到今天页面可以换边或结束。")
+                Text(UICopy.t(.timerRunning, language))
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
             } else {
-                NumberField("左侧分钟", value: minutesBinding(\.leftSeconds), unit: "分钟")
-                NumberField("右侧分钟", value: minutesBinding(\.rightSeconds), unit: "分钟")
-                Picker("最后一侧", selection: $draft.lastSide) {
-                    Text("无").tag(BreastSide?.none)
+                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min")
+                NumberField(UICopy.t(.rightMinutes, language), value: minutesBinding(\.rightSeconds), unit: language == .zh ? "分钟" : "min")
+                Picker(UICopy.t(.lastSide, language), selection: $draft.lastSide) {
+                    Text(UICopy.t(.none, language)).tag(BreastSide?.none)
                     ForEach(BreastSide.allCases) { side in
-                        Text(Zh.side(side)).tag(Optional(side))
+                        Text(UICopy.side(side, language)).tag(Optional(side))
                     }
                 }
                 .pickerStyle(.segmented)
@@ -168,11 +193,11 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            DatePicker("时间", selection: $draft.startDate)
-            NumberField("奶量", value: volumeBinding(\.amountML), unit: volumeUnit.symbol, identifier: "bottle-amount")
-            Picker("内容", selection: $draft.bottleContent) {
+            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            NumberField(UICopy.t(.amount, language), value: volumeBinding(\.amountML), unit: volumeUnit.symbol, identifier: "bottle-amount")
+            Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
                 ForEach(BottleContent.allCases) { content in
-                    Text(Zh.bottle(content)).tag(content)
+                    Text(UICopy.bottle(content, language)).tag(content)
                 }
             }
             .pickerStyle(.segmented)
@@ -181,18 +206,18 @@ struct EventEditorView: View {
 
     private var solidsFields: some View {
         Section {
-            DatePicker("Time", selection: $draft.startDate)
-            TextField("Food", text: $draft.foodName)
+            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            TextField(UICopy.t(.food, language), text: $draft.foodName)
                 .textInputAutocapitalization(.sentences)
         }
     }
 
     private var diaperFields: some View {
         Section {
-            DatePicker("时间", selection: $draft.startDate)
-            Picker("尿布", selection: $draft.diaperKind) {
+            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            Picker(UICopy.kind(.diaper, language), selection: $draft.diaperKind) {
                 ForEach(DiaperKind.allCases) { kind in
-                    Text(Zh.diaper(kind)).tag(kind)
+                    Text(UICopy.diaper(kind, language)).tag(kind)
                 }
             }
             .pickerStyle(.segmented)
@@ -201,33 +226,33 @@ struct EventEditorView: View {
 
     private var pumpFields: some View {
         Section {
-            DatePicker("Start", selection: $draft.startDate)
-            NumberField("Duration", value: minutesBinding(\.pumpDuration), unit: "min")
-            NumberField("Left", value: volumeBinding(\.leftML), unit: volumeUnit.symbol)
-            NumberField("Right", value: volumeBinding(\.rightML), unit: volumeUnit.symbol)
+            DatePicker(UICopy.t(.start, language), selection: $draft.startDate)
+            NumberField(UICopy.t(.pumpDuration, language), value: minutesBinding(\.pumpDuration), unit: language == .zh ? "分钟" : "min")
+            NumberField(UICopy.t(.left, language), value: volumeBinding(\.leftML), unit: volumeUnit.symbol)
+            NumberField(UICopy.t(.right, language), value: volumeBinding(\.rightML), unit: volumeUnit.symbol)
         }
     }
 
     private var growthFields: some View {
         Section {
-            DatePicker("Time", selection: $draft.startDate)
+            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
             if unitSystem == .metric {
-                NumberField("Weight", value: $draft.weightKg, unit: "kg", digits: 3)
+                NumberField(UICopy.t(.weight, language), value: $draft.weightKg, unit: "kg", digits: 3)
             } else {
-                NumberField("Weight", value: poundsBinding, unit: "lb", digits: 0)
-                NumberField("Ounces", value: ouncesBinding, unit: "oz", digits: 1)
+                NumberField(UICopy.t(.weight, language), value: poundsBinding, unit: "lb", digits: 0)
+                NumberField(UICopy.t(.ounces, language), value: ouncesBinding, unit: "oz", digits: 1)
             }
-            NumberField("Length", value: lengthBinding(\.lengthCm), unit: unitSystem.lengthSymbol)
-            NumberField("Head", value: lengthBinding(\.headCm), unit: unitSystem.lengthSymbol)
+            NumberField(UICopy.t(.length, language), value: lengthBinding(\.lengthCm), unit: unitSystem.lengthSymbol)
+            NumberField(UICopy.t(.head, language), value: lengthBinding(\.headCm), unit: unitSystem.lengthSymbol)
         }
     }
 
     private var medicineFields: some View {
         Section {
-            DatePicker("Time", selection: $draft.startDate)
-            TextField("Medicine", text: $draft.medicineName)
+            DatePicker(UICopy.t(.time, language), selection: $draft.startDate)
+            TextField(UICopy.t(.medicine, language), text: $draft.medicineName)
                 .textInputAutocapitalization(.words)
-            TextField("Dose, e.g. 2.5 ml", text: $draft.dose)
+            TextField(UICopy.t(.dose, language), text: $draft.dose)
         }
     }
 
@@ -305,6 +330,9 @@ struct EventEditorView: View {
         switch target {
         case .new(let kind):
             let event = LogEvent.create(kind: kind, for: baby, start: draft.startDate, in: context)
+            draft.apply(to: event)
+        case .card:
+            let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
         case .edit(let event):
             draft.apply(to: event)

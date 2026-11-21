@@ -7,7 +7,7 @@ import BabyLogKit
 /// What a tapped notification (or one of its buttons) carries, as plain Sendable values.
 struct ReminderResponse: Sendable {
     enum Action: Sendable {
-        case open, startLeft, startRight, snooze, other
+        case open, startLeft, startRight, snooze, done, openLog, other
     }
 
     var action: Action
@@ -47,8 +47,10 @@ enum ReminderResponder {
         let babyID = response.userInfo[ReminderUserInfoKey.babyID].flatMap(UUID.init(uuidString:))
 
         switch response.action {
-        case .open:
-            DeepLinkRouter.open(.today(babyID: babyID))
+        case .open, .openLog:
+            DeepLinkRouter.open(Self.link(for: response, babyID: babyID))
+        case .done:
+            await acknowledge(response)
         case .startLeft:
             await startNursing(.left, babyID: babyID)
         case .startRight:
@@ -84,6 +86,25 @@ enum ReminderResponder {
         }
         await AppServices.syncNow(.intent)
         keepAliveForSync()
+    }
+
+    private static func link(for response: ReminderResponse, babyID: UUID?) -> DeepLink {
+        if let raw = response.userInfo[ReminderUserInfoKey.card], let card = HomeCard(rawValue: raw) {
+            return .timeline(card, babyID: babyID)
+        }
+        return .today(babyID: babyID)
+    }
+
+    /// Marks the rule done on this device so the next fire is recomputed. Does not invent a log entry.
+    private static func acknowledge(_ response: ReminderResponse) async {
+        guard let babyID = response.userInfo[ReminderUserInfoKey.babyID].flatMap(UUID.init(uuidString:)),
+              let ruleID = response.userInfo[ReminderUserInfoKey.ruleID].flatMap(UUID.init(uuidString:)) else { return }
+        let store = ReminderSettingsStore()
+        var settings = store.settings(for: babyID)
+        guard let index = settings.rules.firstIndex(where: { $0.id == ruleID }) else { return }
+        settings.rules[index].acknowledgedAt = Date()
+        store.save(settings, for: babyID)
+        await ReminderScheduler.shared.refresh()
     }
 
     private static func snooze(_ response: ReminderResponse) async {

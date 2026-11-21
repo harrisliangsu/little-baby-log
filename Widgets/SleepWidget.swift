@@ -42,7 +42,7 @@ struct SleepWidgetView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 if let started = baby.runningSleepStartedAt {
-                    Text("睡眠中")
+                    Text(Copy.sleeping(entry.language))
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(EventKind.sleep.color)
                         .widgetAccentable()
@@ -51,7 +51,7 @@ struct SleepWidgetView: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 } else if let ended = baby.lastSleepEndedAt {
-                    Text("醒了")
+                    Text(entry.language == .zh ? "醒了" : "Awake")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.orange)
                         .widgetAccentable()
@@ -60,7 +60,7 @@ struct SleepWidgetView: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 } else {
-                    Text("还没有睡眠")
+                    Text(entry.language == .zh ? "还没有睡眠" : "No sleep yet")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -79,7 +79,7 @@ struct SleepWidgetView: View {
 
             Button(intent: ToggleSleepIntent(babyID: baby.id)) {
                 TileLabel(
-                    title: baby.isSleeping ? "醒来" : "睡眠",
+                    title: baby.isSleeping ? (entry.language == .zh ? "醒来" : "Wake") : Copy.card(.sleep, entry.language),
                     systemImage: baby.isSleeping ? "sun.max.fill" : EventKind.sleep.symbolName,
                     tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                     filled: true

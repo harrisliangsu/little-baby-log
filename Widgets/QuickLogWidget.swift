@@ -23,7 +23,7 @@ struct QuickLogWidgetView: View {
             if let baby = entry.baby {
                 content(baby)
             } else {
-                EmptyWidgetView()
+                EmptyWidgetView(language: entry.language)
             }
         }
         .widgetBackground()
@@ -67,7 +67,7 @@ struct QuickLogWidgetView: View {
                 .lineLimit(1)
                 .widgetAccentable()
             } else if let feed = baby.lastFeed {
-                AgoLine(prefix: "喂奶", date: feed.referenceDate)
+                AgoLine(prefix: Copy.lastFeed(entry.language), date: feed.referenceDate)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -76,7 +76,7 @@ struct QuickLogWidgetView: View {
 
     /// Large only: the same lines the app writes into the snapshot. No sample baby.
     private func details(_ baby: WidgetSnapshot.BabySummary) -> some View {
-        CareSummaryView(baby: baby)
+                CareSummaryView(baby: baby, language: entry.language)
             .padding(.vertical, 2)
     }
 
@@ -89,7 +89,7 @@ struct QuickLogWidgetView: View {
                 ForEach(BreastSide.allCases) { side in
                     Button(intent: NursingSideIntent(babyID: baby.id, side: side)) {
                         TileLabel(
-                            title: "亲喂\(Zh.side(side))",
+                            title: (entry.language == .zh ? "亲喂" : "Nurse ") + (side == .left ? (entry.language == .zh ? "左" : "L") : (entry.language == .zh ? "右" : "R")),
                             systemImage: values?.activeSide == side ? "pause.fill" : EventKind.breastfeed.symbolName,
                             tint: side.color,
                             filled: values?.activeSide == side || (values == nil && baby.nextSide == side)
@@ -99,7 +99,7 @@ struct QuickLogWidgetView: View {
                 }
                 Button(intent: ToggleSleepIntent(babyID: baby.id)) {
                     TileLabel(
-                        title: baby.isSleeping ? "醒来" : "睡眠",
+                        title: baby.isSleeping ? (entry.language == .zh ? "醒来" : "Wake") : Copy.card(.sleep, entry.language),
                         systemImage: baby.isSleeping ? "sun.max.fill" : EventKind.sleep.symbolName,
                         tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                         filled: baby.isSleeping
@@ -109,15 +109,15 @@ struct QuickLogWidgetView: View {
             }
             GridRow {
                 Button(intent: LogDiaperIntent(babyID: baby.id, kind: .wet)) {
-                    TileLabel(title: "小便", systemImage: DiaperKind.wet.symbolName, tint: EventKind.diaper.color)
+                    TileLabel(title: Copy.card(.wet, entry.language), systemImage: DiaperKind.wet.symbolName, tint: EventKind.diaper.color)
                 }
                 .buttonStyle(.plain)
                 Button(intent: LogDiaperIntent(babyID: baby.id, kind: .dirty)) {
-                    TileLabel(title: "大便", systemImage: DiaperKind.dirty.symbolName, tint: .brown)
+                    TileLabel(title: Copy.card(.dirty, entry.language), systemImage: DiaperKind.dirty.symbolName, tint: .brown)
                 }
                 .buttonStyle(.plain)
                 Link(destination: DeepLink.log(.bottle, babyID: baby.id).url) {
-                    TileLabel(title: "奶粉", systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
+                    TileLabel(title: Copy.card(.formula, entry.language), systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
                 }
             }
         }

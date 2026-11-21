@@ -36,10 +36,17 @@ struct SettingsView: View {
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
     @State private var remindersOn = false
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+    @Environment(PersistenceGate.self) private var gate
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
 
     var body: some View {
         Form {
             babiesSection
+            languageSection
             remindersSection
             caregiversSection
             syncSection
@@ -51,7 +58,8 @@ struct SettingsView: View {
             aboutSection
         }
         .themedList()
-        .navigationTitle("Settings")
+        .navigationTitle(Copy.settings(language))
+        .systemBarChrome()
         .sheet(item: $babySheet) { sheet in
             switch sheet {
             case .add:
@@ -94,10 +102,24 @@ struct SettingsView: View {
             Button {
                 babySheet = .add
             } label: {
-                Label("Add a baby", systemImage: "plus.circle.fill")
+                Label(UICopy.t(.addBaby, language), systemImage: "plus.circle.fill")
             }
         } header: {
-            Text("Babies")
+            Text(language == .zh ? "宝宝" : "Babies")
+        }
+        .themedSection()
+    }
+
+    private var languageSection: some View {
+        Section {
+            Picker(Copy.languageSection(language), selection: $languageRaw) {
+                ForEach(AppLanguage.allCases) { item in
+                    Text(Copy.languageName(item, language)).tag(item.rawValue)
+                }
+            }
+            .accessibilityIdentifier("app-language")
+        } header: {
+            Text(Copy.languageSection(language))
         }
         .themedSection()
     }
@@ -108,14 +130,19 @@ struct SettingsView: View {
                 RemindersSettingsView()
             } label: {
                 HStack {
-                    Label("Reminders", systemImage: "bell.badge.fill")
+                    Label(Copy.reminders(language), systemImage: "bell.badge.fill")
                     Spacer()
-                    Text(remindersOn ? "On" : "Off")
+                    Text(remindersOn ? Copy.on(language) : Copy.off(language))
                         .foregroundStyle(theme.secondary)
                 }
             }
+            NavigationLink {
+                HomeCardsSettingsView()
+            } label: {
+                Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
+            }
         } footer: {
-            Text("Feed every few hours, a heads-up before nap windows, or set times each day. Reminders stay on this phone.")
+            Text(Copy.deviceReminders(language))
         }
         .themedSection()
         .onAppear { remindersOn = ReminderSettingsStore().hasAnythingEnabled }
@@ -125,7 +152,11 @@ struct SettingsView: View {
         Section {
             ICloudSyncRow()
         } header: {
-            Text("iCloud sync")
+            Text(Copy.iCloud(language))
+        } footer: {
+            Text(language == .zh
+                 ? "开关只决定这台设备是否把同一份本地数据库交给 iCloud。关闭不会删除记录。容器已关联，但还没有记录类型，也还没有部署到 Production。两台手机是否同步，要等 schema 和 Push 都就绪后再用真机确认。"
+                 : "This switch chooses whether this device hands the same local database to iCloud. Turning it off does not delete records. The container is associated, but it still has no record types and Production has not been deployed. Two phones can be checked only after the schema and Push are ready.")
         }
         .themedSection()
     }
@@ -136,67 +167,67 @@ struct SettingsView: View {
                 CaregiverRow(baby: baby)
             }
         } header: {
-            Text("Caregivers")
+            Text(UICopy.t(.caregivers, language))
         } footer: {
-            if persistence.isCloudSyncEnabled {
-                Text("Invite a partner or another caregiver. Everything you log appears on their phone, and theirs on yours, through iCloud.")
-            } else {
-                Text("This build of the app was made without iCloud turned on, so sharing isn't available. Your data stays on this phone.")
-            }
+            Text(language == .zh
+                 ? "分享依赖 iCloud。这里没有验证过邀请是否成功，失败时会显示系统给出的原因。"
+                 : "Sharing depends on iCloud. An invitation has not been verified here; a failure shows the system reason.")
         }
         .themedSection()
     }
 
     private var unitsSection: some View {
         Section {
-            Picker("Liquids", selection: $volumeUnit) {
+            Picker(language == .zh ? "液体" : "Liquids", selection: $volumeUnit) {
                 ForEach(VolumeUnit.allCases) { unit in
                     Text(unit.title).tag(unit)
                 }
             }
-            Picker("Weight and length", selection: $unitSystem) {
+            Picker(language == .zh ? "体重和身长" : "Weight and length", selection: $unitSystem) {
                 ForEach(UnitSystem.allCases) { system in
                     Text(system.title).tag(system)
                 }
             }
         } header: {
-            Text("Units")
+            Text(language == .zh ? "单位" : "Units")
         }
         .themedSection()
     }
 
     private var appearanceSection: some View {
         Section {
-            Picker("Appearance", selection: $appearanceMode) {
+            Picker(UICopy.t(.appearance, language), selection: $appearanceMode) {
                 ForEach(AppearanceMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Text(appearanceTitle(mode))
+                        .tag(mode)
+                        .accessibilityIdentifier("appearance-\(mode.rawValue)")
                 }
             }
             .pickerStyle(.inline)
             .labelsHidden()
 
             if appearanceMode == .nightSchedule {
-                DatePicker("From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
-                DatePicker("To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
+                DatePicker(language == .zh ? "从" : "From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
+                DatePicker(language == .zh ? "到" : "To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
             }
 
             if appearanceMode.canShowNight {
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Dim screen at night", isOn: $dimScreenAtNight)
-                    BatteryImpactNote("Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
+                    Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
+                    BatteryImpactNote(language == .zh ? "夜间界面会降低屏幕亮度，更省电。" : "Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
                 }
                 .padding(.vertical, 2)
             }
         } header: {
-            Text("Appearance")
+            Text(UICopy.t(.appearance, language))
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 if appearanceMode == .nightSchedule {
-                    Text("Night turns on at \(Self.timeString(nightStartMinutes)) and off at \(Self.timeString(nightEndMinutes)). The rest of the time the app follows your phone's Light or Dark setting.")
+                    Text(UICopy.t(.nightSchedule, language))
                 } else if appearanceMode == .night {
-                    Text("Night is a dim, warm, true-black look for feeding in the dark.")
+                    Text(UICopy.t(.nightLook, language))
                 }
-                Text("Widgets and Live Activities follow your phone's Light or Dark setting. iOS doesn't let apps change that.")
+                Text(UICopy.t(.widgetAppearance, language))
             }
         }
         .themedSection()
@@ -205,12 +236,12 @@ struct SettingsView: View {
     private var nursingTimerSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
-                Toggle("Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
-                BatteryImpactNote("Keeps your screen on while the timer is open, which uses more battery.")
+                Toggle(language == .zh ? "计时中保持屏幕常亮" : "Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
+                BatteryImpactNote(language == .zh ? "计时页面打开时屏幕不熄灭，会更耗电。" : "Keeps your screen on while the timer is open, which uses more battery.")
             }
             .padding(.vertical, 2)
         } header: {
-            Text("Nursing timer")
+            Text(UICopy.t(.nursingTimer, language))
         }
         .themedSection()
     }
@@ -218,21 +249,21 @@ struct SettingsView: View {
     private var widgetsSection: some View {
         Section {
             Label {
-                Text("Touch and hold an empty spot on the Home Screen, tap Edit, then Add Widget, and choose Little Baby Log. Start nursing or log a diaper without opening the app.")
+                Text(UICopy.t(.widgetHelp, language))
             } icon: {
                 Image(systemName: "rectangle.3.group.fill")
                     .foregroundStyle(theme.accent)
             }
             Label {
-                Text("For the Lock Screen, touch and hold it, tap Customize, then add a widget under the clock. Running sleep and nursing timers also show up on the Lock Screen and in the Dynamic Island.")
+                Text(UICopy.t(.lockHelp, language))
             } icon: {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(theme.accent)
             }
         } header: {
-            Text("Widgets")
+            Text(language == .zh ? "小组件" : "Widgets")
         } footer: {
-            Text("To show a different baby in a widget, touch and hold it and tap Edit Widget.")
+            Text(UICopy.t(.widgetBaby, language))
         }
         .themedSection()
     }
@@ -242,29 +273,29 @@ struct SettingsView: View {
             Button {
                 exportCSV()
             } label: {
-                Label("Export all data (CSV)", systemImage: "square.and.arrow.up")
+                Label(language == .zh ? "导出全部数据 (CSV)" : "Export all data (CSV)", systemImage: "square.and.arrow.up")
             }
         } header: {
-            Text("Your data")
+            Text(language == .zh ? "你的数据" : "Your data")
         } footer: {
-            Text("A spreadsheet of every entry for every baby.")
+            Text(UICopy.t(.dataFootnote, language))
         }
         .themedSection()
     }
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("版本", value: AppConfig.versionString)
+            LabeledContent(language == .zh ? "版本" : "Version", value: AppConfig.versionString)
             Link(destination: AppConfig.sourceCodeURL) {
-                Label("GitHub 源代码", systemImage: "chevron.left.forwardslash.chevron.right")
+                Label(language == .zh ? "GitHub 源代码" : "GitHub source", systemImage: "chevron.left.forwardslash.chevron.right")
             }
             Link(destination: AppConfig.upstreamSourceCodeURL) {
                 Label("上游 Little Baby Log", systemImage: "arrow.turn.up.right")
             }
         } header: {
-            Text("关于")
+            Text(UICopy.t(.about, language))
         } footer: {
-            Text("宝宝小记（Little Baby Log）是自由软件，以 GNU GPL-3.0 及 App Store 附加许可发布。源自 Mo Garber 的 Little Baby Log。无账号、无广告、无追踪。没登录 iCloud 时数据只在这台设备上。")
+            Text(UICopy.t(.aboutBody, language))
         }
         .themedSection()
     }
@@ -290,6 +321,16 @@ struct SettingsView: View {
     }
 
     // MARK: Export
+
+    private func appearanceTitle(_ mode: AppearanceMode) -> String {
+        switch mode {
+        case .system: return language == .zh ? "跟随系统" : "System"
+        case .light: return language == .zh ? "浅色" : "Light"
+        case .dark: return language == .zh ? "深色" : "Dark"
+        case .night: return language == .zh ? "夜间" : "Night"
+        case .nightSchedule: return language == .zh ? "按时夜间" : "Night on a schedule"
+        }
+    }
 
     private func exportCSV() {
         let request: NSFetchRequest<LogEvent> = LogEvent.fetchRequest()
@@ -343,6 +384,11 @@ struct CaregiverRow: View {
     @ObservedObject var baby: Baby
 
     @Environment(\.persistence) private var persistence
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
     @State private var coordinator: CloudSharingCoordinator?
     @State private var isWorking = false
     @State private var refreshTick = 0
@@ -377,30 +423,37 @@ struct CaregiverRow: View {
     }
 
     private var shareButtonTitle: String {
-        persistence.isShared(baby) ? "Manage" : "Invite"
+        if persistence.isShared(baby) {
+            return language == .zh ? "管理" : "Manage"
+        }
+        return language == .zh ? "邀请" : "Invite"
     }
 
     private var statusText: String {
-        guard persistence.isCloudSyncEnabled else { return "iCloud is off in this build" }
+        guard persistence.isCloudSyncEnabled else {
+            return language == .zh ? "同步已暂停，记录仍在这台手机" : "Sync is paused. Records stay on this phone"
+        }
 
         if persistence.isInSharedStore(baby) {
             if let share = persistence.existingShare(for: baby),
                let components = share.owner.userIdentity.nameComponents {
                 let name = PersonNameComponentsFormatter().string(from: components)
-                if !name.isEmpty { return "Shared with you by \(name)" }
+                if !name.isEmpty {
+                    return language == .zh ? "由 \(name) 分享给你" : "Shared with you by \(name)"
+                }
             }
-            return "Shared with you"
+            return language == .zh ? "分享给你的" : "Shared with you"
         }
 
         if let share = persistence.existingShare(for: baby) {
             let others = share.participants.filter { $0.role != .owner }.count
             switch others {
-            case 0: return "Not shared"
-            case 1: return "Shared with 1 person"
-            default: return "Shared with \(others) people"
+            case 0: return language == .zh ? "未分享" : "Not shared"
+            case 1: return language == .zh ? "已分享给 1 人" : "Shared with 1 person"
+            default: return language == .zh ? "已分享给 \(others) 人" : "Shared with \(others) people"
             }
         }
-        return "Not shared"
+        return language == .zh ? "未分享" : "Not shared"
     }
 
     private func startSharing() {
@@ -435,49 +488,64 @@ struct CaregiverRow: View {
 private struct ICloudSyncRow: View {
     @State private var status = CloudSyncStatus.shared
     @Environment(\.appTheme) private var theme
+    @Environment(PersistenceGate.self) private var gate
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            Toggle(isOn: Binding(
+                get: { gate.cloudSyncEnabled },
+                set: { gate.setCloudSync($0) }
+            )) {
                 Label {
-                    Text("iCloud sync")
+                    Text(Copy.iCloud(language))
                 } icon: {
                     Image(systemName: symbol)
                         .foregroundStyle(tint)
                 }
-                Spacer(minLength: 8)
+            }
+            .disabled(!gate.canToggle)
+            HStack {
                 if status.state == .syncing {
                     ProgressView()
                 }
                 Text(title)
                     .foregroundStyle(theme.secondary)
+                Spacer()
+                if case .error = status.state {
+                    Button(Copy.retry(language)) { status.refreshAccount() }
+                        .buttonStyle(.borderless)
+                }
             }
             if case .error(let problem) = status.state {
                 SyncProblemView(problem: problem, onDismiss: nil)
             } else if status.state == .notSignedIn {
-                Text("Sign in to iCloud in the Settings app to sync and share.")
+                Text(UICopy.t(.signInICloud, language))
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
             } else if status.state == .unavailable {
-                Text("iCloud is restricted or unavailable on this phone right now.")
+                Text(UICopy.t(.iCloudRestricted, language))
                     .font(.footnote)
                     .foregroundStyle(theme.secondary)
             }
         }
         .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
         .onAppear { status.refreshAccount() }
     }
 
     private var title: String {
         switch status.state {
-        case .off: return "Off in this build"
-        case .checking: return "Checking"
-        case .notSignedIn: return "Not signed in"
-        case .unavailable: return "Unavailable"
-        case .syncing: return "Syncing"
-        case .upToDate: return "Up to date"
-        case .error: return "Error"
+        case .off: return language == .zh ? "已暂停" : "Paused"
+        case .checking: return language == .zh ? "正在检查" : "Checking"
+        case .notSignedIn: return language == .zh ? "未登录 iCloud" : "Not signed in"
+        case .unavailable: return language == .zh ? "暂不可用" : "Unavailable"
+        case .syncing: return language == .zh ? "同步中" : "Syncing"
+        case .upToDate: return language == .zh ? "已同步" : "Up to date"
+        case .error: return language == .zh ? "出错" : "Error"
         }
     }
 

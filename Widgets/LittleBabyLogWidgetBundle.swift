@@ -4,9 +4,7 @@ import WidgetKit
 @main
 struct LittleBabyLogWidgetBundle: WidgetBundle {
     var body: some Widget {
-        FeedingWidget()
-        SleepWidget()
-        QuickLogWidget()
+        CareBoardWidget()
         LockScreenWidget()
         TimerLiveActivityWidget()
     }

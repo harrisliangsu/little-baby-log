@@ -1,19 +1,16 @@
 // Shared build settings for Little Baby Log.
 //
-// iCloud (CloudKit sync and caregiver sharing) is OFF by default, so the app
-// builds and runs in the iOS Simulator without a paid Apple Developer account.
-// CLOUDKIT_CONTAINER stays empty here and the entitlements file only holds the
-// App Group; the app then uses a plain local Core Data store.
-//
-// To turn iCloud on, copy Config/Local.xcconfig.example to Config/Local.xcconfig
-// (git-ignored), fill it in, and run `xcodegen generate`.
+// iCloud uses the reserved container. The in-app switch can open the same
+// private.sqlite without CloudKit. Turning that switch off does not delete rows.
+// APS_ENVIRONMENT is development here. The upload job passes production.
 
 // Independent of Blinky (com.harrisliangsu.whenreset, group.com.harrisliangsu.whenreset)
 // and of upstream's reserved org.littlebabylog.
 // Registered for team LIANG SU (D2MBDWD85F), App Store Connect app 宝宝小记
 // Apple ID 6837436742, SKU littlebabylog. Portal ids: app KXRX3U6X8Y, widget F54GF3M8BR.
-// CloudKit and push stay off. DEVELOPMENT_TEAM stays empty until a signing key is present.
-// CLOUDKIT_CONTAINER_ID is reserved and is not read as the live container.
+// DEVELOPMENT_TEAM stays empty until a signing key is present.
+// CLOUDKIT_CONTAINER_ID is the container already associated with this App ID.
+// Development and Production still have no record types. Do not treat that as sync.
 BUNDLE_ID_PREFIX = com.harrisliangsu
 PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog
 
@@ -23,13 +20,14 @@ PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog
 // a real device, see the README.
 APP_GROUP_ID = group.$(BUNDLE_ID_PREFIX).littlebabylog
 
-// Empty = iCloud disabled. The app then uses a local Core Data store and works signed out.
-CLOUDKIT_CONTAINER =
+// Empty = iCloud disabled. Local.xcconfig can still clear this.
 CLOUDKIT_CONTAINER_ID = iCloud.$(BUNDLE_ID_PREFIX).littlebabylog
+CLOUDKIT_CONTAINER = $(CLOUDKIT_CONTAINER_ID)
 
-// App Group only. Local.xcconfig points this at LittleBabyLog-iCloud.entitlements
-// to add iCloud + push.
-CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog.entitlements
+APS_ENVIRONMENT = development
+
+// Widget xcconfig overrides this back to the App Group file.
+CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog-iCloud.entitlements
 
 // Per-developer overrides (team, bundle id prefix, iCloud). Optional file.
 #include? "Local.xcconfig"

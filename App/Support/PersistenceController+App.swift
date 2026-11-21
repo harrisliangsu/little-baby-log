@@ -6,10 +6,20 @@ extension PersistenceController {
     /// The app-wide store. CloudKit-backed when the build has a container identifier, otherwise local only.
     /// Lives in the App Group container (so it's next to the widget snapshot), migrated once from the old
     /// default location. Falls back to the default location if the group isn't available.
-    static let shared = PersistenceController(
-        cloudKitContainerIdentifier: AppConfig.cloudKitContainerIdentifier,
-        storeDirectory: appGroupStoreDirectory()
-    )
+    static var shared: PersistenceController { ActivePersistence.current }
+
+    static var storedCloudSyncEnabled: Bool {
+        if UserDefaults.standard.object(forKey: Prefs.cloudSyncEnabled) == nil { return true }
+        return UserDefaults.standard.bool(forKey: Prefs.cloudSyncEnabled)
+    }
+
+    static func makeAppStore(cloudSyncEnabled: Bool) -> PersistenceController {
+        PersistenceController(
+            cloudKitContainerIdentifier: AppConfig.cloudKitContainerIdentifier,
+            storeDirectory: appGroupStoreDirectory(),
+            cloudSyncEnabled: cloudSyncEnabled
+        )
+    }
 
     /// In-memory store filled with sample data, for SwiftUI previews.
     static let preview: PersistenceController = {
@@ -43,6 +53,21 @@ extension PersistenceController {
             }
         }
         return directory
+    }
+}
+
+enum ActivePersistence {
+    private(set) static var current = PersistenceController.makeAppStore(
+        cloudSyncEnabled: PersistenceController.storedCloudSyncEnabled
+    )
+
+    /// Closes the open store and opens it again. The sqlite file is not copied or deleted.
+    static func replace(cloudSyncEnabled: Bool) -> PersistenceController {
+        current.closeStores()
+        UserDefaults.standard.set(cloudSyncEnabled, forKey: Prefs.cloudSyncEnabled)
+        let next = PersistenceController.makeAppStore(cloudSyncEnabled: cloudSyncEnabled)
+        current = next
+        return next
     }
 }
 

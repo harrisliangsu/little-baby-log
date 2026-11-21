@@ -21,13 +21,16 @@ public enum ReminderInputs {
                 let settings = settingsByBaby[id] ?? BabyReminderSettings()
                 // Sleeps are only read when the nap reminder needs them.
                 let napInputs = settings.napWindow.isEnabled && baby.birthDate != nil
+                let records = stamps(of: baby, in: context)
                 result.append(ReminderBaby(
                     id: id,
                     name: baby.displayName,
                     settings: settings,
                     lastFeed: lastFeed(of: baby, in: context),
                     birthDate: napInputs ? baby.birthDate : nil,
-                    sleeps: napInputs ? PredictionInputs.load(for: baby, in: context, now: now).sleeps : []
+                    sleeps: napInputs ? PredictionInputs.load(for: baby, in: context, now: now).sleeps : [],
+                    stamps: records.cards,
+                    anyFeed: records.anyFeed
                 ))
             }
         }
@@ -55,5 +58,27 @@ public enum ReminderInputs {
             )
         }
         return nil
+    }
+
+    /// Newest stamp for each home card, plus the newest nursing or bottle.
+    static func stamps(of baby: Baby, in context: NSManagedObjectContext) -> (cards: [HomeCard: RecordStamp], anyFeed: RecordStamp?) {
+        let request = LogEvent.requestAll(baby: baby)
+        request.fetchLimit = 300
+        let events = (try? context.fetch(request)) ?? []
+        var cards: [HomeCard: RecordStamp] = [:]
+        var anyFeed: RecordStamp?
+        for event in events {
+            guard let start = event.startDate else { continue }
+            let stamp = RecordStamp(
+                start: start,
+                end: event.kind == .bottle ? (event.endDate ?? start) : event.endDate
+            )
+            if event.kind.isFeed, anyFeed == nil { anyFeed = stamp }
+            for card in HomeCard.allCases where cards[card] == nil && HomeCardMatch.matches(event, card: card) {
+                cards[card] = stamp
+            }
+            if anyFeed != nil, cards.count == HomeCard.allCases.count { break }
+        }
+        return (cards, anyFeed)
     }
 }

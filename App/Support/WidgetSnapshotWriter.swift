@@ -48,6 +48,8 @@ final class WidgetSnapshotWriter {
         let selected = defaults.string(forKey: Prefs.selectedBabyID).flatMap(UUID.init(uuidString:))
         let volumeUnit = defaults.string(forKey: Prefs.volumeUnit).flatMap(VolumeUnit.init(rawValue:)) ?? Prefs.defaultVolumeUnit
         let unitSystem = defaults.string(forKey: Prefs.unitSystem).flatMap(UnitSystem.init(rawValue:)) ?? Prefs.defaultUnitSystem
+        let storedLanguage = defaults.string(forKey: AppLanguage.storageKey)
+        let languageCode = (AppLanguage(rawValue: storedLanguage ?? "") ?? AppLanguage.storedDefault).resolved().rawValue
 
         var snapshot = WidgetSnapshot()
         context.performAndWait {
@@ -59,9 +61,16 @@ final class WidgetSnapshotWriter {
                 context: context,
                 selectedBabyID: selected,
                 volumeUnit: volumeUnit,
-                unitSystem: unitSystem
+                unitSystem: unitSystem,
+                languageCode: languageCode
             )
             context.reset()
+        }
+        let inputs = ReminderInputs.load(in: context, now: snapshot.generatedAt)
+        for baby in inputs {
+            guard let next = SnapshotReminderPick.next(for: baby, now: snapshot.generatedAt),
+                  let index = snapshot.babies.firstIndex(where: { $0.id == baby.id }) else { continue }
+            snapshot.babies[index].nextReminder = next
         }
         return snapshot
     }

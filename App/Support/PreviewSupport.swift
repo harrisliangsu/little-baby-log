@@ -27,5 +27,6 @@ extension View {
         self
             .environment(\.managedObjectContext, PersistenceController.preview.viewContext)
             .environment(\.persistence, PersistenceController.preview)
+            .environment(PersistenceGate(controller: PersistenceController.preview))
     }
 }

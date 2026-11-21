@@ -9,13 +9,22 @@ struct TodayView: View {
 
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
     @FetchRequest private var running: FetchedResults<LogEvent>
     @FetchRequest private var dayEvents: FetchedResults<LogEvent>
 
     @State private var editor: EditorTarget?
     @State private var nursing: NursingSheetItem?
+    @State private var feedChoice = false
+    /// Same widget URL delivered twice (cold start plus a second open) must not stack another sheet.
+    @State private var openedLinkAt: (key: String, date: Date)?
     @State private var feedback = 0
     @State private var showWidgetPreview = false
+    @State private var timelineCard: HomeCard?
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -53,17 +62,11 @@ struct TodayView: View {
             }
 
             Section {
-                CareCardsView(
-                    baby: baby,
-                    onFormula: { editor = .new(.bottle) },
-                    onBreast: { startNursing() },
-                    onSleep: { toggleSleep() },
-                    onDiaper: { quickDiaper($0) }
-                )
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                CareCardsView(baby: baby, onOpen: { timelineCard = $0 }, onAdd: { add($0) })
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                 .listRowBackground(Color.clear)
             } header: {
-                Text("记录").textCase(nil)
+                Text(UICopy.t(.newPrefix, language)).textCase(nil)
             }
             .themedSection()
 
@@ -78,7 +81,7 @@ struct TodayView: View {
                 )
                 .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8))
             } header: {
-                Text("其他记录").textCase(nil)
+                Text(UICopy.t(.otherLog, language)).textCase(nil)
             }
             .themedSection()
 
@@ -86,14 +89,14 @@ struct TodayView: View {
                 NavigationLink {
                     DayRecapView(baby: baby, day: day)
                 } label: {
-                    Label("今日回顾", systemImage: "clock.arrow.circlepath")
+                    Label(UICopy.t(.recapTitle, language), systemImage: "clock.arrow.circlepath")
                 }
             }
             .themedSection()
 
             Section {
                 if timeline.isEmpty {
-                    Text("今天还没有记录。")
+                    Text(UICopy.t(.nothingToday, language))
                         .foregroundStyle(theme.secondary)
                 } else {
                     ForEach(timeline, id: \.objectID) { event in
@@ -107,19 +110,20 @@ struct TodayView: View {
                             Button(role: .destructive) {
                                 delete(event)
                             } label: {
-                                Label("删除", systemImage: "trash")
+                                Label(UICopy.t(.deleteEntry, language), systemImage: "trash")
                             }
                         }
                     }
                 }
             } header: {
-                Text("时间线").textCase(nil)
+                Text(UICopy.t(.timeline, language)).textCase(nil)
             }
             .themedSection()
         }
         .themedList()
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
+        .systemBarChrome()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -128,7 +132,7 @@ struct TodayView: View {
                     Image(systemName: "square.grid.2x2")
                 }
                 .accessibilityIdentifier("show-widget-preview")
-                .accessibilityLabel("小组件")
+                .accessibilityLabel(language == .zh ? "小组件" : "Widget")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 BabySwitcherMenu()
@@ -146,8 +150,17 @@ struct TodayView: View {
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
         }
+        .sheet(isPresented: $feedChoice) {
+            FeedingMethodSheet(babyName: baby.displayName) { card in
+                feedChoice = false
+                DispatchQueue.main.async { editor = .card(card) }
+            }
+        }
         .sheet(item: $nursing) { item in
             BreastTimerView(event: item.event, suggestedSide: item.suggestedSide)
+        }
+        .navigationDestination(item: $timelineCard) { card in
+            CategoryTimelineView(baby: baby, card: card)
         }
     }
 
@@ -155,10 +168,23 @@ struct TodayView: View {
 
     /// `littlebabylog://` links from widgets: the editor for a kind, or the nursing timer.
     private func open(_ link: DeepLink) {
+        if let kind = StartRouting.composer(for: link) {
+            let key = link.url.absoluteString
+            if let opened = openedLinkAt, opened.key == key, Date().timeIntervalSince(opened.date) < 1.5 {
+                return
+            }
+            openedLinkAt = (key, .now)
+            presentComposer(kind)
+            return
+        }
         let present: () -> Void
         switch link {
         case .today:
             return
+        case .start:
+            return
+        case .timeline(let card, _):
+            present = { timelineCard = card }
         case .nursing, .log(.breastfeed, _):
             present = { startNursing() }
         case .log(let kind, _):
@@ -171,6 +197,36 @@ struct TodayView: View {
             DispatchQueue.main.async(execute: present)
         } else {
             present()
+        }
+    }
+
+    private func presentComposer(_ kind: WidgetComposerKind) {
+        let present: () -> Void = {
+            switch kind {
+            case .feedingChoice:
+                feedChoice = true
+            case .editor(let card):
+                editor = .card(card)
+            }
+        }
+        if editor != nil || feedChoice || nursing != nil {
+            editor = nil
+            feedChoice = false
+            nursing = nil
+            DispatchQueue.main.async(execute: present)
+        } else {
+            present()
+        }
+    }
+
+    private func add(_ card: HomeCard) {
+        switch card {
+        case .breast: startNursing()
+        case .formula: editor = .new(.bottle)
+        case .wet: quickDiaper(.wet)
+        case .dirty: quickDiaper(.dirty)
+        case .diaperChange: quickDiaper(.dry)
+        case .sleep: toggleSleep()
         }
     }
 

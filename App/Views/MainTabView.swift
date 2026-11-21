@@ -12,7 +12,12 @@ struct MainTabView: View {
     }
 
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var day = Calendar.current.startOfDay(for: .now)
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
     @State private var tab: Tab = .today
 
     var body: some View {
@@ -21,25 +26,25 @@ struct MainTabView: View {
                 TodayView(baby: baby, day: day, link: $link)
                     .id(day)
             }
-            .tabItem { Label("今天", systemImage: "sun.max.fill") }
+            .tabItem { Label(Copy.today(language), systemImage: "sun.max.fill") }
             .tag(Tab.today)
 
             NavigationStack {
                 HistoryView(baby: baby)
             }
-            .tabItem { Label("历史", systemImage: "calendar") }
+            .tabItem { Label(language == .zh ? "历史" : "History", systemImage: "calendar") }
             .tag(Tab.history)
 
             NavigationStack {
                 TrendsView(baby: baby)
             }
-            .tabItem { Label("趋势", systemImage: "chart.bar.fill") }
+            .tabItem { Label(language == .zh ? "趋势" : "Trends", systemImage: "chart.bar.fill") }
             .tag(Tab.trends)
 
             NavigationStack {
                 SettingsView()
             }
-            .tabItem { Label("设置", systemImage: "gearshape.fill") }
+            .tabItem { Label(Copy.settings(language), systemImage: "gearshape.fill") }
             .tag(Tab.settings)
         }
         .onChange(of: link, initial: true) { _, newLink in

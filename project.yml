@@ -9,8 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "2"
 
 packages:
   BabyLogKit:
@@ -56,9 +56,11 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        # iCloud is off in this build, so do not advertise CloudKit sharing or
-        # remote notifications. Those come back only with the iCloud entitlements.
+        # Sharing stays off until a share flow is verified. Remote notifications are
+        # the silent CloudKit push NSPersistentCloudKitContainer uses.
         CKSharingSupported: false
+        UIBackgroundModes:
+          - remote-notification
         LBLCloudKitContainer: $(CLOUDKIT_CONTAINER)
         LBLReservedCloudKitContainer: $(CLOUDKIT_CONTAINER_ID)
         LBLAppGroup: $(APP_GROUP_ID)

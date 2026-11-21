@@ -5,6 +5,7 @@ import SwiftUI
 /// so both show the file the app just wrote rather than a fixed example.
 struct CareSummaryView: View {
     let baby: WidgetSnapshot.BabySummary
+    var language: ResolvedLanguage = .zh
 
     private var noRecords: Bool {
         if let care = baby.care { return !care.hasAnyRecord }
@@ -16,19 +17,19 @@ struct CareSummaryView: View {
             Text(baby.name)
                 .font(.headline)
             if noRecords {
-                Text(Zh.noRecords)
+                Text(Copy.noRecords(language))
                     .foregroundStyle(.secondary)
             }
-            labeled("最近喂奶", date: baby.care?.lastFeedAt ?? baby.lastFeed?.referenceDate)
-            labeled("最近尿布", date: baby.care?.lastDiaperAt ?? baby.lastDiaperAt)
+            labeled(Copy.lastFeed(language), date: baby.care?.lastFeedAt ?? baby.lastFeed?.referenceDate)
+            labeled(Copy.lastDiaper(language), date: baby.care?.lastDiaperAt ?? baby.lastDiaperAt)
             labeled(
-                "最近睡眠",
+                Copy.lastSleep(language),
                 date: baby.care?.lastSleepAt ?? baby.runningSleepStartedAt ?? baby.lastSleepEndedAt,
                 running: baby.care?.sleepRunning == true || baby.runningSleepStartedAt != nil
             )
             if let care = baby.care {
-                Text(Zh.widgetLine("今日", care.today))
-                Text(Zh.widgetLine("24小时", care.last24Hours))
+                Text(Copy.widgetLine(Copy.todayWord(language), care.today, language))
+                Text(Copy.widgetLine(Copy.last24(language), care.last24Hours, language))
             }
         }
         .font(.subheadline)
@@ -39,12 +40,12 @@ struct CareSummaryView: View {
 
     private func labeled(_ title: String, date: Date?, running: Bool = false) -> some View {
         let value: String
-        if running, title == "最近睡眠" {
-            value = Zh.sleepingNow
+        if running, title == Copy.lastSleep(language) {
+            value = Copy.sleeping(language)
         } else if let date {
-            value = Zh.ago(date)
+            value = Copy.ago(date, language)
         } else {
-            value = Zh.recentNone
+            value = Copy.none(language)
         }
         return Text("\(title) \(value)")
     }

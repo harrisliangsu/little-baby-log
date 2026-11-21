@@ -15,6 +15,7 @@ struct DayRecapView: View {
     @State private var day: Date
     @State private var pickingDate = false
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     init(baby: Baby, day: Date = .now, embedded: Bool = false) {
         self.baby = baby
@@ -48,7 +49,7 @@ struct DayRecapView: View {
                     .font(.body.weight(.semibold))
                     .frame(width: 44, height: 44)
             }
-            .accessibilityLabel("Previous day")
+            .accessibilityLabel(UICopy.t(.previousDay, language))
 
             Button {
                 pickingDate = true
@@ -71,7 +72,7 @@ struct DayRecapView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Day: \(title). Choose a date")
+            .accessibilityLabel(language == .zh ? "日期：\(title)。选择日期" : "Day: \(title). Choose a date")
 
             Button {
                 shift(by: 1)
@@ -81,7 +82,7 @@ struct DayRecapView: View {
                     .frame(width: 44, height: 44)
             }
             .disabled(isToday)
-            .accessibilityLabel("Next day")
+            .accessibilityLabel(UICopy.t(.nextDay, language))
         }
         .foregroundStyle(theme.accent)
         .padding(.horizontal, 8)
@@ -120,13 +121,15 @@ struct DayRecapView: View {
 /// Large titles don't collapse over a fixed header, so the recap uses an inline one.
 private struct RecapTitle: ViewModifier {
     let embedded: Bool
+    @Environment(\.uiLanguage) private var language
 
     func body(content: Content) -> some View {
         if embedded {
             content
         } else {
             content
-                .navigationTitle("Recap")
+                .navigationTitle(UICopy.t(.recapTitle, language))
+                .systemBarChrome()
                 .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -137,6 +140,7 @@ private struct RecapTitle: ViewModifier {
 private struct RecapDatePicker: View {
     @Binding var day: Date
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.uiLanguage) private var language
     @State private var selection: Date
 
     init(day: Binding<Date>) {
@@ -146,17 +150,17 @@ private struct RecapDatePicker: View {
 
     var body: some View {
         NavigationStack {
-            DatePicker("Day", selection: $selection, in: ...Date.now, displayedComponents: .date)
+            DatePicker(language == .zh ? "日期" : "Day", selection: $selection, in: ...Date.now, displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .labelsHidden()
                 .padding(.horizontal)
                 .frame(maxHeight: .infinity, alignment: .top)
                 .themedScreen()
-                .navigationTitle("Go to day")
+                .navigationTitle(UICopy.t(.goToDay, language))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
+                        Button(UICopy.t(.done, language)) { dismiss() }
                     }
                 }
                 .onChange(of: selection) { _, newValue in
@@ -178,6 +182,7 @@ private struct DayRecapDay: View {
     @FetchRequest private var events: FetchedResults<LogEvent>
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
 
@@ -222,9 +227,11 @@ private struct DayRecapDay: View {
         Group {
             if recap.isEmpty {
                 ContentUnavailableView {
-                    Label("Nothing logged", systemImage: "moon.zzz")
+                    Label(UICopy.t(.nothingLogged, language), systemImage: "moon.zzz")
                 } description: {
-                    Text(recap.isToday ? "Nothing has been logged yet today." : "Nothing was logged on this day.")
+                    Text(recap.isToday
+                         ? (language == .zh ? "今天还没有记录。" : "Nothing has been logged yet today.")
+                         : (language == .zh ? "这一天没有记录。" : "Nothing was logged on this day."))
                 }
                 .foregroundStyle(theme.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -255,10 +262,10 @@ private struct DayRecapDay: View {
         let describer = EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem)
         let name = baby.displayName
         let text = recap.plainText(babyName: name, describer: describer, calendar: calendar)
-        return ShareLink(item: text, subject: Text("\(name)'s day")) {
+        return ShareLink(item: text, subject: Text(language == .zh ? "\(name)的一天" : "\(name)'s day")) {
             Image(systemName: "square.and.arrow.up")
         }
-        .accessibilityLabel("Share recap")
+        .accessibilityLabel(UICopy.t(.shareRecap, language))
     }
 
     private func open(_ event: LogEvent) {
@@ -546,11 +553,12 @@ private struct HourRow: View {
 
 private struct NowLine: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
     let now: Date
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("Now")
+            Text(UICopy.t(.now, language))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(theme.destructive)
             Rectangle()
@@ -559,13 +567,14 @@ private struct NowLine: View {
         }
         .frame(height: RecapMetrics.nowRowHeight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Now, \(now.formatted(date: .omitted, time: .shortened))")
+        .accessibilityLabel("\(UICopy.t(.now, language)), \(now.formatted(date: .omitted, time: .shortened))")
     }
 }
 
 /// A run of empty hours, one short row. If the baby slept through it, the sleep bar still passes through.
 private struct QuietRow: View {
     @Environment(\.appTheme) private var theme
+    @Environment(\.uiLanguage) private var language
 
     let run: DayRecap.QuietRun
     let isFirst: Bool
@@ -600,7 +609,7 @@ private struct QuietRow: View {
                         .font(.caption)
                         .foregroundStyle(theme.secondary)
                 } else {
-                    Text("Nothing logged")
+                    Text(UICopy.t(.nothingLogged, language))
                         .font(.caption)
                         .foregroundStyle(theme.tertiary)
                 }

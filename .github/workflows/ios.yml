@@ -53,8 +53,12 @@ jobs:
             xcrun simctl list devices available
             exit 1
           fi
+          LINE=$(xcrun simctl list devices available | grep -F "$NAME (" | head -1)
+          UDID=$(printf '%s\n' "$LINE" | sed -E 's/.*\(([0-9A-Fa-f-]+)\).*/\1/')
+          test -n "$UDID"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "Using $NAME"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "Using $NAME $UDID"
 
       - name: Release compile for iOS Simulator
         run: |
@@ -70,15 +74,57 @@ jobs:
       - name: Test on iOS Simulator
         run: |
           set -o pipefail
-          xcodebuild test \
+          UDID="${{ steps.sim.outputs.udid }}"
+          DERIVED="$RUNNER_TEMP/Derived"
+          xcodebuild build-for-testing \
             -project LittleBabyLog.xcodeproj \
             -scheme LittleBabyLog \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find "$DERIVED/Build/Products" -type d -name 'LittleBabyLog.app' | head -1)
+          test -d "$APP"
+          xcrun simctl install "$UDID" "$APP"
+          # The gallery stays empty, including system widgets, until chronod has scanned the new extension.
+          xcrun simctl launch "$UDID" com.harrisliangsu.littlebabylog || true
+          sleep 5
+          xcrun simctl terminate "$UDID" com.harrisliangsu.littlebabylog || true
+          # system/com.apple.chronod is the wrong domain. The simulator says to use the user one.
+          xcrun simctl spawn "$UDID" launchctl kickstart -k user/foreground/com.apple.chronod || true
+          sleep 3
+          xcodebuild test-without-building \
+            -project LittleBabyLog.xcodeproj \
+            -scheme LittleBabyLog \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath "$DERIVED" \
             -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" \
             CODE_SIGN_IDENTITY=- \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Installed widget extension
+        if: always()
+        run: |
+          set -euo pipefail
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          CONTAINER=$(xcrun simctl get_app_container "$UDID" com.harrisliangsu.littlebabylog app)
+          echo "Installed on $UDID"
+          APPEX="$CONTAINER/PlugIns/LittleBabyLogWidgets.appex"
+          test -d "$APPEX"
+          echo "Installed app: $CONTAINER"
+          plutil -p "$APPEX/Info.plist"
+          POINT=$(plutil -extract NSExtension.NSExtensionPointIdentifier raw -o - "$APPEX/Info.plist")
+          test "$POINT" = "com.apple.widgetkit-extension"
+          test -e "$APPEX/LittleBabyLogWidgets"
+          echo "Widget extension is inside the installed app and uses the WidgetKit extension point."
 
       - name: Export screenshots and logs
         if: always()
@@ -179,6 +225,7 @@ jobs:
           EOF
           xcodebuild -project LittleBabyLog.xcodeproj -scheme LittleBabyLog -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates \
+            APS_ENVIRONMENT=production \
             -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER" \

@@ -14,18 +14,26 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// The app's current baby; the default for widgets that aren't configured for a specific baby.
     public var selectedBabyID: UUID?
     public var volumeUnit: VolumeUnit
+    /// Resolved in-app language (`zh` or `en`) at the time the snapshot was written. Nil in older files, which the widget treats as Chinese.
+    public var languageCode: String?
     public var babies: [BabySummary]
 
     public init(
         generatedAt: Date = .now,
         selectedBabyID: UUID? = nil,
         volumeUnit: VolumeUnit = .milliliters,
+        languageCode: String? = nil,
         babies: [BabySummary] = []
     ) {
         self.generatedAt = generatedAt
         self.selectedBabyID = selectedBabyID
         self.volumeUnit = volumeUnit
+        self.languageCode = languageCode
         self.babies = babies
+    }
+
+    public var resolvedLanguage: ResolvedLanguage {
+        languageCode == ResolvedLanguage.en.rawValue ? .en : .zh
     }
 
     public struct BabySummary: Codable, Equatable, Sendable, Identifiable {
@@ -48,6 +56,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         public var nextFeed: NextFeed?
         /// Today and rolling-24-hour care counts. Nil in snapshots written before this field existed.
         public var care: CareRollup?
+        /// Newest records, for the large widget. Nil in older snapshot files.
+        public var recent: [RecentCare]?
+        /// The next reminder this phone has scheduled. Nil when the user has not set one, and never a predicted feed.
+        public var nextReminder: SnapshotReminder?
 
         public init(
             id: UUID,
@@ -62,7 +74,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             today: Today = Today(),
             nextSleep: NextSleep? = nil,
             nextFeed: NextFeed? = nil,
-            care: CareRollup? = nil
+            care: CareRollup? = nil,
+            recent: [RecentCare]? = nil,
+            nextReminder: SnapshotReminder? = nil
         ) {
             self.id = id
             self.name = name
@@ -77,6 +91,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             self.nextSleep = nextSleep
             self.nextFeed = nextFeed
             self.care = care
+            self.recent = recent
+            self.nextReminder = nextReminder
         }
     }
 
@@ -221,6 +237,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         selectedBabyID: UUID?,
         volumeUnit: VolumeUnit,
         unitSystem: UnitSystem,
+        languageCode: String? = nil,
         now: Date = .now
     ) -> WidgetSnapshot {
         let describer = EventDescriber(volumeUnit: volumeUnit, unitSystem: unitSystem)
@@ -277,6 +294,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 summary.today = Today(feeds: day.feedCount, diapers: day.diaperCount, sleep: day.sleep)
                 let all = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
                 summary.care = CareRollup.make(events: all, now: now, calendar: calendar)
+                summary.recent = RecentCare.rows(from: Array(all.prefix(12)), now: now)
 
                 // Predictions only change when the logs do, so they ride along in the snapshot. A sleep window
                 // counted from "now" (no wake-up logged) would shift on every rewrite, so it is left out.
@@ -291,6 +309,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             generatedAt: now,
             selectedBabyID: selectedBabyID,
             volumeUnit: volumeUnit,
+            languageCode: languageCode,
             babies: summaries
         )
     }

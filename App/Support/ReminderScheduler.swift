@@ -55,22 +55,32 @@ final class ReminderScheduler {
 
     // MARK: Categories
 
-    /// Feed reminders get Start Left / Start Right / Snooze. Call once at launch.
-    func registerCategories() {
-        let startLeft = UNNotificationAction(identifier: ReminderCategory.startLeft, title: "Start Left", options: [])
-        let startRight = UNNotificationAction(identifier: ReminderCategory.startRight, title: "Start Right", options: [])
+    /// Feed reminders get Start Left / Start Right / Snooze. Rule reminders get Snooze, Done, and Open.
+    /// Call again when the in-app language changes so the button titles match.
+    func registerCategories(language: ResolvedLanguage = L10n.resolved) {
+        let zh = language == .zh
+        let startLeft = UNNotificationAction(identifier: ReminderCategory.startLeft, title: zh ? "开始左侧" : "Start Left", options: [])
+        let startRight = UNNotificationAction(identifier: ReminderCategory.startRight, title: zh ? "开始右侧" : "Start Right", options: [])
         let snooze = UNNotificationAction(
             identifier: ReminderCategory.snooze,
-            title: "Snooze \(ReminderCategory.snoozeMinutes) min",
+            title: zh ? "稍后 \(ReminderCategory.snoozeMinutes) 分钟" : "Snooze \(ReminderCategory.snoozeMinutes) min",
             options: []
         )
+        let done = UNNotificationAction(identifier: ReminderCategory.done, title: zh ? "已完成" : "Done", options: [])
+        let openLog = UNNotificationAction(identifier: ReminderCategory.openLog, title: zh ? "去记录" : "Log", options: [.foreground])
         let feed = UNNotificationCategory(
             identifier: ReminderCategory.feed,
             actions: [startLeft, startRight, snooze],
             intentIdentifiers: [],
             options: []
         )
-        UNUserNotificationCenter.current().setNotificationCategories([feed])
+        let rule = UNNotificationCategory(
+            identifier: ReminderCategory.rule,
+            actions: [snooze, done, openLog],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([feed, rule])
     }
 
     // MARK: Refresh
@@ -167,6 +177,10 @@ final class ReminderScheduler {
         // Reset before reading: a long-lived context would keep serving cached rows.
         context.performAndWait { context.reset() }
         return ReminderInputs.load(in: context, settings: store, now: now)
+    }
+
+    func resetReadContext() {
+        readContext = nil
     }
 
     // MARK: UserNotifications glue

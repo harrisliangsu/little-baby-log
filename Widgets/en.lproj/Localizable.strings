@@ -1,0 +1,9 @@
+/* Widget gallery names follow the phone language, not the in-app language switch. */
+"喂奶" = "Feeding";
+"宝宝小记" = "Little Baby Log";
+"睡眠" = "Sleep";
+"Last Feed" = "Last Feed";
+"最近一次喂奶。没有记录时显示空状态。" = "The latest feed. Empty when nothing is logged.";
+"最近的喂奶、尿布和睡眠，以及今日和 24 小时汇总。" = "Recent feeding, diapers, and sleep, plus today and 24-hour totals.";
+"How long your baby has been awake or asleep, the next nap window, and a Sleep / Wake up button." = "How long your baby has been awake or asleep, the next nap window, and a Sleep / Wake up button.";
+"Time since the last feed and the next side, or the live nursing clock." = "Time since the last feed and the next side, or the live nursing clock.";

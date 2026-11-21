@@ -26,7 +26,7 @@ struct BabySwitcherMenu: View {
                     }
                 }
             } label: {
-                Label("Switch baby", systemImage: "person.2.fill")
+                Label(UICopy.t(.switchBaby, L10n.resolved), systemImage: "person.2.fill")
             }
         }
     }

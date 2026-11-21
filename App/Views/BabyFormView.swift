@@ -10,6 +10,7 @@ struct BabyFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
     @Environment(\.persistence) private var persistence
+    @Environment(\.uiLanguage) private var language
 
     @State private var name: String
     @State private var birthDate: Date
@@ -48,7 +49,7 @@ struct BabyFormView: View {
                         displayedComponents: .date
                     )
                 } footer: {
-                    Text("Not born yet? Use the due date and update it later.")
+                    Text(UICopy.t(.notBorn, language))
                 }
                 .themedSection()
 
@@ -57,7 +58,7 @@ struct BabyFormView: View {
                         Button(role: .destructive) {
                             confirmDelete = true
                         } label: {
-                            Text("Delete baby and all entries").themedDestructive()
+                            Text(UICopy.t(.deleteBaby, language)).themedDestructive()
                         }
                     }
                     .themedSection()
@@ -84,7 +85,7 @@ struct BabyFormView: View {
                 Button("Delete everything", role: .destructive) { deleteBaby() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This removes every entry for this baby, and for anyone you've shared them with. It can't be undone.")
+                Text(UICopy.t(.deleteBabyBody, language))
             }
         }
     }

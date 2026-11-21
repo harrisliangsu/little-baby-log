@@ -60,6 +60,28 @@ public struct EventDraft: Equatable {
         }
     }
 
+    /// A blank form for a widget tap. Nothing is saved until the editor's Save button.
+    public init(card: HomeCard, now: Date = .now) {
+        switch card {
+        case .breast:
+            self.init(kind: .breastfeed, now: now)
+        case .formula:
+            self.init(kind: .bottle, now: now)
+            bottleContent = .formula
+        case .wet:
+            self.init(kind: .diaper, now: now)
+            diaperKind = .wet
+        case .dirty:
+            self.init(kind: .diaper, now: now)
+            diaperKind = .dirty
+        case .diaperChange:
+            self.init(kind: .diaper, now: now)
+            diaperKind = .dry
+        case .sleep:
+            self.init(kind: .sleep, now: now)
+        }
+    }
+
     public init(event: LogEvent) {
         let start = event.startDate ?? .now
         self.init(kind: event.kind, now: start)
