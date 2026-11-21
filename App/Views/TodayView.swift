@@ -8,14 +8,14 @@ struct TodayView: View {
     @Binding var link: DeepLink?
 
     @Environment(\.managedObjectContext) private var context
-    @Environment(\.appTheme) private var theme
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+    @AppStorage(HomeLayoutStore.storageKey) private var layoutJSON = ""
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
     }
     @FetchRequest private var running: FetchedResults<LogEvent>
-    @FetchRequest private var dayEvents: FetchedResults<LogEvent>
+    @FetchRequest private var allEvents: FetchedResults<LogEvent>
 
     @State private var editor: EditorTarget?
     @State private var nursing: NursingSheetItem?
@@ -31,96 +31,85 @@ struct TodayView: View {
         self.day = day
         _link = link
         _running = FetchRequest(fetchRequest: LogEvent.requestRunning(baby: baby))
-        _dayEvents = FetchRequest(fetchRequest: LogEvent.requestOverlapping(baby: baby, from: day))
+        _allEvents = FetchRequest(fetchRequest: LogEvent.requestAll(baby: baby))
     }
 
-    private var runningSleep: LogEvent? {
-        running.first(where: { $0.kind == .sleep })
+    private var layout: BabyHomeLayout {
+        guard let id = baby.uuid else { return BabyHomeLayout() }
+        let data = layoutJSON.isEmpty ? nil : Data(layoutJSON.utf8)
+        return HomeLayoutStore.load(babyID: id, from: data)
     }
 
     private var runningNursing: LogEvent? {
         running.first(where: { $0.kind == .breastfeed })
     }
 
-    private var timeline: [LogEvent] {
-        dayEvents.filter { !$0.isRunning }
-    }
-
     var body: some View {
-        List {
-            if !running.isEmpty {
-                Section {
-                    ForEach(running, id: \.objectID) { event in
-                        ActiveTimerRow(
-                            event: event,
-                            onWake: { wake(event) },
-                            onOpen: { openNursing(event) }
-                        )
+        TimelineView(.periodic(from: day, by: 30)) { tick in
+            let care = CareRollup.make(events: Array(allEvents), now: tick.date)
+            List {
+                if !running.isEmpty {
+                    Section {
+                        ForEach(running, id: \.objectID) { event in
+                            ActiveTimerRow(
+                                event: event,
+                                onWake: { wake(event) },
+                                onOpen: { openNursing(event) }
+                            )
+                        }
                     }
+                    .themedSection()
+                }
+
+                Section {
+                    ForEach(layout.recordCards) { card in
+                        CareCardRow(
+                            card: card,
+                            prominent: true,
+                            detailed: layout.isDetailed(card),
+                            care: care,
+                            now: tick.date,
+                            onOpen: { timelineCard = card },
+                            onAdd: { add(card) }
+                        )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                        .listRowBackground(Color.clear)
+                    }
+                } header: {
+                    Text(UICopy.t(.newPrefix, language)).textCase(nil)
                 }
                 .themedSection()
-            }
 
-            Section {
-                CareCardsView(baby: baby, onOpen: { timelineCard = $0 }, onAdd: { add($0) })
-                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                .listRowBackground(Color.clear)
-            } header: {
-                Text(UICopy.t(.newPrefix, language)).textCase(nil)
-            }
-            .themedSection()
-
-            UpNextView(baby: baby)
-
-            Section {
-                QuickActionsGrid(
-                    isSleeping: runningSleep != nil,
-                    onTap: { quickTap($0) },
-                    onLogPast: { editor = .new($0) },
-                    onQuickDiaper: { quickDiaper($0) }
-                )
-                .listRowInsets(EdgeInsets(top: 12, leading: 8, bottom: 12, trailing: 8))
-            } header: {
-                Text(UICopy.t(.otherLog, language)).textCase(nil)
-            }
-            .themedSection()
-
-            Section {
-                NavigationLink {
-                    DayRecapView(baby: baby, day: day)
-                } label: {
-                    Label(UICopy.t(.recapTitle, language), systemImage: "clock.arrow.circlepath")
-                }
-            }
-            .themedSection()
-
-            Section {
-                if timeline.isEmpty {
-                    Text(UICopy.t(.nothingToday, language))
-                        .foregroundStyle(theme.secondary)
-                } else {
-                    ForEach(timeline, id: \.objectID) { event in
-                        Button {
-                            open(event)
-                        } label: {
-                            EventRow(event: event)
+                if !layout.otherCards.isEmpty || !OtherLogKinds.kinds.isEmpty {
+                    Section {
+                        ForEach(layout.otherCards) { card in
+                            CareCardRow(
+                                card: card,
+                                prominent: false,
+                                detailed: layout.isDetailed(card),
+                                care: care,
+                                now: tick.date,
+                                onOpen: { timelineCard = card },
+                                onAdd: { add(card) }
+                            )
+                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                            .listRowBackground(Color.clear)
                         }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                delete(event)
-                            } label: {
-                                Label(UICopy.t(.deleteEntry, language), systemImage: "trash")
-                            }
+                        ForEach(OtherLogKinds.kinds) { kind in
+                            OtherKindRow(kind: kind) { editor = .new(kind) }
+                                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                                .listRowBackground(Color.clear)
                         }
+                    } header: {
+                        Text(UICopy.t(.otherLog, language)).textCase(nil)
                     }
+                    .themedSection()
                 }
-            } header: {
-                Text(UICopy.t(.timeline, language)).textCase(nil)
+
+                UpNextView(baby: baby)
             }
-            .themedSection()
+            .themedList()
         }
-        .themedList()
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
         .systemBarChrome()
@@ -219,48 +208,13 @@ struct TodayView: View {
     }
 
     private func add(_ card: HomeCard) {
-        switch card {
-        case .breast: startNursing()
-        case .formula: editor = .card(.formula)
-        case .wet: quickDiaper(.wet)
-        case .dirty: quickDiaper(.dirty)
-        case .diaperChange: quickDiaper(.dry)
-        case .sleep: toggleSleep()
-        }
-    }
-
-    private func quickTap(_ kind: EventKind) {
-        switch kind {
-        case .sleep:
-            toggleSleep()
-        case .breastfeed:
-            startNursing()
-        default:
-            editor = .new(kind)
-        }
-    }
-
-    private func toggleSleep() {
-        if let sleep = runningSleep {
-            wake(sleep)
-        } else {
-            _ = LogEvent.create(kind: .sleep, for: baby, in: context)
-            context.saveIfNeeded()
-            feedback += 1
-        }
+        editor = .card(card)
     }
 
     private func wake(_ event: LogEvent) {
         var draft = EventDraft(event: event)
         draft.endDate = .now
         draft.apply(to: event)
-        context.saveIfNeeded()
-        feedback += 1
-    }
-
-    private func quickDiaper(_ kind: DiaperKind) {
-        let event = LogEvent.create(kind: .diaper, for: baby, in: context)
-        event.diaperKind = kind
         context.saveIfNeeded()
         feedback += 1
     }
@@ -286,18 +240,6 @@ struct TodayView: View {
         nursing = NursingSheetItem(event: event, suggestedSide: nextSide())
     }
 
-    private func open(_ event: LogEvent) {
-        if event.kind == .breastfeed && event.isRunning {
-            openNursing(event)
-        } else {
-            editor = .edit(event)
-        }
-    }
-
-    private func delete(_ event: LogEvent) {
-        context.delete(event)
-        context.saveIfNeeded()
-    }
 }
 
 #Preview {

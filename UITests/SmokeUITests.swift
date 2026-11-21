@@ -25,6 +25,14 @@ final class SmokeUITests: XCTestCase {
         let formula = element("summary-formula")
         XCTAssertTrue(formula.waitForExistence(timeout: 8))
         XCTAssertTrue(formula.label.contains("还没有"))
+        XCTAssertFalse(app.staticTexts["回顾"].exists)
+        XCTAssertFalse(app.staticTexts["时间线"].exists)
+        XCTAssertGreaterThanOrEqual(app.buttons["add-formula"].frame.height, 44)
+        XCTAssertGreaterThanOrEqual(app.buttons["add-wet"].frame.height, 44)
+        tap("add-growth")
+        XCTAssertTrue(app.buttons["save-entry"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["time-value"].exists)
+        app.buttons["取消"].tap()
         shot("02-empty-cards")
 
         openWidgetPreview()
@@ -39,22 +47,21 @@ final class SmokeUITests: XCTestCase {
         closeWidgetPreview()
 
         logFormula(millilitres: "120")
-        tap("add-wet")
-        tap("add-dirty")
-        tap("add-diaper-change")
-        tap("add-sleep")
+        saveCurrentForm("add-wet")
+        saveCurrentForm("add-dirty")
+        saveCurrentForm("add-diaper-change")
+        saveCurrentForm("add-sleep")
         app.swipeDown()
         app.swipeDown()
         logNursing()
 
-        XCTAssertTrue(formula.label.contains("1次"))
         XCTAssertTrue(formula.label.contains("120"))
-        XCTAssertTrue(formula.label.contains("今日"))
-        XCTAssertTrue(element("summary-wet").label.contains("1次"))
-        XCTAssertTrue(element("summary-dirty").label.contains("1次"))
-        XCTAssertTrue(element("summary-change").label.contains("1次"))
-        XCTAssertTrue(element("summary-sleep").label.contains("睡眠中"))
-        XCTAssertTrue(element("summary-breast").label.contains("1次"))
+        XCTAssertFalse(formula.label.contains("今日"))
+        XCTAssertTrue(loggedAge(element("summary-wet").label))
+        XCTAssertTrue(loggedAge(element("summary-dirty").label))
+        XCTAssertTrue(loggedAge(element("summary-change").label))
+        XCTAssertTrue(loggedAge(element("summary-sleep").label))
+        XCTAssertTrue(element("summary-breast").label.contains("1分钟"))
         shot("04-after-logging")
 
         openWidgetPreview()
@@ -86,8 +93,8 @@ final class SmokeUITests: XCTestCase {
         let kept = element("summary-formula")
         XCTAssertTrue(kept.waitForExistence(timeout: 8))
         XCTAssertTrue(kept.label.contains("120"))
-        XCTAssertTrue(element("summary-wet").label.contains("1次"))
-        XCTAssertTrue(element("summary-sleep").label.contains("1次"))
+        XCTAssertTrue(loggedAge(element("summary-wet").label))
+        XCTAssertFalse(element("summary-sleep").label.contains("还没有"))
         shot("06-after-relaunch")
 
         openWidgetPreview()
@@ -191,10 +198,10 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func assertEnglishClock() {
-        let since = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Since '")).firstMatch
+        let since = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'ago' OR label CONTAINS 'Just now' OR label BEGINSWITH 'Since '")).firstMatch
         XCTAssertTrue(since.waitForExistence(timeout: 6))
         XCTAssertFalse(since.label.contains("上午") || since.label.contains("下午"))
-        XCTAssertTrue(since.label.contains("AM") || since.label.contains("PM"))
+        XCTAssertFalse(since.label.contains("分钟前"))
     }
 
     private func assertPreviewChrome(title: String, done: String) {
@@ -282,7 +289,7 @@ final class SmokeUITests: XCTestCase {
             app.buttons["start-tracking"].tap()
         }
         logFormula(millilitres: "120")
-        tap("add-wet")
+        saveCurrentForm("add-wet")
         app.terminate()
         springboard.activate()
         let updated = springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '120'")).firstMatch
@@ -314,11 +321,11 @@ final class SmokeUITests: XCTestCase {
         XCTAssertNotNil(small, "No small widget to tap.\n\(widgetFrameText(springboard))")
         small?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
-        XCTAssertTrue(element("feed-method").waitForExistence(timeout: 12), "Small widget should open the feeding choice, not save a record.")
+        XCTAssertTrue(element("composer-card").waitForExistence(timeout: 12))
+        XCTAssertEqual(element("composer-card").label, "formula")
         XCTAssertTrue(element("composer-baby").label.contains("Beibei"))
-        XCTAssertTrue(element("feed-choice-breast").exists)
-        XCTAssertTrue(element("feed-choice-formula").exists)
-        element("close-feed-method").tap()
+        XCTAssertTrue(app.buttons["save-entry"].exists)
+        app.buttons["取消"].tap()
 
         springboard.activate()
         let medium = widget(on: springboard, matching: { $0.width >= 210 && $0.height < 260 })
@@ -339,9 +346,8 @@ final class SmokeUITests: XCTestCase {
 
         let formula = element("summary-formula")
         XCTAssertTrue(formula.waitForExistence(timeout: 8))
-        XCTAssertTrue(formula.label.contains("1次"))
         XCTAssertTrue(formula.label.contains("120"))
-        XCTAssertTrue(element("summary-wet").label.contains("1次"))
+        XCTAssertTrue(loggedAge(element("summary-wet").label))
         XCTAssertFalse(element("summary-wet").label.contains("2次"))
     }
 
@@ -625,10 +631,21 @@ final class SmokeUITests: XCTestCase {
 
     private func logFormula(millilitres: String) {
         app.buttons["add-formula"].tap()
+        XCTAssertFalse(app.staticTexts["备注"].exists)
+        let amountRow = app.buttons["amount-value"]
+        XCTAssertTrue(amountRow.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(amountRow.frame.height, 44)
+        let timeRow = app.buttons["time-value"]
+        XCTAssertTrue(timeRow.waitForExistence(timeout: 2))
+        XCTAssertGreaterThanOrEqual(timeRow.frame.height, 44)
+        amountRow.tap()
         let amount = app.textFields["bottle-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         amount.tap()
         amount.typeText(millilitres)
+        if app.buttons["amount-done"].waitForExistence(timeout: 2) {
+            app.buttons["amount-done"].tap()
+        }
         let save = app.buttons["save-entry"]
         if !save.isHittable, app.buttons["完成"].exists {
             app.buttons["完成"].tap()
@@ -638,23 +655,32 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
     }
 
+    private func saveCurrentForm(_ addIdentifier: String) {
+        tap(addIdentifier)
+        let save = app.buttons["save-entry"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
+    }
+
+    private func loggedAge(_ label: String) -> Bool {
+        label.contains("刚刚") || label.contains("分钟前") || label.contains("小时")
+    }
+
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }
 
     private func logNursing() {
-        app.buttons["add-breast"].tap()
-        let left = app.buttons["breast-left"]
-        XCTAssertTrue(left.waitForExistence(timeout: 5))
-        left.tap()
-        let started = expectation(description: "nursing elapsed")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { started.fulfill() }
-        wait(for: [started], timeout: 4)
-        let done = app.buttons["breast-done"]
-        if !done.isHittable {
-            app.swipeUp()
+        tap("add-breast")
+        let minutes = app.textFields["breast-left-minutes"]
+        XCTAssertTrue(minutes.waitForExistence(timeout: 5))
+        minutes.tap()
+        minutes.typeText("1")
+        if !app.buttons["save-entry"].isHittable, app.buttons["完成"].exists {
+            app.buttons["完成"].tap()
         }
-        done.tap()
+        app.buttons["save-entry"].tap()
     }
 
     private func openWidgetPreview() {
