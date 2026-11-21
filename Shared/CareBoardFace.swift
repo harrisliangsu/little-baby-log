@@ -42,7 +42,8 @@ struct CareBoardFace: View {
                 Text(hint)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             limit
         }

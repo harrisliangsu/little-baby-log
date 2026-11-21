@@ -264,15 +264,8 @@ final class SmokeUITests: XCTestCase {
         shotSpringboard("15-large-empty")
         assertWidgetSizes(springboard)
 
-        let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记"))
-        var appIcon: XCUIElement?
-        for index in 0..<min(named.count, 6) {
-            let element = named.element(boundBy: index)
-            guard element.exists, element.frame.width < 120 else { continue }
-            appIcon = element
-            break
-        }
-        XCTAssertNotNil(appIcon, "The app icon was not separate from the widget.")
+        let appIcon = homeAppIcon(springboard)
+        XCTAssertNotNil(appIcon, "The app icon was not separate from the widget.\n\(widgetFrameText(springboard))")
         appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
         if app.textFields["baby-name"].waitForExistence(timeout: 4) {
@@ -405,11 +398,32 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(frames.contains { $0.height > 280 }, "Large widget was not on the Home Screen.\n\(widgetFrameText(springboard))")
     }
 
+    /// The app icon shares the widget's name. Off-screen copies report a zero frame and are not tappable.
+    private func homeAppIcon(_ springboard: XCUIApplication) -> XCUIElement? {
+        func match() -> XCUIElement? {
+            let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记"))
+            for index in 0..<min(named.count, 8) {
+                let element = named.element(boundBy: index)
+                let frame = element.frame
+                guard element.exists, element.isHittable else { continue }
+                guard frame.width > 44, frame.width < 120, frame.height > 44 else { continue }
+                return element
+            }
+            return nil
+        }
+        if let found = match() { return found }
+        springboard.swipeLeft()
+        if let found = match() { return found }
+        springboard.swipeRight()
+        springboard.swipeRight()
+        return match()
+    }
+
     private func widget(on springboard: XCUIApplication, matching matches: (CGRect) -> Bool) -> XCUIElement? {
         let named = springboard.icons.matching(NSPredicate(format: "label CONTAINS %@", "宝宝小记"))
-        for index in 0..<min(named.count, 6) {
+        for index in 0..<min(named.count, 8) {
             let element = named.element(boundBy: index)
-            guard element.exists, matches(element.frame) else { continue }
+            guard element.exists, element.isHittable, matches(element.frame) else { continue }
             return element
         }
         return nil
@@ -541,19 +555,12 @@ final class SmokeUITests: XCTestCase {
         app.terminate()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         springboard.activate()
-        let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记"))
-        XCTAssertTrue(named.firstMatch.waitForExistence(timeout: 15))
-        var appIcon: XCUIElement?
-        for index in 0..<min(named.count, 6) {
-            let element = named.element(boundBy: index)
-            guard element.exists, element.frame.width < 120 else { continue }
-            appIcon = element
-            break
-        }
+        XCTAssertTrue(springboard.icons["宝宝小记"].waitForExistence(timeout: 15))
         let home = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         home.name = "08-home-screen"
         home.lifetime = .keepAlways
         add(home)
+        let appIcon = homeAppIcon(springboard)
         XCTAssertNotNil(appIcon, "The app icon was not separate from the widget.")
         appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))

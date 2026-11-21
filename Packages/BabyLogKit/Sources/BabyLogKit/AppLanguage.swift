@@ -282,7 +282,7 @@ public enum Copy {
 
     public static func widgetLimit(_ hidden: Int, _ size: WidgetSize, _ language: ResolvedLanguage) -> String {
         switch (size, language) {
-        case (.small, .zh): return "还有\(hidden)项。小号只显示第1项，换中号或大号。"
+        case (.small, .zh): return "还有\(hidden)项，换中号或大号。"
         case (.small, .en): return "\(hidden) more. Small shows the first item. Use Medium or Large."
         case (.medium, .zh): return "还有\(hidden)项放不下。换大号，或在编辑小组件里减少。"
         case (.medium, .en): return "\(hidden) more do not fit. Use Large, or remove some in Edit Widget."
