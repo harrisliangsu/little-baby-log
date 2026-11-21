@@ -93,6 +93,9 @@ final class SmokeUITests: XCTestCase {
 
         app.tabBars.buttons["设置"].tap()
         let languagePicker = app.buttons["app-language"]
+        for _ in 0..<6 where !languagePicker.exists {
+            app.swipeDown()
+        }
         XCTAssertTrue(languagePicker.waitForExistence(timeout: 6))
         languagePicker.tap()
         let english = app.buttons["英文"]
