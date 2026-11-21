@@ -215,7 +215,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>${TEAM}</string>
             <key>signingStyle</key><string>automatic</string>
             <key>uploadSymbols</key><true/>
@@ -235,5 +235,64 @@ jobs:
             -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER"
+          IPA=$(find "$EXPORT" -name '*.ipa' -print -quit)
+          test -n "$IPA"
+          REPORT="$RUNNER_TEMP/exported-entitlements.txt"
+          mkdir -p artifacts
+          python3 - "$ARCHIVE" "$IPA" "$REPORT" <<'PY'
+          import plistlib, subprocess, sys, zipfile
+          from pathlib import Path
+          archive, ipa, report = map(Path, sys.argv[1:4])
+
+          def entitlements(target: Path) -> dict:
+              raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(target)], stderr=subprocess.DEVNULL)
+              return plistlib.loads(raw)
+
+          def line(label, blob):
+              aps = blob.get("aps-environment", "(absent)")
+              containers = blob.get("com.apple.developer.icloud-container-identifiers", [])
+              services = blob.get("com.apple.developer.icloud-services", [])
+              groups = blob.get("com.apple.security.application-groups", [])
+              return f"{label} aps-environment={aps} icloud={containers} services={services} groups={groups}"
+
+          unpacked = Path("/tmp/lbl-ipa")
+          if unpacked.exists():
+              subprocess.check_call(["rm", "-rf", str(unpacked)])
+          unpacked.mkdir()
+          with zipfile.ZipFile(ipa) as zf:
+              zf.extractall(unpacked)
+          app = next(Path(unpacked, "Payload").glob("*.app"))
+          exported = entitlements(app)
+          archived_app = next(archive.glob("Products/Applications/*.app"))
+          archived = entitlements(archived_app)
+          text = "\n".join([
+              line("archive-not-final", archived),
+              line("exported-ipa", exported),
+              f"ipa={ipa.name}",
+          ]) + "\n"
+          report.write_text(text)
+          print(text, end="")
+          containers = exported.get("com.apple.developer.icloud-container-identifiers") or []
+          services = exported.get("com.apple.developer.icloud-services") or []
+          groups = exported.get("com.apple.security.application-groups") or []
+          if exported.get("aps-environment") != "production":
+              sys.exit("exported IPA aps-environment is not production")
+          if "iCloud.com.harrisliangsu.littlebabylog" not in containers or "CloudKit" not in services:
+              sys.exit("exported IPA is missing the Little Baby Log CloudKit container")
+          if "group.com.harrisliangsu.littlebabylog" not in groups:
+              sys.exit("exported IPA is missing the Little Baby Log app group")
+          PY
+          cp "$REPORT" artifacts/exported-entitlements.txt
+          mkdir -p "$HOME/private_keys"
+          cp "$KEY_DIR/AuthKey_${KEY_ID}.p8" "$HOME/private_keys/AuthKey_${KEY_ID}.p8"
+          xcrun altool --upload-app --file "$IPA" --type ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
           echo "Upload finished. This job does not submit App Review or external TestFlight."
-          rm -f "$KEY_DIR/AuthKey_${KEY_ID}.p8"
+          rm -f "$KEY_DIR/AuthKey_${KEY_ID}.p8" "$HOME/private_keys/AuthKey_${KEY_ID}.p8"
+      - name: Keep exported entitlement check
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exported-ipa-entitlements
+          path: artifacts/exported-entitlements.txt
+          if-no-files-found: warn
+          retention-days: 14
