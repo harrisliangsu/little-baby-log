@@ -25,6 +25,7 @@ struct TodayView: View {
     @State private var feedback = 0
     @State private var showWidgetPreview = false
     @State private var timelineCard: HomeCard?
+    @State private var showAIDraft = false
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -137,6 +138,17 @@ struct TodayView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 BabySwitcherMenu()
             }
+            if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showAIDraft = true } label: { Image(systemName: "sparkles") }
+                        .accessibilityIdentifier("ai-record-draft")
+                }
+            }
+        }
+        .sheet(isPresented: $showAIDraft) {
+            AIPhraseSheet(task: .recordDraft, seed: "", names: [baby.displayName], onRecordKind: { kind in
+                editor = .new(kind)
+            })
         }
         .sheet(isPresented: $showWidgetPreview) {
             WidgetPreviewSheet()

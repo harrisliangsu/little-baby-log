@@ -15,6 +15,7 @@ struct CareRulesBabySection: View {
     @State private var settings: BabyReminderSettings
     @State private var editing: CareRule?
     @State private var draft: CareRule?
+    @State private var showAIDraft = false
 
     private let store = ReminderSettingsStore()
 
@@ -60,6 +61,11 @@ struct CareRulesBabySection: View {
                 settings.rules.removeAll { $0.id == id }
             }
         }
+        .sheet(isPresented: $showAIDraft) {
+            AIPhraseSheet(task: .reminderDraft, seed: "", names: [babyName], onReminder: { rule in
+                settings.rules.append(rule)
+            })
+        }
         .sheet(item: $draft) { rule in
             CareRuleEditor(rule: rule, language: language) { saved in
                 settings.rules.append(saved)
@@ -83,6 +89,13 @@ struct CareRulesBabySection: View {
                 add(CareRuleTemplate.daily(minutesOfDay: 9 * 60, text: language == .zh ? "提醒" : "Reminder"))
             } label: {
                 Label(language == .zh ? "每天固定时间" : "Every day at a set time", systemImage: "clock.fill")
+            }
+            if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+                Button {
+                    showAIDraft = true
+                } label: {
+                    Label(language == .zh ? "用一句话做提醒草稿" : "Draft a reminder from a sentence", systemImage: "sparkles")
+                }
             }
             Button {
                 draft = CareRuleTemplate.feedInterval(text: language == .zh ? "喂奶" : "Feed")

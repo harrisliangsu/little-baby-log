@@ -18,6 +18,8 @@ struct ImportPreviewSheet: View {
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var assign: [String: UUID] = [:]
     @State private var errorText: String?
+    @State private var consent: AISendPreview?
+    @State private var mappingText = ""
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
@@ -92,12 +94,29 @@ struct ImportPreviewSheet: View {
                         }
                     }
                 }
+                if AIPreferences.isEnabled, AIKeyStore.token(provider: AIPreferences.provider) != nil {
+                    Section {
+                        Button(language == .zh ? "让 AI 看列名（先确认再发送）" : "Ask AI about the columns") {
+                            consent = mappingPreview
+                        }
+                        if !mappingText.isEmpty {
+                            Text(mappingText).font(.footnote)
+                        }
+                    } footer: {
+                        Text(language == .zh ? "建议不会自动写入。仍要点下面的导入。" : "A suggestion is not saved. Import still needs the button below.")
+                    }
+                }
                 if let errorText {
                     Text(errorText).foregroundStyle(.red)
                 }
             }
             .navigationTitle(language == .zh ? "检查导入" : "Check import")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $consent) { preview in
+                AIConsentSheet(preview: preview) {
+                    Task { await requestMapping(preview) }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(language == .zh ? "取消" : "Cancel") { dismiss() }
@@ -116,6 +135,30 @@ struct ImportPreviewSheet: View {
             get: { assign[key] },
             set: { assign[key] = $0 }
         )
+    }
+
+    private var mappingPreview: AISendPreview {
+        let names = file.rows.map(\.field.babyName)
+        let rows = file.rows.prefix(8).map { row in
+            [row.field.kind?.rawValue ?? "", row.field.notes.isEmpty ? "" : "[text]"]
+        }
+        let sample = AIRedactor.mappingSample(headers: ["kind", "notes"], rows: rows, babyNames: names)
+        let text = "Return json. columns is an array of {source, target}. target is a standard column or null.\n" + sample.text
+        return AISendPreview(provider: AIPreferences.provider, task: .columnMapping, userText: text, removedBabyNames: sample.removedNames)
+    }
+
+    private func requestMapping(_ preview: AISendPreview) async {
+        guard let token = AIKeyStore.token(provider: preview.provider) else { return }
+        do {
+            let data = try await AIClient(transport: LockedHostTransport()).send(
+                provider: preview.provider, preview: preview, token: token, approved: preview
+            )
+            let columns = try AIProposalDecoder.columns(from: data)
+            mappingText = columns.map { "\($0.source) → \($0.target ?? "—")" }.joined(separator: "\n")
+            if mappingText.isEmpty { mappingText = language == .zh ? "没有可用的列对应" : "No column mapping" }
+        } catch {
+            errorText = language == .zh ? "AI 没有返回可用的列对应" : "The assistant did not return a usable mapping"
+        }
     }
 
     private func commit() {

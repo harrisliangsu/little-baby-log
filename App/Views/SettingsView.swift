@@ -157,6 +157,11 @@ struct SettingsView: View {
             } label: {
                 Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
             }
+            NavigationLink {
+                AISettingsView()
+            } label: {
+                Label(language == .zh ? "AI 助手" : "Assistant", systemImage: "sparkles")
+            }
         } footer: {
             Text(Copy.deviceReminders(language))
         }
