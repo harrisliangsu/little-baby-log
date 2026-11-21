@@ -276,8 +276,8 @@ public enum Copy {
         language == .zh ? "上次" : "Last"
     }
 
-    public static func tapToLog(_ card: HomeCard, _ language: ResolvedLanguage) -> String {
-        language == .zh ? "点按记录\(card(card, language))" : "Tap to log \(card(card, language))"
+    public static func tapToLog(_ item: HomeCard, _ language: ResolvedLanguage) -> String {
+        language == .zh ? "点按记录\(card(item, language))" : "Tap to log \(card(item, language))"
     }
 
     public static func widgetLimit(_ hidden: Int, _ size: WidgetSize, _ language: ResolvedLanguage) -> String {
