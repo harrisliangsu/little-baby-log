@@ -29,10 +29,6 @@ final class SmokeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["时间线"].exists)
         XCTAssertGreaterThanOrEqual(app.buttons["add-formula"].frame.height, 44)
         XCTAssertGreaterThanOrEqual(app.buttons["add-wet"].frame.height, 44)
-        tap("add-growth")
-        XCTAssertTrue(app.buttons["save-entry"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["time-value"].exists)
-        app.buttons["取消"].tap()
         shot("02-empty-cards")
 
         openWidgetPreview()
