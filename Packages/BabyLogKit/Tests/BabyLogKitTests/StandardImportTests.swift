@@ -29,9 +29,10 @@ struct StandardImportTests {
             "start": "2026-03-10T23:30:00+08:00", "end": "2026-03-11T01:00:00+08:00",
         ])
         let sleep = StandardImporter.parse(data: Data(csv.utf8))
+        let sleepRow = try #require(sleep.rows.first)
         #expect(sleep.fileProblems.isEmpty)
-        #expect(sleep.rows.first?.field.end != nil)
-        #expect(sleep.rows.first?.problems.isEmpty)
+        #expect(sleepRow.field.end != nil)
+        #expect(sleepRow.problems.isEmpty)
 
         let bad = StandardImporter.parse(data: Data(#"{"schema":"other","schemaVersion":1,"rows":[]}"#.utf8))
         #expect(bad.fileProblems == [.unsupportedVersion])
