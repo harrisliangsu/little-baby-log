@@ -145,12 +145,17 @@ final class SmokeUITests: XCTestCase {
     /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
     private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
         app.tabBars.buttons[settingsTab].tap()
+        // Settings keeps its scroll offset. The widget preview sits below appearance, so start at the top.
+        for _ in 0..<4 { app.swipeDown() }
         let option = appearanceControl(expected, chinese: settingsTab == "设置")
-        for _ in 0..<5 where !option.exists {
+        for _ in 0..<8 where !option.isHittable {
             app.swipeUp()
         }
         XCTAssertTrue(option.waitForExistence(timeout: 4), "Appearance option \(expected) was not on screen")
         option.tap()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
+        XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
         app.tabBars.buttons[homeTab].tap()
         captureCheckedAppearance(expected, name: name)
     }

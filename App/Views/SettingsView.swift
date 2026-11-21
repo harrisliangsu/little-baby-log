@@ -213,15 +213,23 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         Section {
-            Picker(UICopy.t(.appearance, language), selection: $appearanceMode) {
-                ForEach(AppearanceMode.allCases) { mode in
-                    Text(appearanceTitle(mode))
-                        .tag(mode)
-                        .accessibilityIdentifier("appearance-\(mode.rawValue)")
+            ForEach(AppearanceMode.allCases) { mode in
+                Button {
+                    appearanceMode = mode
+                } label: {
+                    HStack {
+                        Text(appearanceTitle(mode))
+                            .foregroundStyle(theme.primaryText)
+                        Spacer()
+                        if appearanceMode == mode {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(theme.accent)
+                        }
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("appearance-\(mode.rawValue)")
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
 
             if appearanceMode == .nightSchedule {
                 DatePicker(language == .zh ? "从" : "From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
