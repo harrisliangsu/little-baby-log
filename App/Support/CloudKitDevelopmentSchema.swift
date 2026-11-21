@@ -19,12 +19,12 @@ enum CloudKitDevelopmentSchema {
             log.error("Schema init skipped: this launch is not using CloudKit")
             return
         }
-        var options: NSPersistentCloudKitContainer.SchemaInitializationOptions = []
-        if arguments.contains("-lbl-cloudkit-schema-dry-run") {
-            options.insert(.dryRun)
-        }
         do {
-            try cloud.initializeCloudKitSchema(options: options)
+            if arguments.contains("-lbl-cloudkit-schema-dry-run") {
+                try cloud.initializeCloudKitSchema(options: [.dryRun])
+            } else {
+                try cloud.initializeCloudKitSchema()
+            }
             log.notice("Development CloudKit schema initialization returned")
         } catch {
             log.error("Development schema initialization failed: \(error.localizedDescription, privacy: .public)")
