@@ -318,11 +318,13 @@ final class SmokeUITests: XCTestCase {
     private func waitControl(_ app: XCUIApplication, labels: [String], timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            for label in labels {
-                let button = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
-                if button.exists { return button }
-                let menu = app.menuItems.matching(NSPredicate(format: "label == %@", label)).firstMatch
-                if menu.exists { return menu }
+            for query in [app.buttons, app.menuItems] {
+                for element in query.allElementsBoundByIndex {
+                    let text = element.label.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if labels.contains(where: { text == $0 || text.hasPrefix($0 + " ") || text.hasPrefix($0 + ",") }) {
+                        return element
+                    }
+                }
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
