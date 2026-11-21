@@ -31,6 +31,9 @@ final class SmokeUITests: XCTestCase {
         let emptyWidget = element("widget-summary")
         XCTAssertTrue(emptyWidget.waitForExistence(timeout: 8))
         XCTAssertTrue(emptyWidget.label.contains("还没有记录") || emptyWidget.label.contains("奶粉0次"))
+        let emptyFace = element("widget-face-small")
+        XCTAssertTrue(emptyFace.waitForExistence(timeout: 4))
+        XCTAssertTrue(emptyFace.label.contains("还没有"))
         assertPreviewChrome(title: "小组件", note: "同一份记录", done: "完成")
         shot("03-widget-empty")
         app.buttons["close-widget-preview"].tap()
@@ -62,6 +65,19 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(widget.label.contains("24小时"))
         XCTAssertTrue(widget.label.contains("小便1"))
         XCTAssertTrue(widget.label.contains("睡眠1"))
+        let mediumFace = element("widget-face-medium")
+        XCTAssertTrue(mediumFace.waitForExistence(timeout: 4))
+        XCTAssertTrue(mediumFace.label.contains("今日"))
+        XCTAssertTrue(mediumFace.label.contains("120"))
+        XCTAssertTrue(mediumFace.label.contains("小便"))
+        XCTAssertFalse(mediumFace.label.contains("formula"))
+        XCTAssertFalse(mediumFace.label.contains("ago"))
+        XCTAssertFalse(mediumFace.label.contains("Next feed"))
+        let sized = element("widget-face-check")
+        XCTAssertTrue(sized.waitForExistence(timeout: 4))
+        XCTAssertTrue(sized.label.contains("距上次"))
+        XCTAssertFalse(sized.label.contains("…"))
+        XCTAssertFalse(sized.label.contains("formula"))
         shot("05-widget-filled")
         app.buttons["close-widget-preview"].tap()
 
@@ -117,6 +133,11 @@ final class SmokeUITests: XCTestCase {
         let englishWidget = element("widget-summary")
         XCTAssertTrue(englishWidget.waitForExistence(timeout: 8))
         XCTAssertTrue(englishWidget.label.contains("Formula") || englishWidget.label.contains("Last feed"))
+        let englishFace = element("widget-face-small")
+        XCTAssertTrue(englishFace.waitForExistence(timeout: 4))
+        XCTAssertTrue(englishFace.label.contains("Formula") || englishFace.label.contains("Since last"))
+        XCTAssertFalse(englishFace.label.contains("奶粉"))
+        XCTAssertFalse(englishFace.label.contains("距上次"))
         assertPreviewChrome(title: "Widget", note: "same record", done: "Done")
         shot("18-english-widget")
         app.buttons["close-widget-preview"].tap()
@@ -227,16 +248,30 @@ final class SmokeUITests: XCTestCase {
         addGallery.tap()
         shotSpringboard("14-widget-gallery")
 
-        addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记")
-        _ = tapControl(springboard, labels: ["Done", "完成"], timeout: 4)
-        let empty = springboard.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS '还没有记录' OR label CONTAINS '打开宝宝小记' OR label CONTAINS 'Nothing logged yet'")
-        ).firstMatch
-        XCTAssertTrue(empty.waitForExistence(timeout: 20), "The Home Screen widget is blank. Empty data must show the empty-state words, not only the name under a white square.")
-        shotSpringboard("15-home-screen-widget-before")
+        addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记", swipes: 0)
+        finishEditing(springboard)
+        assertEmptyWidget(springboard)
+        shotSpringboard("15-small-empty")
 
-        let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记")).allElementsBoundByIndex
-        let appIcon = named.filter { $0.frame.width < 120 }.first ?? named.first
+        openWidgetGallery(springboard)
+        addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记", swipes: 1)
+        finishEditing(springboard)
+        shotSpringboard("15-medium-empty")
+
+        openWidgetGallery(springboard)
+        addGalleryWidget(springboard, query: "宝宝小记", choice: "宝宝小记", swipes: 2)
+        finishEditing(springboard)
+        shotSpringboard("15-large-empty")
+        assertWidgetSizes(springboard)
+
+        let named = springboard.icons.matching(NSPredicate(format: "label == %@", "宝宝小记"))
+        var appIcon: XCUIElement?
+        for index in 0..<min(named.count, 6) {
+            let element = named.element(boundBy: index)
+            guard element.exists, element.frame.width < 120 else { continue }
+            appIcon = element
+            break
+        }
         XCTAssertNotNil(appIcon, "The app icon was not separate from the widget.")
         appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
@@ -247,12 +282,60 @@ final class SmokeUITests: XCTestCase {
             app.buttons["start-tracking"].tap()
         }
         logFormula(millilitres: "120")
+        tap("add-wet")
         app.terminate()
         springboard.activate()
         let updated = springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '120'")).firstMatch
         let showedUpdate = updated.waitForExistence(timeout: 25)
         shotSpringboard("15-home-screen-widget-after")
         XCTAssertTrue(showedUpdate, "The Home Screen widget did not show the new 120 ml record.")
+        XCTAssertFalse(springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] 'formula'")).firstMatch.exists)
+        XCTAssertFalse(springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Next feed'")).firstMatch.exists)
+        XCTAssertFalse(springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'minutes ago'")).firstMatch.exists)
+        let pee = springboard.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '小便'")).firstMatch
+        if !pee.waitForExistence(timeout: 8) {
+            springboard.swipeLeft()
+            XCTAssertTrue(pee.waitForExistence(timeout: 12), "The medium or large widget did not show 小便 next to the feed.")
+            springboard.swipeRight()
+        }
+
+        XCUIDevice.shared.appearance = .dark
+        shotSpringboard("15-widget-dark")
+        XCUIDevice.shared.appearance = .light
+
+        let small = widget(on: springboard, matching: { $0.width > 120 && $0.width < 210 && $0.height < 230 })
+        XCTAssertNotNil(small, "No small widget to tap.\n\(widgetFrameText(springboard))")
+        small?.tap()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        XCTAssertTrue(element("feed-method").waitForExistence(timeout: 12), "Small widget should open the feeding choice, not save a record.")
+        XCTAssertTrue(element("composer-baby").label.contains("Beibei"))
+        XCTAssertTrue(element("feed-choice-breast").exists)
+        XCTAssertTrue(element("feed-choice-formula").exists)
+        element("close-feed-method").tap()
+
+        springboard.activate()
+        let medium = widget(on: springboard, matching: { $0.width >= 210 && $0.height < 260 })
+        let peeButton = springboard.buttons.matching(NSPredicate(format: "label CONTAINS '小便'")).firstMatch
+        if peeButton.waitForExistence(timeout: 4) {
+            peeButton.tap()
+        } else if let medium {
+            medium.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.45)).tap()
+        } else {
+            XCTFail("No medium widget tap target.\n\(widgetFrameText(springboard))")
+        }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        XCTAssertTrue(element("composer-card").waitForExistence(timeout: 12))
+        XCTAssertEqual(element("composer-card").label, "wet")
+        XCTAssertTrue(element("composer-baby").label.contains("Beibei"))
+        XCTAssertTrue(app.buttons["save-entry"].exists)
+        app.buttons["取消"].tap()
+
+        let formula = element("summary-formula")
+        XCTAssertTrue(formula.waitForExistence(timeout: 8))
+        XCTAssertTrue(formula.label.contains("1次"))
+        XCTAssertTrue(formula.label.contains("120"))
+        XCTAssertTrue(element("summary-wet").label.contains("1次"))
+        XCTAssertFalse(element("summary-wet").label.contains("2次"))
     }
 
     private func openWidgetGallery(_ springboard: XCUIApplication) {
@@ -266,7 +349,7 @@ final class SmokeUITests: XCTestCase {
         requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-edit-menu-again").tap()
     }
 
-    private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String) {
+    private func addGalleryWidget(_ springboard: XCUIApplication, query: String, choice: String, swipes: Int = 0) {
         let listed = springboard.cells.matching(NSPredicate(format: "label CONTAINS %@", choice)).firstMatch
         if !listed.waitForExistence(timeout: 4) {
             let search = springboard.searchFields.firstMatch
@@ -277,8 +360,74 @@ final class SmokeUITests: XCTestCase {
             XCTAssertTrue(listed.waitForExistence(timeout: 8), "Gallery has no \(choice).\n\(visibleControls(springboard))")
         }
         listed.tap()
+        selectGallerySize(springboard, swipes: swipes)
         let confirm = requireControl(springboard, labels: ["Add Widget", "添加小组件"], shot: "14-gallery-\(query)")
         confirm.tap()
+    }
+
+    /// Small is the gallery's first page. Medium and large are the next pages, or a size button when one is exposed.
+    private func selectGallerySize(_ springboard: XCUIApplication, swipes: Int) {
+        let labels: [String]
+        switch swipes {
+        case 1: labels = ["Medium", "中号"]
+        case 2: labels = ["Large", "大号"]
+        default: return
+        }
+        if tapControl(springboard, labels: labels, timeout: 2) { return }
+        let preview = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.78, dy: 0.36))
+        let aside = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.36))
+        for _ in 0..<swipes {
+            preview.press(forDuration: 0.08, thenDragTo: aside)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        }
+    }
+
+    private func finishEditing(_ springboard: XCUIApplication) {
+        _ = tapControl(springboard, labels: ["Done", "完成"], timeout: 4)
+    }
+
+    private func assertEmptyWidget(_ springboard: XCUIApplication) {
+        let empty = springboard.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS '还没有记录' OR label CONTAINS '打开宝宝小记' OR label CONTAINS 'Nothing logged yet' OR label CONTAINS '还没有'")
+        ).firstMatch
+        XCTAssertTrue(empty.waitForExistence(timeout: 20), "The Home Screen widget is blank. Empty data must show the empty-state words, not only the name under a white square.")
+    }
+
+    private func assertWidgetSizes(_ springboard: XCUIApplication) {
+        var frames = widgetFrames(springboard)
+        if !frames.contains(where: { $0.height > 280 }) {
+            springboard.swipeLeft()
+            frames = widgetFrames(springboard)
+            springboard.swipeRight()
+        }
+        attachText("15-widget-frames", frames.map { "\($0.width)x\($0.height)" }.joined(separator: "\n"))
+        XCTAssertTrue(frames.contains { $0.width >= 210 && $0.height < 280 }, "Medium widget was not on the Home Screen.\n\(widgetFrameText(springboard))")
+        XCTAssertTrue(frames.contains { $0.height > 280 }, "Large widget was not on the Home Screen.\n\(widgetFrameText(springboard))")
+    }
+
+    private func widget(on springboard: XCUIApplication, matching matches: (CGRect) -> Bool) -> XCUIElement? {
+        let named = springboard.icons.matching(NSPredicate(format: "label CONTAINS %@", "宝宝小记"))
+        for index in 0..<min(named.count, 6) {
+            let element = named.element(boundBy: index)
+            guard element.exists, matches(element.frame) else { continue }
+            return element
+        }
+        return nil
+    }
+
+    private func widgetFrames(_ springboard: XCUIApplication) -> [CGRect] {
+        let named = springboard.icons.matching(NSPredicate(format: "label CONTAINS %@", "宝宝小记"))
+        var frames: [CGRect] = []
+        for index in 0..<min(named.count, 6) {
+            let element = named.element(boundBy: index)
+            guard element.exists, element.frame.width > 120 else { continue }
+            frames.append(element.frame)
+        }
+        return frames
+    }
+
+    private func widgetFrameText(_ springboard: XCUIApplication) -> String {
+        widgetFrames(springboard).map { "\($0.width)x\($0.height)" }.joined(separator: ", ")
     }
 
     /// Removes the large widget we just added. Its delete badge has no name, so the

@@ -77,7 +77,10 @@ struct HomeCardsSettingsView: View {
                 } header: {
                     Text(language == .zh ? "首页顺序" : "Home order")
                 } footer: {
-                    Text(language == .zh ? "今天页的摘要和卡片按这个顺序排。" : "Today's summary and cards use this order.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(language == .zh ? "今天页的摘要和卡片按这个顺序排。" : "Today's summary and cards use this order.")
+                        Text(Copy.widgetSeparate(language))
+                    }
                 }
                 .themedSection()
     }

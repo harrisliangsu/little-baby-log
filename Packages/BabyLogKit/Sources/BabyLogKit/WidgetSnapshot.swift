@@ -56,6 +56,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         public var nextFeed: NextFeed?
         /// Today and rolling-24-hour care counts. Nil in snapshots written before this field existed.
         public var care: CareRollup?
+        /// Newest records, for the large widget. Nil in older snapshot files.
+        public var recent: [RecentCare]?
+        /// The next reminder this phone has scheduled. Nil when the user has not set one, and never a predicted feed.
+        public var nextReminder: SnapshotReminder?
 
         public init(
             id: UUID,
@@ -70,7 +74,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             today: Today = Today(),
             nextSleep: NextSleep? = nil,
             nextFeed: NextFeed? = nil,
-            care: CareRollup? = nil
+            care: CareRollup? = nil,
+            recent: [RecentCare]? = nil,
+            nextReminder: SnapshotReminder? = nil
         ) {
             self.id = id
             self.name = name
@@ -85,6 +91,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             self.nextSleep = nextSleep
             self.nextFeed = nextFeed
             self.care = care
+            self.recent = recent
+            self.nextReminder = nextReminder
         }
     }
 
@@ -286,6 +294,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 summary.today = Today(feeds: day.feedCount, diapers: day.diaperCount, sleep: day.sleep)
                 let all = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
                 summary.care = CareRollup.make(events: all, now: now, calendar: calendar)
+                summary.recent = RecentCare.rows(from: Array(all.prefix(12)), now: now)
 
                 // Predictions only change when the logs do, so they ride along in the snapshot. A sleep window
                 // counted from "now" (no wake-up logged) would shift on every rewrite, so it is left out.

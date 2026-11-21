@@ -5,6 +5,8 @@ import BabyLogKit
 enum EditorTarget: Identifiable {
     case new(EventKind)
     case edit(LogEvent)
+    /// A widget tap. The draft is empty until Save. Home-card history uses a different screen.
+    case card(HomeCard)
 
     var id: String {
         switch self {
@@ -12,7 +14,14 @@ enum EditorTarget: Identifiable {
             return "new-" + kind.rawValue
         case .edit(let event):
             return "edit-" + event.objectID.uriRepresentation().absoluteString
+        case .card(let card):
+            return "card-" + card.rawValue
         }
+    }
+
+    var homeCard: HomeCard? {
+        if case .card(let card) = self { return card }
+        return nil
     }
 }
 
@@ -39,6 +48,8 @@ struct EventEditorView: View {
             _draft = State(initialValue: EventDraft(kind: kind))
         case .edit(let event):
             _draft = State(initialValue: EventDraft(event: event))
+        case .card(let card):
+            _draft = State(initialValue: EventDraft(card: card))
         }
     }
 
@@ -55,6 +66,18 @@ struct EventEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Text(Copy.forBaby(baby.displayName, language))
+                        .accessibilityIdentifier("composer-baby")
+                    if let card = target.homeCard {
+                        Text(card.rawValue)
+                            .font(.system(size: 1))
+                            .foregroundStyle(.clear)
+                            .frame(width: 1, height: 1)
+                            .accessibilityIdentifier("composer-card")
+                            .accessibilityLabel(card.rawValue)
+                    }
+                }
                 kindFields
 
                 Section {
@@ -307,6 +330,9 @@ struct EventEditorView: View {
         switch target {
         case .new(let kind):
             let event = LogEvent.create(kind: kind, for: baby, start: draft.startDate, in: context)
+            draft.apply(to: event)
+        case .card:
+            let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
         case .edit(let event):
             draft.apply(to: event)

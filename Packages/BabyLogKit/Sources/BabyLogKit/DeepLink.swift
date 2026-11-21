@@ -5,6 +5,7 @@ import Foundation
 ///     littlebabylog://log/<kind>?baby=<uuid>     new-entry editor (bottle amount, solids, ...)
 ///     littlebabylog://nursing?baby=<uuid>        the nursing timer (starts one if none is running)
 ///     littlebabylog://today?baby=<uuid>          just show Today
+///     littlebabylog://start/<card>?baby=<uuid>   widget tap: open the form for that card. Does not save.
 ///
 /// `baby` is optional everywhere; without it the app keeps its current baby.
 public enum DeepLink: Equatable, Sendable {
@@ -14,10 +15,12 @@ public enum DeepLink: Equatable, Sendable {
     case nursing(babyID: UUID?)
     case today(babyID: UUID?)
     case timeline(HomeCard, babyID: UUID?)
+    /// Opens the record form for one home card. Distinct from `timeline`, which opens the history list.
+    case start(HomeCard, babyID: UUID?)
 
     public var babyID: UUID? {
         switch self {
-        case .log(_, let id), .nursing(let id), .today(let id), .timeline(_, let id): return id
+        case .log(_, let id), .nursing(let id), .today(let id), .timeline(_, let id), .start(_, let id): return id
         }
     }
 
@@ -34,6 +37,9 @@ public enum DeepLink: Equatable, Sendable {
             components.host = "today"
         case .timeline(let card, _):
             components.host = "timeline"
+            components.path = "/" + card.rawValue
+        case .start(let card, _):
+            components.host = "start"
             components.path = "/" + card.rawValue
         }
         if let babyID {
@@ -65,6 +71,10 @@ public enum DeepLink: Equatable, Sendable {
             let name = components.path.split(separator: "/").first.map(String.init)?.lowercased()
             guard let name, let card = HomeCard.allCases.first(where: { $0.rawValue.lowercased() == name }) else { return nil }
             self = .timeline(card, babyID: babyID)
+        case "start":
+            let name = components.path.split(separator: "/").first.map(String.init)?.lowercased()
+            guard let name, let card = HomeCard.allCases.first(where: { $0.rawValue.lowercased() == name }) else { return nil }
+            self = .start(card, babyID: babyID)
         default:
             return nil
         }

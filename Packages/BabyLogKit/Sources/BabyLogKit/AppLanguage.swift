@@ -267,4 +267,71 @@ public enum Copy {
             ? "提醒只保存在这台设备上，不会通过 iCloud 同步，所以另一台手机不会跟着响。系统最多大约排 60 条，多个宝宝会轮流占用。"
             : "Reminders stay on this device and are not synced through iCloud, so another phone does not ring too. The system holds about 60 pending alerts, shared across babies."
     }
+
+    public static func sinceLast(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "距上次" : "Since last"
+    }
+
+    public static func lastAmount(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "上次" : "Last"
+    }
+
+    public static func tapToLog(_ card: HomeCard, _ language: ResolvedLanguage) -> String {
+        language == .zh ? "点按记录\(card(card, language))" : "Tap to log \(card(card, language))"
+    }
+
+    public static func widgetLimit(_ hidden: Int, _ size: WidgetSize, _ language: ResolvedLanguage) -> String {
+        switch (size, language) {
+        case (.small, .zh): return "还有\(hidden)项。小号只显示第1项，换中号或大号。"
+        case (.small, .en): return "\(hidden) more. Small shows the first item. Use Medium or Large."
+        case (.medium, .zh): return "还有\(hidden)项放不下。换大号，或在编辑小组件里减少。"
+        case (.medium, .en): return "\(hidden) more do not fit. Use Large, or remove some in Edit Widget."
+        case (.large, .zh): return "还有\(hidden)项放不下。请在编辑小组件里减少项目。"
+        case (.large, .en): return "\(hidden) more do not fit. Remove some in Edit Widget."
+        }
+    }
+
+    public static func missingBaby(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "找不到这位宝宝" : "This baby is not on this phone"
+    }
+
+    public static func noReminder(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "没有已设提醒" : "No reminder set"
+    }
+
+    public static func setReminder(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "已设提醒" : "Reminder"
+    }
+
+    public static func recentRecords(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "近期记录" : "Recent"
+    }
+
+    public static func pickWidgetItems(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "在编辑小组件里选择要显示的项目" : "Choose items in Edit Widget"
+    }
+
+    public static func widgetSeparate(_ language: ResolvedLanguage) -> String {
+        language == .zh
+            ? "桌面小组件在主屏幕上长按后编辑。每个小组件自己选宝宝和项目，不跟着首页顺序变。"
+            : "Touch and hold a Home Screen widget to edit it. Each widget keeps its own baby and items, separate from this home order."
+    }
+
+    public static func forBaby(_ name: String, _ language: ResolvedLanguage) -> String {
+        language == .zh ? "给\(name)记录" : "Log for \(name)"
+    }
+
+    public static func feedingChoice(_ language: ResolvedLanguage) -> String {
+        language == .zh ? "选择喂养方式" : "Choose a feeding method"
+    }
+
+    public static func amount(_ milliliters: Double, unit: VolumeUnit, _ language: ResolvedLanguage) -> String {
+        let locale = Locale(identifier: language == .zh ? "zh_CN" : "en_US")
+        return unit.format(milliliters: milliliters, locale: locale)
+    }
+
+    public static func clock(_ date: Date, _ language: ResolvedLanguage) -> String {
+        let locale = Locale(identifier: language == .zh ? "zh_CN" : "en_US")
+        return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(locale))
+    }
 }

@@ -66,6 +66,12 @@ final class WidgetSnapshotWriter {
             )
             context.reset()
         }
+        let inputs = ReminderInputs.load(in: context, now: snapshot.generatedAt)
+        for baby in inputs {
+            guard let next = SnapshotReminderPick.next(for: baby, now: snapshot.generatedAt),
+                  let index = snapshot.babies.firstIndex(where: { $0.id == baby.id }) else { continue }
+            snapshot.babies[index].nextReminder = next
+        }
         return snapshot
     }
 }

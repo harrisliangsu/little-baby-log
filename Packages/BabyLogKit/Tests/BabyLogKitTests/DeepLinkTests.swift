@@ -18,6 +18,8 @@ struct DeepLinkTests {
         #expect(DeepLink(url: URL(string: "littlebabylog://log")!) == nil)
         #expect(DeepLink(url: URL(string: "littlebabylog://log/teleport")!) == nil)
         #expect(DeepLink(url: URL(string: "littlebabylog://settings")!) == nil)
+        #expect(DeepLink(url: URL(string: "littlebabylog://start")!) == nil)
+        #expect(DeepLink(url: URL(string: "littlebabylog://start/teleport")!) == nil)
     }
 
     @Test func badBabyIDIsIgnored() {
@@ -37,5 +39,10 @@ struct DeepLinkTests {
         #expect(DeepLink.log(.bottle, babyID: nil).url.absoluteString == "littlebabylog://log/bottle")
         let timeline = DeepLink.timeline(.formula, babyID: baby)
         #expect(DeepLink(url: timeline.url) == timeline)
+        for card in HomeCard.allCases {
+            let start = DeepLink.start(card, babyID: baby)
+            #expect(DeepLink(url: start.url) == start)
+            #expect(start != DeepLink.timeline(card, babyID: baby))
+        }
     }
 }

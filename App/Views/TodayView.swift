@@ -19,6 +19,9 @@ struct TodayView: View {
 
     @State private var editor: EditorTarget?
     @State private var nursing: NursingSheetItem?
+    @State private var feedChoice = false
+    /// Same widget URL delivered twice (cold start plus a second open) must not stack another sheet.
+    @State private var openedLinkAt: (key: String, date: Date)?
     @State private var feedback = 0
     @State private var showWidgetPreview = false
     @State private var timelineCard: HomeCard?
@@ -147,6 +150,12 @@ struct TodayView: View {
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
         }
+        .sheet(isPresented: $feedChoice) {
+            FeedingMethodSheet(babyName: baby.displayName) { card in
+                feedChoice = false
+                DispatchQueue.main.async { editor = .card(card) }
+            }
+        }
         .sheet(item: $nursing) { item in
             BreastTimerView(event: item.event, suggestedSide: item.suggestedSide)
         }
@@ -159,9 +168,20 @@ struct TodayView: View {
 
     /// `littlebabylog://` links from widgets: the editor for a kind, or the nursing timer.
     private func open(_ link: DeepLink) {
+        if let kind = StartRouting.composer(for: link) {
+            let key = link.url.absoluteString
+            if let opened = openedLinkAt, opened.key == key, Date().timeIntervalSince(opened.date) < 1.5 {
+                return
+            }
+            openedLinkAt = (key, .now)
+            presentComposer(kind)
+            return
+        }
         let present: () -> Void
         switch link {
         case .today:
+            return
+        case .start:
             return
         case .timeline(let card, _):
             present = { timelineCard = card }
@@ -173,6 +193,25 @@ struct TodayView: View {
         if editor != nil || nursing != nil {
             // Replace whatever sheet is up; SwiftUI can't swap one sheet for another in a single update.
             editor = nil
+            nursing = nil
+            DispatchQueue.main.async(execute: present)
+        } else {
+            present()
+        }
+    }
+
+    private func presentComposer(_ kind: WidgetComposerKind) {
+        let present: () -> Void = {
+            switch kind {
+            case .feedingChoice:
+                feedChoice = true
+            case .editor(let card):
+                editor = .card(card)
+            }
+        }
+        if editor != nil || feedChoice || nursing != nil {
+            editor = nil
+            feedChoice = false
             nursing = nil
             DispatchQueue.main.async(execute: present)
         } else {

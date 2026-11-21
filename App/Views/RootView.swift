@@ -10,6 +10,12 @@ struct RootView: View {
     /// A `littlebabylog://` link waiting for Today to act on it. Lives here, not in a tab, because
     /// switching babies rebuilds `MainTabView`.
     @State private var pendingLink: DeepLink?
+    @State private var showMissingBaby = false
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
 
     private var selectedBaby: Baby? {
         babies.first(where: { $0.uuid?.uuidString == selectedBabyID }) ?? babies.first
@@ -34,6 +40,9 @@ struct RootView: View {
                 }
             }
         }
+        .alert(Copy.missingBaby(language), isPresented: $showMissingBaby) {
+            Button(language == .zh ? "知道了" : "OK", role: .cancel) {}
+        }
         .background(alignment: .topLeading) { AppearanceSchemeProbe() }
         .task { await CloudKitDevelopmentSchema.initializeIfRequested(persistence) }
         .onOpenURL { url in
@@ -50,9 +59,17 @@ struct RootView: View {
     }
 
     private func open(_ link: DeepLink) {
-        if let id = link.babyID, babies.contains(where: { $0.uuid == id }) {
+        let known = Set(babies.compactMap(\.uuid))
+        guard !known.isEmpty else { return }
+        guard StartRouting.knownBaby(link, knownBabyIDs: known) else {
+            pendingLink = nil
+            showMissingBaby = true
+            return
+        }
+        if let id = link.babyID {
             selectedBabyID = id.uuidString
         }
+        showMissingBaby = false
         pendingLink = link
     }
 }
