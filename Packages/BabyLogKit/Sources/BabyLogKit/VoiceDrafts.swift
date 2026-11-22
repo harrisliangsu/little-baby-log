@@ -249,7 +249,7 @@ public enum VoiceDrafts {
         guard !spoken.isEmpty else { return nil }
         let redacted = redact(transcript: spoken, currentBaby: currentBaby, otherBabies: otherBabies)
         let instruction = """
-        锚点 \(anchor.iso8601) \(anchor.timeZone.identifier)。把下面的话拆成记录。只返回 JSON {"items":[{"kind":null,"baby":null,"minutesAgo":null,"start":null,"amountML":null,"durationMinutes":null,"diaper":null,"bottle":null,"side":null,"food":null,"medicine":null,"uncertain":[]}] }。kind 只能是 sleep, breastfeed, bottle, solids, diaper, pump, growth, medicine。相对时间用 minutesAgo，从锚点往前数。不确定就放进 uncertain，不要猜，不要医疗建议。宝宝只用 Current、Baby2 这类代号。
+        锚点 \(anchor.iso8601) \(anchor.timeZone.identifier)。如果下面的话是在记记录，只返回 JSON {"items":[{"kind":null,"baby":null,"minutesAgo":null,"start":null,"amountML":null,"durationMinutes":null,"diaper":null,"bottle":null,"side":null,"food":null,"medicine":null,"uncertain":[]}] }。kind 只能是 sleep, breastfeed, bottle, solids, diaper, pump, growth, medicine。相对时间用 minutesAgo，从锚点往前数。不确定就放进 uncertain，不要猜，不要医疗建议。宝宝只用 Current、Baby2 这类代号。如果是在问问题，只返回 JSON {"text":"回答"}，不要下医疗结论，不要编造没有的数据。
         \(redacted.text)
         """
         let preview = AISendPreview(

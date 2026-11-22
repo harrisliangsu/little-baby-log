@@ -5,8 +5,14 @@ import Foundation
 public enum WidgetSize: String, Sendable {
     case small, medium, large
 
-    /// Every selected home card fits. The view gets denser as the count grows, instead of hiding items.
-    public var itemLimit: Int { 6 }
+    /// Complete rows only. Extra picks stay off this size instead of shrinking the type.
+    public var itemLimit: Int {
+        switch self {
+        case .small: 2
+        case .medium: 4
+        case .large: 6
+        }
+    }
 }
 
 /// One logged row the large widget can list. Amounts stay optional so pee never gains a made-up millilitre.

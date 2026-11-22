@@ -244,6 +244,24 @@ public enum AIProposalDecoder {
         )
     }
 
+    public enum AIChatOutcome: Equatable {
+        case reply(String)
+        case records([VoiceModelItem])
+    }
+
+    /// A real model reply is either a normal answer or record cards. The chat shows that, not the request schema.
+    public static func chatOutcome(from data: Data) throws -> AIChatOutcome {
+        let object = try payload(from: data)
+        if let rows = object["items"] as? [[String: Any]], !rows.isEmpty {
+            return .records(try VoiceDrafts.items(from: data))
+        }
+        if let text = object["text"] as? String {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return .reply(trimmed) }
+        }
+        throw AIClientError.unreadable
+    }
+
     public static func summary(from data: Data) throws -> RangeSummarySuggestion {
         RangeSummarySuggestion(text: (try payload(from: data))["text"] as? String)
     }

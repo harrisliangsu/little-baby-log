@@ -14,8 +14,6 @@ struct CareSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(baby.name)
-                .font(.headline)
             if noRecords {
                 Text(Copy.noRecords(language))
                     .foregroundStyle(.secondary)
@@ -32,7 +30,7 @@ struct CareSummaryView: View {
                 Text(Copy.widgetLine(Copy.last24(language), care.last24Hours, language))
             }
         }
-        .font(.subheadline)
+        .font(.body.weight(.medium))
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("widget-summary")

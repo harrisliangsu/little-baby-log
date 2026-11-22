@@ -82,6 +82,18 @@ struct AIAssistTests {
         #expect(transport.calls == 1)
         #expect(try AIProposalDecoder.columns(from: data).isEmpty)
     }
+
+    @Test func chatAnswersAndRecordsUseTheSameReply() throws {
+        let answer = Data(#"{"choices":[{"message":{"content":"{\"text\":\"今天喂了两次\"}"}}]}"#.utf8)
+        #expect(try AIProposalDecoder.chatOutcome(from: answer) == .reply("今天喂了两次"))
+        let records = Data(#"{"choices":[{"message":{"content":"{\"items\":[{\"kind\":\"bottle\",\"amountML\":120}]}"}}]}"#.utf8)
+        guard case .records(let items) = try AIProposalDecoder.chatOutcome(from: records) else {
+            Issue.record("records")
+            return
+        }
+        #expect(items.first?.kind == "bottle")
+        #expect(items.first?.amountML == 120.0)
+    }
 }
 
 private final class ScriptedTransport: AITransport, @unchecked Sendable {

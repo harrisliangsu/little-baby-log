@@ -42,10 +42,6 @@ struct QuickLogWidgetView: View {
 
     private func header(_ baby: WidgetSnapshot.BabySummary) -> some View {
         HStack(spacing: 6) {
-            Text(baby.name)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .lineLimit(1)
-            Spacer(minLength: 6)
             if let nursing = baby.runningNursing {
                 let values = NursingValues(nursing)
                 Label {
@@ -53,7 +49,7 @@ struct QuickLogWidgetView: View {
                 } icon: {
                     Image(systemName: EventKind.breastfeed.symbolName)
                 }
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(EventKind.breastfeed.color)
                 .widgetAccentable()
             } else if let started = baby.runningSleepStartedAt {
@@ -62,13 +58,13 @@ struct QuickLogWidgetView: View {
                 } icon: {
                     Image(systemName: EventKind.sleep.symbolName)
                 }
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(EventKind.sleep.color)
                 .lineLimit(1)
                 .widgetAccentable()
             } else if let feed = baby.lastFeed {
                 AgoLine(prefix: Copy.lastFeed(entry.language), date: feed.referenceDate, language: entry.language)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
         }

@@ -29,7 +29,7 @@ struct CareBoardFace: View {
     }
 
     /// One selected item is the headline. Two or more share the card as compact rows, still fully tappable.
-    private var small: some View { sized(columns: face.items.count == 2 ? 2 : 1, showsToday: false) }
+    private var small: some View { sized(columns: 1, showsToday: false) }
 
     private var medium: some View { sized(columns: face.items.count <= 3 ? face.items.count : 2, showsToday: true) }
 
@@ -37,18 +37,17 @@ struct CareBoardFace: View {
         VStack(alignment: .leading, spacing: 6) {
             sized(columns: 1, showsToday: true)
             if let title = face.recentTitle {
-                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                ForEach(face.recentLines, id: \.self) { Text($0).font(.caption).lineLimit(1) }
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                ForEach(face.recentLines, id: \.self) { Text($0).font(.subheadline).lineLimit(2).minimumScaleFactor(0.8) }
             }
             if let reminder = face.reminderLine {
-                Text(reminder).font(.caption).lineLimit(2)
+                Text(reminder).font(.subheadline).lineLimit(2).minimumScaleFactor(0.8)
             }
         }
     }
 
     private func sized(columns: Int, showsToday: Bool) -> some View {
-        VStack(alignment: .leading, spacing: face.items.count <= 1 ? 6 : 3) {
-            name
+        VStack(alignment: .leading, spacing: face.items.count <= 1 ? 6 : 4) {
             if columns > 1 {
                 let rows = stride(from: 0, to: face.items.count, by: columns).map { start in
                     Array(face.items[start..<min(start + columns, face.items.count)])
@@ -73,42 +72,37 @@ struct CareBoardFace: View {
             Group {
                 if face.items.count == 1 {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title).font(.headline).lineLimit(1)
-                        Text(item.sinceValue).font(.title3.weight(.bold)).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(item.lastValue).font(.subheadline).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(item.title).font(.title3.weight(.semibold)).lineLimit(2).minimumScaleFactor(0.8)
+                        Text(item.sinceValue).font(.title.weight(.bold)).lineLimit(2).minimumScaleFactor(0.85)
+                        Text(item.lastValue).font(.title3).lineLimit(2).minimumScaleFactor(0.85)
                     }
                 } else {
-                    HStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(item.title)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                        Spacer(minLength: 2)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
                         Text(item.sinceValue)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.55)
+                            .font(.headline.weight(.bold))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
                         Text(item.lastValue)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.55)
+                            .font(.subheadline)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
                         if showsToday {
                             Text(item.todayValue)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.55)
+                                .font(.subheadline)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
                         }
                     }
-                    .font(.caption2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(item.accessibilityText)
         }
-    }
-
-    private var name: some View {
-        Text(face.babyName)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
     }
 
     private var spoken: String {

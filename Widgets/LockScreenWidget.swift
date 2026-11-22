@@ -32,7 +32,7 @@ struct LockScreenWidgetView: View {
                     VStack(spacing: 2) {
                         Image(systemName: "heart.fill")
                         Text(entry.language == .zh ? "添加宝宝" : "Add a baby")
-                            .font(.caption2)
+                            .font(.caption)
                     }
                 }
             }
@@ -100,11 +100,11 @@ private struct Rectangular: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .font(.caption2)
+                .font(.caption)
             } else if let feed = baby.lastFeed {
                 HStack(spacing: 4) {
                     Image(systemName: feed.kind.symbolName).widgetAccentable()
-                    Text(baby.name).fontWeight(.semibold).lineLimit(1)
+                    Text(language == .zh ? "喂奶" : "Feed").fontWeight(.semibold).lineLimit(1)
                 }
                 .font(.headline)
                 (Text(language == .zh ? "" : "Fed ") + Elapsed.since(feed.referenceDate) + Text(language == .zh ? "前" : " ago"))
@@ -122,8 +122,7 @@ private struct Rectangular: View {
                         .lineLimit(1)
                 }
             } else {
-                Text(baby.name).font(.headline)
-                Text(language == .zh ? "还没有喂奶" : "No feed yet").font(.subheadline)
+                Text(language == .zh ? "还没有喂奶" : "No feed yet").font(.headline)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

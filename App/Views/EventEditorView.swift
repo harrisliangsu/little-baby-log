@@ -46,7 +46,6 @@ struct EventEditorView: View {
     @State private var confirmDelete = false
     @State private var attemptedSave = false
     @State private var seededFormula = false
-    @State private var editingAmount = false
 
     init(baby: Baby, target: EditorTarget) {
         self.baby = baby
@@ -109,22 +108,23 @@ struct EventEditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom, spacing: 8) {
+                Button(UICopy.t(.save, language)) { save() }
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("save-entry")
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(UICopy.t(.cancel, language)) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(UICopy.t(.save, language)) { save() }
-                        .fontWeight(.semibold)
-                        .accessibilityIdentifier("save-entry")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button(UICopy.t(.done, language)) { UIApplication.endEditing() }
                 }
-            }
-            .sheet(isPresented: $editingAmount) {
-                AmountSheet(milliliters: $draft.amountML, unit: volumeUnit, language: language)
             }
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
@@ -193,17 +193,7 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            Button { editingAmount = true } label: {
-                HStack {
-                    Text(UICopy.t(.amount, language))
-                    Spacer(minLength: 12)
-                    Text(draft.amountML > 0 ? Copy.amount(draft.amountML, unit: volumeUnit, language) : volumeUnit.symbol)
-                        .font(.title2.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .accessibilityIdentifier("amount-value")
+            InlineAmountEditor(milliliters: $draft.amountML, unit: volumeUnit, language: language)
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard != .formula {
                 Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
@@ -409,153 +399,88 @@ struct EventEditorView: View {
         .previewEnvironment()
 }
 
-/// A tall time row. Shortcuts are calculated from the moment they are tapped.
+/// Time shortcuts and the date control sit on the form. Nothing opens a second sheet.
 private struct TimeValueRow: View {
     let title: String
     @Binding var date: Date
     @Environment(\.uiLanguage) private var language
-    @State private var open = false
 
     var body: some View {
-        Button { open = true } label: {
-            HStack {
-                Text(title)
-                Spacer(minLength: 12)
-                Text(date.formatted(date: .omitted, time: .shortened))
-                    .font(.title3.weight(.semibold))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            HStack(spacing: 8) {
+                shortcut(.now, UICopy.t(.now, language), "time-now")
+                shortcut(.tenMinutes, language == .zh ? "10分钟前" : "10 min ago", "time-10")
+                shortcut(.twentyMinutes, language == .zh ? "20分钟前" : "20 min ago", "time-20")
             }
-            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-            .contentShape(Rectangle())
+            DatePicker(title, selection: $date)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 132)
+                .clipped()
+                .accessibilityIdentifier("time-value")
         }
-        .buttonStyle(.borderless)
-        .accessibilityIdentifier("time-value")
-        .sheet(isPresented: $open) {
-            NavigationStack {
-                VStack(alignment: .leading, spacing: 12) {
-                    shortcut(.now, UICopy.t(.now, language), "time-now")
-                    shortcut(.tenMinutes, language == .zh ? "10分钟前" : "10 min ago", "time-10")
-                    shortcut(.twentyMinutes, language == .zh ? "20分钟前" : "20 min ago", "time-20")
-                    DatePicker(title, selection: $date)
-                        .datePickerStyle(.compact)
-                        .frame(minHeight: 44)
-                }
-                .padding(20)
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button(UICopy.t(.done, language)) { open = false }
-                    }
-                }
-            }
-            .presentationDetents([.medium])
-        }
+        .padding(.vertical, 4)
     }
 
     private func shortcut(_ choice: LogTimeShortcut, _ title: String, _ identifier: String) -> some View {
         Button {
             date = choice.date(from: .now)
-            open = false
         } label: {
             Text(title)
-                .frame(maxWidth: .infinity, minHeight: 48)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.bordered)
         .accessibilityIdentifier(identifier)
     }
 }
 
-private struct AmountSheet: View {
+/// Amount and nearby logging shortcuts. The number field is not focused until it is tapped.
+private struct InlineAmountEditor: View {
     @Binding var milliliters: Double
     let unit: VolumeUnit
     let language: ResolvedLanguage
-    @Environment(\.dismiss) private var dismiss
     @State private var text = ""
-    @State private var contentHeight: CGFloat = 180
-    @State private var keyboardOverlap: CGFloat = 0
+    @FocusState private var focused: Bool
 
     var body: some View {
+        let shown = unit.value(fromMilliliters: milliliters)
         let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil)
-        NavigationStack {
-            VStack(spacing: 12) {
-                HStack(spacing: 4) {
-                    TextField("0", text: $text)
-                        .keyboardType(.decimalPad)
-                        .font(.system(size: 40, weight: .semibold))
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .frame(minWidth: 44, minHeight: 56)
-                        .accessibilityIdentifier("bottle-amount")
-                    Text(unit.symbol)
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 64)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
-                    ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
-                        Button(Copy.amount(value, unit: unit, language)) {
-                            milliliters = value
-                            dismiss()
-                        }
-                        .buttonStyle(.bordered)
-                        .frame(minHeight: 48)
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                TextField("0", text: $text)
+                    .keyboardType(.decimalPad)
+                    .font(.system(size: 40, weight: .semibold))
+                    .multilineTextAlignment(.trailing)
+                    .focused($focused)
+                    .frame(minWidth: 56, minHeight: 56)
+                    .accessibilityIdentifier("bottle-amount")
+                Text(unit.symbol)
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            HStack(spacing: 8) {
+                ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
+                    Button(Copy.amount(value, unit: unit, language)) {
+                        milliliters = value
+                        text = NumberField.format(unit.value(fromMilliliters: value), digits: 1)
+                        focused = false
                     }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 4)
-            .padding(.bottom, 12)
-            .fixedSize(horizontal: false, vertical: true)
-            .background {
-                GeometryReader { proxy in
-                    Color.clear.preference(key: AmountSheetHeight.self, value: proxy.size.height)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .navigationTitle(UICopy.t(.amount, language))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(UICopy.t(.done, language)) {
-                        applyTyped()
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("amount-done")
-                }
-            }
-            .onAppear {
-                text = milliliters > 0 ? NumberField.format(unit.value(fromMilliliters: milliliters), digits: 1) : ""
-            }
-            .onPreferenceChange(AmountSheetHeight.self) { contentHeight = $0 }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
-                keyboardOverlap = Self.keyboardOverlap(note)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                keyboardOverlap = 0
             }
         }
-        .presentationDetents([.height(sheetHeight)])
-    }
-
-    /// Content plus the bar, and the keyboard when it is up, so Done and the shortcuts stay above the keys.
-    private var sheetHeight: CGFloat {
-        min(max(contentHeight, 140) + 52 + keyboardOverlap, 720)
-    }
-
-    private static func keyboardOverlap(_ note: Notification) -> CGFloat {
-        guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return 0 }
-        return max(0, UIScreen.main.bounds.maxY - frame.minY)
-    }
-
-    private func applyTyped() {
-        guard let parsed = NumberField.parse(text) else { return }
-        milliliters = unit.milliliters(from: parsed)
-    }
-}
-
-private struct AmountSheetHeight: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+        .padding(.vertical, 4)
+        .onAppear {
+            text = milliliters > 0 ? NumberField.format(shown, digits: 1) : ""
+        }
+        .onChange(of: text) { _, newText in
+            guard focused, let parsed = NumberField.parse(newText) else { return }
+            milliliters = unit.milliliters(from: parsed)
+        }
     }
 }

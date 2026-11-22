@@ -630,23 +630,18 @@ final class SmokeUITests: XCTestCase {
     private func logFormula(millilitres: String) {
         app.buttons["add-formula"].tap()
         XCTAssertFalse(app.staticTexts["备注"].exists)
-        let amountRow = app.buttons["amount-value"]
-        XCTAssertTrue(amountRow.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(amountRow.frame.height, 44)
-        let timeRow = app.buttons["time-value"]
-        XCTAssertTrue(timeRow.waitForExistence(timeout: 2))
-        XCTAssertGreaterThanOrEqual(timeRow.frame.height, 44)
-        amountRow.tap()
         let amount = app.textFields["bottle-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(amount.frame.height, 44)
+        let now = app.buttons["time-now"]
+        XCTAssertTrue(now.waitForExistence(timeout: 2))
+        XCTAssertGreaterThanOrEqual(now.frame.height, 44)
+        XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 2))
         amount.tap()
-        let done = app.buttons["amount-done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 3))
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: done)
-        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
         amount.typeText(millilitres)
-        done.tap()
         let save = app.buttons["save-entry"]
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: save)
+        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
         if !save.isHittable, app.buttons["完成"].exists {
             app.buttons["完成"].tap()
         }

@@ -53,6 +53,7 @@ enum AIKeyStore {
 enum AIPreferences {
     static let enabledKey = "aiAssistEnabled"
     static let providerKey = "aiAssistProvider"
+    static let voiceNoticeKey = "aiVoiceNoticeAck"
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: enabledKey) }
 

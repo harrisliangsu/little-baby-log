@@ -20,11 +20,8 @@ struct TimerLiveActivityWidget: Widget {
                     HStack(spacing: 8) {
                         WidgetKindIcon(kind: attributes.kind, size: 30)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(attributes.babyName)
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .lineLimit(1)
                             Text(subtitle(attributes, state))
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -104,12 +101,10 @@ private struct TimerBanner: View {
             HStack(spacing: 12) {
                 WidgetKindIcon(kind: attributes.kind, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(attributes.babyName)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .lineLimit(1)
                     Text(headline)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
                 }
                 Spacer(minLength: 8)
                 TimerClock(attributes: attributes, state: state)
