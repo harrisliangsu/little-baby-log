@@ -157,16 +157,19 @@ struct SettingsView: View {
                         .foregroundStyle(theme.secondary)
                 }
             }
+            .accessibilityIdentifier("settings-reminders")
             NavigationLink {
                 HomeCardsSettingsView()
             } label: {
                 Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
             }
+            .accessibilityIdentifier("settings-home-cards")
             NavigationLink {
                 AISettingsView()
             } label: {
                 Label(language == .zh ? "AI 助手" : "Assistant", systemImage: "sparkles")
             }
+            .accessibilityIdentifier("settings-assistant")
         } footer: {
             Text(Copy.deviceReminders(language))
         }

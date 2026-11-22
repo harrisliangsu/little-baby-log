@@ -840,13 +840,13 @@ final class SmokeUITests: XCTestCase {
         shot("review-19-baby-form")
         app.navigationBars.buttons["取消"].tap()
 
-        openLabeled("提醒")
+        openLabeled("settings-reminders")
         shot("review-20-reminders")
         popNavigation()
-        openLabeled("首页卡片")
+        openLabeled("settings-home-cards")
         shot("review-21-home-cards")
         popNavigation()
-        openLabeled("AI 助手")
+        openLabeled("settings-assistant")
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.secureTextFields["ai-key-field"].waitForExistence(timeout: 4))
         shot("review-22-ai-settings")
@@ -899,7 +899,10 @@ final class SmokeUITests: XCTestCase {
         let back = app.navigationBars.buttons["BackButton"]
         if back.waitForExistence(timeout: 2) {
             back.tap()
+        } else if app.navigationBars.buttons.element(boundBy: 0).exists {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
         }
+        _ = app.navigationBars["设置"].waitForExistence(timeout: 4)
     }
 
     private enum SwipeDirection {
