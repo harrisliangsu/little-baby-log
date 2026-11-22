@@ -53,19 +53,24 @@ struct MainTabView: View {
             .tabItem { Label(Copy.settings(language), systemImage: "gearshape.fill") }
             .tag(Tab.settings)
         }
-        .overlay(alignment: .bottom) {
-            Button(action: voiceTapped) {
-                Image(systemName: "mic.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 64, height: 64)
-                    .background(Circle().fill(Color.accentColor))
+        .safeAreaInset(edge: .bottom, spacing: 4) {
+            // Reserve space under the list. An overlay on the tab view covered the last rows
+            // and sat in the scroll gesture.
+            ZStack {
+                Color.clear
+                    .frame(height: 64)
+                    .allowsHitTesting(false)
+                Button(action: voiceTapped) {
+                    Image(systemName: "mic.fill")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 64, height: 64)
+                        .background(Circle().fill(Color.accentColor))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("voice-log")
+                .accessibilityLabel(language == .zh ? "语音记录" : "Voice log")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("voice-log")
-            .accessibilityLabel(language == .zh ? "语音记录" : "Voice log")
-            .offset(y: -8)
-            .zIndex(1)
         }
         .sheet(isPresented: $showVoice) {
             VoiceLogSheet(current: baby) {

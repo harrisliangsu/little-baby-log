@@ -699,6 +699,48 @@ final class SmokeUITests: XCTestCase {
         }
     }
 
+    func testBottomOfTodayStaysInteractive() throws {
+        app.launchArguments += ["-lbl-ui-reset"]
+        app.launch()
+        let name = app.textFields["baby-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        name.tap()
+        name.typeText("Beibei")
+        app.buttons["start-tracking"].tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
+
+        for _ in 0..<4 { app.swipeUp() }
+        let solids = app.buttons["add-solids"]
+        XCTAssertTrue(solids.waitForExistence(timeout: 6))
+        XCTAssertGreaterThanOrEqual(solids.frame.height, 44)
+        XCTAssertFalse(solids.label.contains("还没有"))
+        solids.tap()
+        let save = app.buttons["save-entry"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.navigationBars.buttons["取消"].tap()
+        XCTAssertTrue(solids.waitForExistence(timeout: 4))
+
+        app.swipeDown()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+        app.tabBars.buttons["历史"].tap()
+        XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
+        app.tabBars.buttons["今天"].tap()
+        for _ in 0..<4 { app.swipeUp() }
+        let growth = app.buttons["add-growth"]
+        XCTAssertTrue(growth.waitForExistence(timeout: 6))
+        growth.tap()
+        XCTAssertTrue(app.buttons["save-entry"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["取消"].tap()
+
+        let voice = app.buttons["voice-log"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 4))
+        voice.tap()
+        XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
+        XCTAssertFalse(app.buttons["voice-start"].exists)
+        app.tabBars.buttons["今天"].tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+    }
+
     func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()

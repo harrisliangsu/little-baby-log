@@ -10,6 +10,7 @@ import BabyLogKit
 /// There is no polling and no background work.
 struct UpNextView: View {
     @ObservedObject var baby: Baby
+    var now: Date
 
     @Environment(\.appTheme) private var theme
     @Environment(\.uiLanguage) private var language
@@ -51,11 +52,9 @@ struct UpNextView: View {
     // MARK: Body
 
     var body: some View {
-        if let first = forecast(at: .now), !first.isEmpty {
+        if let first = forecast(at: now), !first.isEmpty {
             Section {
-                TimelineView(.everyMinute) { timeline in
-                    content(forecast(at: timeline.date) ?? first, now: timeline.date)
-                }
+                content(first, now: now)
             } header: {
                 header(first)
             }
@@ -80,7 +79,7 @@ struct UpNextView: View {
             .accessibilityLabel(language == .zh ? "详情" : "Details")
         }
         .sheet(isPresented: $showsInfo) {
-            UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: .now) ?? initial)
+            UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: now) ?? initial)
         }
     }
 
@@ -246,7 +245,7 @@ private struct UpNextInfoSheet: View {
 
 #Preview {
     List {
-        UpNextView(baby: PreviewData.baby)
+        UpNextView(baby: PreviewData.baby, now: .now)
     }
     .previewEnvironment()
 }
