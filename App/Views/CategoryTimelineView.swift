@@ -109,10 +109,10 @@ struct CategoryTimelineView: View {
             EventEditorView(baby: baby, target: target)
         }
         .sheet(isPresented: $showSummary) {
-            RangeSummarySheet(total: totalLine, facts: facts, names: [baby.displayName]) { id in
+            AIChatView(baby: baby, summaryTotal: totalLine, summaryFacts: facts, onOpenFact: { id in
                 summaryOpenID = id
                 showSummary = false
-            }
+            })
         }
         .onChange(of: showSummary) { _, showing in
             guard !showing, let id = summaryOpenID else { return }

@@ -16,7 +16,8 @@ struct MainTabView: View {
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var settingsPath: [SettingsRoute] = []
     @State private var assistantNotice = ""
-    @State private var showVoice = false
+    @State private var showChat = false
+    @State private var chatVoice = false
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
@@ -72,10 +73,8 @@ struct MainTabView: View {
                 .accessibilityLabel(language == .zh ? "语音记录" : "Voice log")
             }
         }
-        .sheet(isPresented: $showVoice) {
-            VoiceLogSheet(current: baby) {
-                tab = .today
-            }
+        .sheet(isPresented: $showChat) {
+            AIChatView(baby: baby, startVoice: chatVoice)
         }
         .onChange(of: link, initial: true) { _, newLink in
             if newLink != nil { tab = .today }
@@ -91,7 +90,8 @@ struct MainTabView: View {
     private func voiceTapped() {
         switch AIRuntime.access() {
         case .ready:
-            showVoice = true
+            chatVoice = true
+            showChat = true
         case .offline:
             assistantNotice = language == .zh ? "没有网络。" : "No network."
             openAssistant()
@@ -106,7 +106,7 @@ struct MainTabView: View {
     }
 
     private func openAssistant() {
-        showVoice = false
+        showChat = false
         tab = .settings
         settingsPath = [.assistant]
     }

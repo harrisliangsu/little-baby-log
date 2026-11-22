@@ -758,6 +758,9 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
+        let keyField = app.secureTextFields["ai-key-field"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["ai-verify"].exists)
         let model = app.descendants(matching: .any)["ai-model"]
         XCTAssertTrue(model.waitForExistence(timeout: 4))
         XCTAssertTrue(model.label.contains("Flash"))

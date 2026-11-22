@@ -11,6 +11,7 @@ struct RootView: View {
     /// switching babies rebuilds `MainTabView`.
     @State private var pendingLink: DeepLink?
     @State private var showMissingBaby = false
+    @StateObject private var desk = AIDesk()
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
 
     private var language: ResolvedLanguage {
@@ -31,6 +32,8 @@ struct RootView: View {
                 }
             } else if let baby = selectedBaby {
                 MainTabView(baby: baby, link: $pendingLink)
+                    .environmentObject(desk)
+                    .onAppear { AIDesk.current = desk }
                     .id(baby.objectID)
             } else {
                 OnboardingView { name, birthDate in

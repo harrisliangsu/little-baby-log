@@ -123,9 +123,7 @@ struct TodayView: View {
             }
         }
         .sheet(isPresented: $showAIDraft) {
-            AIPhraseSheet(task: .recordDraft, seed: "", names: [baby.displayName], onRecord: { suggestion in
-                editor = .seeded(suggestion.eventDraft())
-            })
+            AIChatView(baby: baby)
         }
         .sensoryFeedback(.success, trigger: feedback)
         .onChange(of: link, initial: true) { _, newLink in

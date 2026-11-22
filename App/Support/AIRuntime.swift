@@ -8,12 +8,13 @@ extension AIPreferences {
 /// One place that decides whether any assistant feature may talk to the network.
 enum AIRuntime {
     static func access() -> AIAccess {
-        let token = AIKeyStore.token(provider: AIPreferences.provider)?
+        let provider = AIPreferences.provider
+        let token = AIKeyStore.token(provider: provider)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return AIAccess.evaluate(
             enabled: AIPreferences.isEnabled,
             hasCredential: token?.isEmpty == false,
-            credentialRejected: UserDefaults.standard.bool(forKey: AIPreferences.rejectedKey),
+            credentialRejected: AIDesk.current?.isRejected(provider) ?? false,
             isOnline: NetworkGate.shared.isOnline
         )
     }
@@ -36,7 +37,7 @@ enum AIRuntime {
             )
         } catch let error as AIClientError {
             if case .http(let code) = error, code == 401 || code == 403 {
-                UserDefaults.standard.set(true, forKey: AIPreferences.rejectedKey)
+                AIDesk.current?.markRejected(preview.provider)
                 AIFlight.shared.cancelAll()
             }
             throw error
