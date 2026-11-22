@@ -786,8 +786,8 @@ final class SmokeUITests: XCTestCase {
         shot("review-02-today")
 
         openForm("add-formula", shotName: "review-03-formula") {
-            XCTAssertTrue(app.textFields["bottle-amount"].waitForExistence(timeout: 3))
-            XCTAssertTrue(app.buttons["time-now"].exists)
+            XCTAssertTrue(self.app.textFields["bottle-amount"].waitForExistence(timeout: 3))
+            XCTAssertTrue(self.app.buttons["time-now"].exists)
         }
         for pair in [
             ("add-breast", "review-04-breast"),
