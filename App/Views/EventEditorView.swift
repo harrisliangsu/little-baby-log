@@ -193,7 +193,12 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            InlineAmountEditor(milliliters: $draft.amountML, unit: volumeUnit, language: language)
+            InlineAmountEditor(
+                milliliters: $draft.amountML,
+                unit: volumeUnit,
+                language: language,
+                yesterdayRounded: yesterdayRoundedAmount
+            )
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard != .formula {
                 Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
@@ -280,6 +285,19 @@ struct EventEditorView: View {
                 .font(.footnote)
                 .foregroundStyle(theme.destructive)
         }
+    }
+
+    /// This baby's same bottle type on yesterday's local day, raised to the next 10 ml. Nil when that day has none.
+    private var yesterdayRoundedAmount: Double? {
+        let request = LogEvent.requestAll(baby: baby, kinds: [.bottle])
+        let events = (try? context.fetch(request)) ?? []
+        return AmountShortcuts.yesterdayRoundedMilliliters(
+            events: events,
+            baby: baby,
+            content: draft.bottleContent,
+            now: .now,
+            calendar: .current
+        )
     }
 
     private func seedFormulaAmountIfNeeded() {
@@ -442,12 +460,13 @@ private struct InlineAmountEditor: View {
     @Binding var milliliters: Double
     let unit: VolumeUnit
     let language: ResolvedLanguage
+    var yesterdayRounded: Double?
     @State private var text = ""
     @FocusState private var focused: Bool
 
     var body: some View {
         let shown = unit.value(fromMilliliters: milliliters)
-        let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil)
+        let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil, yesterdayRounded: yesterdayRounded)
         VStack(spacing: 8) {
             HStack(spacing: 4) {
                 TextField("0", text: $text)
@@ -462,6 +481,18 @@ private struct InlineAmountEditor: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: 64)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(language == .zh ? "快捷值" : "Shortcuts")
+                    .font(.subheadline.weight(.semibold))
+                if yesterdayRounded != nil {
+                    Text(language == .zh ? "含昨日均量向上取整到 10 毫升" : "Includes yesterday's average, rounded up to 10 ml")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("amount-shortcuts")
             HStack(spacing: 8) {
                 ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
                     Button(Copy.amount(value, unit: unit, language)) {
