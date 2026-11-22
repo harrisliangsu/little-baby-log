@@ -21,7 +21,11 @@ struct RecordDefaultTests {
         let now = Date()
         let draft = RecordDefaults.newDraft(kind: .bottle, bottle: .formula, events: events, now: now)
         #expect(draft.amountML == 0)
-        #expect(draft.amountML != 11)
+        let onlyOffTable = [bottle(context, baby, ml: 83, content: .formula, at: Date())]
+        let off = RecordDefaults.newDraft(kind: .bottle, bottle: .formula, events: onlyOffTable, now: now)
+        #expect(off.amountML == 0)
+        let pinned = RecordDefaults.newDraft(kind: .bottle, bottle: .formula, events: onlyOffTable, now: now, formulaPin: 40)
+        #expect(pinned.amountML == 40)
         #expect(abs(draft.startDate.timeIntervalSince(now)) < 2)
         #expect(draft.notes.isEmpty)
     }

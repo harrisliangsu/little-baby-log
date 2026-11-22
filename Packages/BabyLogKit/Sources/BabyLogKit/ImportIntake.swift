@@ -130,6 +130,9 @@ public enum ImportIntake {
             return .rejected("文件是空的。")
         }
         if trimmed.hasPrefix("{") {
+            if let wrapped = BljdImporter.parseIfWrapped(data) {
+                return .schema(wrapped)
+            }
             let file = StandardImporter.parse(data: data)
             if file.fileProblems.isEmpty || !file.rows.isEmpty {
                 return .schema(file)
