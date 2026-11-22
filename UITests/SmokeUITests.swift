@@ -844,19 +844,19 @@ final class SmokeUITests: XCTestCase {
         for _ in 0..<5 where !reminders.exists { app.swipeUp() }
         reminders.tap()
         shot("review-20-reminders")
-        app.navigationBars.buttons["设置"].tap()
+        popNavigation()
         let cards = app.buttons["首页卡片"]
         for _ in 0..<5 where !cards.exists { app.swipeUp() }
         cards.tap()
         shot("review-21-home-cards")
-        app.navigationBars.buttons["设置"].tap()
+        popNavigation()
         let assistant = app.buttons["AI 助手"]
         for _ in 0..<5 where !assistant.exists { app.swipeUp() }
         assistant.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.secureTextFields["ai-key-field"].waitForExistence(timeout: 4))
         shot("review-22-ai-settings")
-        app.navigationBars.buttons["设置"].tap()
+        popNavigation()
 
         for _ in 0..<6 where !app.staticTexts["iCloud 同步"].exists { app.swipeUp() }
         XCTAssertTrue(app.staticTexts["iCloud 同步"].waitForExistence(timeout: 4))
@@ -886,6 +886,13 @@ final class SmokeUITests: XCTestCase {
         app.navigationBars.buttons["取消"].tap()
         // The list unloads rows that scrolled away, so return to the top before looking for the first card.
         XCTAssertTrue(reveal("add-formula", swiping: .down), identifier)
+    }
+
+    private func popNavigation() {
+        let back = app.navigationBars.buttons["BackButton"]
+        if back.waitForExistence(timeout: 2) {
+            back.tap()
+        }
     }
 
     private enum SwipeDirection {
