@@ -37,7 +37,7 @@ struct KindIcon: View {
 
     var body: some View {
         let color = theme.color(for: kind)
-        BundledIcon(name: RecordIcons.name(kind: kind, diaper: diaper), color: theme.onColor)
+        RecordGlyph(name: RecordIcons.name(kind: kind, diaper: diaper), color: theme.onColor)
             .frame(width: size * 0.62, height: size * 0.62)
             .frame(width: size, height: size)
             .background(Circle().fill(color))
@@ -58,8 +58,8 @@ enum RecordIcons {
         case .diaper:
             switch diaper {
             case .wet: return "drop"
-            case .dirty, .mixed: return "spiral"
-            case .dry, nil: return "drop-half"
+            case .dirty, .mixed: return "dirty-mark"
+            case .dry, nil: return "diaper-mark"
             }
         }
     }

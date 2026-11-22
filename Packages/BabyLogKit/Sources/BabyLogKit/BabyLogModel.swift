@@ -32,6 +32,9 @@ public enum BabyLogModel {
             attribute("name", .stringAttributeType),
             attribute("birthDate", .dateAttributeType),
             attribute("createdAt", .dateAttributeType),
+            attribute("genderRaw", .stringAttributeType),
+            attribute("birthClock", .stringAttributeType),
+            attribute("birthTimeZoneID", .stringAttributeType),
         ]
 
         eventEntity.properties = [

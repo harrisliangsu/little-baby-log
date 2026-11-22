@@ -28,7 +28,7 @@ struct CareCardRow: View {
         let iconSide: CGFloat = prominent ? 44 : 28
         let plusSide: CGFloat = prominent ? 56 : 44
         HStack(alignment: .center, spacing: prominent ? 12 : 8) {
-            BundledIcon(name: RecordIcons.name(kind: symbolKind, diaper: symbolDiaper), color: .white)
+            RecordGlyph(name: RecordIcons.name(kind: symbolKind, diaper: symbolDiaper), color: .white)
                 .frame(width: iconSide * 0.62, height: iconSide * 0.62)
                 .frame(width: iconSide, height: iconSide)
                 .background(Circle().fill(tint))
@@ -179,7 +179,7 @@ struct OtherLogStrip: View {
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                BundledIcon(name: icon, color: .white)
+                RecordGlyph(name: icon, color: .white)
                     .frame(width: 26, height: 26)
                     .frame(minWidth: 44, minHeight: 44)
                     .background(Circle().fill(tint))
