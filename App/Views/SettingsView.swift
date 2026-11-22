@@ -415,6 +415,7 @@ struct CaregiverRow: View {
     @State private var isWorking = false
     @State private var refreshTick = 0
     @State private var problem: CloudSyncProblem?
+    @State private var showRelation = false
 
     var body: some View {
         let _ = refreshTick
@@ -441,7 +442,29 @@ struct CaregiverRow: View {
             if let problem {
                 SyncProblemView(problem: problem) { self.problem = nil }
             }
+            if let id = baby.uuid {
+                Button {
+                    showRelation = true
+                } label: {
+                    HStack {
+                        Text(language == .zh ? "与宝宝的关系" : "Relation to this baby")
+                        Spacer()
+                        Text(relationTitle(id))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("caregiver-relation")
+                .sheet(isPresented: $showRelation) {
+                    CaregiverRelationSheet(babyID: id, babyName: baby.displayName)
+                }
+            }
         }
+    }
+
+    private func relationTitle(_ id: UUID) -> String {
+        let store = CaregiverRelationStore()
+        let relation = store.relation(managerID: store.managerID(), babyID: id)
+        return relation?.title(chinese: language == .zh) ?? (language == .zh ? "未设置" : "Not set")
     }
 
     private var shareButtonTitle: String {
