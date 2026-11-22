@@ -11,6 +11,7 @@ struct LittleBabyLogApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
 
     init() {
+        AppearanceMigration.apply(UserDefaults.standard)
         let arguments = ProcessInfo.processInfo.arguments
         #if DEBUG
         if arguments.contains("-lbl-ui-reset") {

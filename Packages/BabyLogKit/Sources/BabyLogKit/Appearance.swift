@@ -5,10 +5,6 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
     case system
     case light
     case dark
-    /// Always the dim, warm, true-black Night theme.
-    case night
-    /// Night between two times of day, otherwise the system's Light or Dark.
-    case nightSchedule
 
     public var id: String { rawValue }
 
@@ -17,36 +13,45 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
         case .system: return "System"
         case .light: return "Light"
         case .dark: return "Dark"
-        case .night: return "Night"
-        case .nightSchedule: return "Night on a schedule"
         }
     }
 
-    /// True when Night can ever be shown: the setting for dimming the screen only makes sense then.
-    public var canShowNight: Bool { self == .night || self == .nightSchedule }
-
-    /// How the app should look at `date`.
-    public func resolved(schedule: NightSchedule, at date: Date, calendar: Calendar = .current) -> ResolvedAppearance {
+    /// The scheme to apply now. There is no clock that changes it later.
+    public func resolved() -> ResolvedAppearance {
         switch self {
         case .system: return .system
         case .light: return .light
         case .dark: return .dark
-        case .night: return .night
-        case .nightSchedule: return schedule.isNightActive(at: date, calendar: calendar) ? .night : .system
+        }
+    }
+}
+
+/// Old installs stored Night and a clock. Those become one of the three modes once.
+/// Night, which was always dark, becomes Dark. A schedule becomes System, and the clock is not read again.
+public enum AppearanceMigration {
+    public static func storedMode(from raw: String?) -> String {
+        switch raw {
+        case "light": return "light"
+        case "dark", "night": return "dark"
+        case "nightSchedule", nil, "": return "system"
+        default: return "system"
         }
     }
 
-    /// When `resolved` may next change by itself: only a schedule has such moments.
-    public func nextTransition(schedule: NightSchedule, after date: Date, calendar: Calendar = .current) -> Date? {
-        self == .nightSchedule ? schedule.nextTransition(after: date, calendar: calendar) : nil
+    public static func apply(_ defaults: UserDefaults, key: String = "appearanceMode") {
+        let raw = defaults.string(forKey: key)
+        let next = storedMode(from: raw)
+        if raw != next {
+            defaults.set(next, forKey: key)
+        }
     }
 }
 
 /// The look the app actually wears right now.
 public enum ResolvedAppearance: Equatable, Sendable {
-    case system, light, dark, night
+    case system, light, dark
 
-    public var isNight: Bool { self == .night }
+    public var isNight: Bool { false }
 }
 
 /// A daily window, in minutes since midnight, that may wrap past midnight (7:00 PM to 7:00 AM).

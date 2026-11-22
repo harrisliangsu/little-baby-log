@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(PDFKit)
+import PDFKit
+#endif
 
 /// Two doors into the same writer. The ordinary door never builds a model request.
 public enum ImportLane: String, Sendable {
@@ -105,7 +108,10 @@ public enum ImportIntake {
             return .rejected("这是图片。当前文字对话接口不能读图片，文件没有上传。")
         }
         if data.starts(with: Data("%PDF-".utf8)) {
-            return .rejected("这是 PDF。当前文字对话接口不能读原始 PDF，文件没有上传。")
+            if let text = pdfText(data) {
+                return .prose(text)
+            }
+            return .rejected("这份 PDF 没有可提取的文字，或已加密。没有上传原始文件。")
         }
         if data.starts(with: Data("SQLite format 3".utf8)) {
             return .rejected("这是 SQLite 数据库。这一版不读取，也没有发给 AI。")
@@ -187,6 +193,22 @@ public enum ImportIntake {
     private static func excerpt(_ text: String) -> String {
         if text.count <= maxExcerpt { return text }
         return String(text.prefix(maxExcerpt))
+    }
+
+    private static func pdfText(_ data: Data) -> String? {
+        #if canImport(PDFKit)
+        guard let document = PDFDocument(data: data), !document.isLocked, !document.isEncrypted else { return nil }
+        let pageCount = min(document.pageCount, 20)
+        var pages: [String] = []
+        for index in 0..<pageCount {
+            guard let page = document.page(at: index), let text = page.string, !text.isEmpty else { continue }
+            pages.append(text)
+        }
+        let joined = pages.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+        #else
+        return nil
+        #endif
     }
 
     private static func looksLikeHTML(_ text: String) -> Bool {

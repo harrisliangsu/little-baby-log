@@ -50,7 +50,7 @@ struct ImportLaneTests {
         }
         let pdf = Data("%PDF-1.4\n".utf8)
         if case .rejected(let message) = ImportIntake.openOrdinary(data: pdf, filename: "book.pdf") {
-            #expect(message.contains("不会把它发给 AI"))
+            #expect(message.contains("没有上传") || message.contains("没有可提取"))
         } else {
             Issue.record("pdf should be rejected")
         }

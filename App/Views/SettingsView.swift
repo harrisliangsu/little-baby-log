@@ -248,14 +248,6 @@ struct SettingsView: View {
                 .accessibilityIdentifier("appearance-\(mode.rawValue)")
             }
 
-            if appearanceMode == .nightSchedule {
-                DatePicker(language == .zh ? "从" : "From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
-                DatePicker(language == .zh ? "到" : "To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
-            }
-
-            if appearanceMode.canShowNight {
-                Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
-            }
         } header: {
             Text(UICopy.t(.appearance, language))
         }
@@ -371,8 +363,6 @@ struct SettingsView: View {
         case .system: return language == .zh ? "跟随系统" : "System"
         case .light: return language == .zh ? "浅色" : "Light"
         case .dark: return language == .zh ? "深色" : "Dark"
-        case .night: return language == .zh ? "夜间" : "Night"
-        case .nightSchedule: return language == .zh ? "按时夜间" : "Night on a schedule"
         }
     }
 
