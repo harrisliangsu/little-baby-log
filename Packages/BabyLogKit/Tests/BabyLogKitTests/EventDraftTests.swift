@@ -115,8 +115,12 @@ struct EventDraftTests {
         #expect(back == draft)
         #expect(back.endDate == nil)
 
-        (draft, back, _) = roundTrip(.solids) { $0.foodName = "Banana" }
-        #expect(back == draft)
+        (draft, back, event) = roundTrip(.solids) { $0.foodName = "Banana" }
+        #expect(back.foodName == "Banana")
+        #expect(back.solids.items.first?.name == "Banana")
+        #expect(back.solids.items.first?.spoons == nil)
+        #expect(back.solids.waterML == nil)
+        #expect(event.solidsDetail == nil)
 
         (draft, back, _) = roundTrip(.diaper) { $0.diaperKind = .mixed }
         #expect(back == draft)

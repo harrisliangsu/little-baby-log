@@ -50,6 +50,7 @@ public enum BabyLogModel {
             attribute("amountML", .doubleAttributeType, default: 0.0),
             attribute("bottleContentRaw", .stringAttributeType),
             attribute("foodName", .stringAttributeType),
+            attribute("solidsDetail", .stringAttributeType),
             attribute("diaperKindRaw", .stringAttributeType),
             attribute("leftML", .doubleAttributeType, default: 0.0),
             attribute("rightML", .doubleAttributeType, default: 0.0),

@@ -48,7 +48,7 @@ struct CareBoardFace: View {
     }
 
     private func sized(columns: Int, showsToday: Bool) -> some View {
-        VStack(alignment: .leading, spacing: face.items.count <= 1 ? 6 : 2) {
+        VStack(alignment: .leading, spacing: 0) {
             if columns > 1 {
                 let rows = stride(from: 0, to: face.items.count, by: columns).map { start in
                     Array(face.items[start..<min(start + columns, face.items.count)])
@@ -88,16 +88,20 @@ struct CareBoardFace: View {
                         Text(item.title)
                             .font(rowFont.weight(.semibold))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        Spacer(minLength: 4)
+                            .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         Text(item.sinceValue)
                             .font(rowFont.weight(.bold))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                            .minimumScaleFactor(0.65)
+                            .layoutPriority(1)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         Text(item.lastValue)
                             .font(rowFont)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                            .minimumScaleFactor(0.65)
+                            .layoutPriority(1)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                         if showsToday {
                             Text(item.todayValue)
                                 .font(rowFont)
@@ -107,7 +111,7 @@ struct CareBoardFace: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: face.items.count <= 2 ? 28 : 20, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, minHeight: face.items.count <= 2 ? 28 : 20, alignment: .leading)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(item.accessibilityText)
             .accessibilityIdentifier("widget-item-\(item.card.rawValue)")

@@ -105,6 +105,22 @@ public enum Copy {
         return language == .zh ? "\(days)天前" : (days == 1 ? "1 day ago" : "\(days) days ago")
     }
 
+    /// A complete short clock for a widget column. It does not drop characters with an ellipsis.
+    public static func widgetAgo(_ date: Date, now: Date = .now, _ language: ResolvedLanguage) -> String {
+        let seconds = now.timeIntervalSince(date)
+        if seconds < 60 { return language == .zh ? "刚刚" : "Just now" }
+        let minutes = Int(seconds / 60)
+        if minutes < 60 { return language == .zh ? "\(minutes)分" : "\(minutes)m ago" }
+        let hours = minutes / 60
+        let remain = minutes % 60
+        if hours < 24 {
+            if language == .zh { return remain == 0 ? "\(hours)时" : "\(hours)时\(remain)分" }
+            return remain == 0 ? "\(hours)h ago" : "\(hours)h \(remain)m"
+        }
+        let days = hours / 24
+        return language == .zh ? "\(days)天" : "\(days)d ago"
+    }
+
     public static func duration(_ interval: TimeInterval, _ language: ResolvedLanguage) -> String {
         let minutes = max(0, Int((interval / 60).rounded()))
         if language == .zh {

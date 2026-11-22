@@ -227,11 +227,39 @@ struct EventEditorView: View {
     private var solidsFields: some View {
         Section {
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
-            TextField(UICopy.t(.food, language), text: $draft.foodName)
-                .textInputAutocapitalization(.sentences)
-                .frame(minHeight: 56)
+            if draft.solids.items.isEmpty {
+                TextField(UICopy.t(.food, language), text: $draft.foodName)
+                    .accessibilityIdentifier("solids-name")
+            }
+            ForEach(draft.solids.items.indices, id: \.self) { index in
+                TextField(language == .zh ? "食物" : "Food", text: $draft.solids.items[index].name)
+                    .accessibilityIdentifier("solids-name-\(index)")
+                TextField(language == .zh ? "勺" : "Spoons", value: spoonBinding(index), format: .number)
+                    .accessibilityIdentifier("solids-spoons-\(index)")
+                Button(language == .zh ? "移除" : "Remove") {
+                    draft.solids.items.remove(at: index)
+                }
+            }
+            Button(language == .zh ? "添加食物" : "Add a food") {
+                draft.solids.items.append(SolidsFood(name: ""))
+            }
+            .accessibilityIdentifier("solids-add")
+            TextField(language == .zh ? "水（毫升）" : "Water (ml)", value: $draft.solids.waterML, format: .number)
+                .accessibilityIdentifier("solids-water")
+            Text(language == .zh
+                 ? "勺数和毫升是这次的记录。水是这一顿共用的，不按每种食物再计一次，也不是冲调建议。"
+                 : "Spoons and millilitres are a record of this meal. The water is shared, not counted again for each food, and it is not a mixing recommendation.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             saveError
         }
+    }
+
+    private func spoonBinding(_ index: Int) -> Binding<Double?> {
+        Binding(
+            get: { draft.solids.items.indices.contains(index) ? draft.solids.items[index].spoons : nil },
+            set: { draft.solids.items[index].spoons = $0 }
+        )
     }
 
     private var diaperFields: some View {
@@ -409,8 +437,10 @@ struct EventEditorView: View {
         case .new, .card, .seeded:
             let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
+            WetDiaperLink.sync(event: event, isNew: true, in: context)
         case .edit(let event):
             draft.apply(to: event)
+            WetDiaperLink.sync(event: event, isNew: false, in: context)
         }
         context.saveIfNeeded()
         Haptics.success()
@@ -420,6 +450,7 @@ struct EventEditorView: View {
 
     private func deleteEntry() {
         if case .edit(let event) = target {
+            WetDiaperLink.deleteLinked(to: event, in: context)
             context.delete(event)
             context.saveIfNeeded()
         }

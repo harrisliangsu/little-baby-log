@@ -270,7 +270,7 @@ public enum WidgetBoard {
             card: card,
             title: Copy.card(card, language),
             sinceLabel: Copy.sinceLast(language),
-            sinceValue: sinceDate.map { Copy.ago($0, now: now, language) } ?? none,
+            sinceValue: sinceDate.map { Copy.widgetAgo($0, now: now, language) } ?? none,
             lastLabel: Copy.lastAmount(language),
             lastValue: lastValue,
             todayLabel: Copy.todayWord(language),
