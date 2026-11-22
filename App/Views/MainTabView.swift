@@ -10,6 +10,7 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var desk: AIDesk
     @EnvironmentObject private var voice: VoiceSession
+    @EnvironmentObject private var activity: BabyActivity
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var settingsPath: [SettingsRoute] = []
@@ -60,6 +61,12 @@ struct MainTabView: View {
             }) {
                 openAssistantIfBlocked()
             }
+        }
+        .onChange(of: voice.isPresented) { _, shown in
+            activity.recordingBabyID = shown ? baby.uuid : nil
+        }
+        .onChange(of: desk.pendingSend?.baby) { _, id in
+            activity.aiBabyID = id
         }
         .overlay(alignment: .bottom) {
             if voice.isPresented {
@@ -144,4 +151,5 @@ private enum SettingsRoute: Hashable {
         .previewEnvironment()
         .environmentObject(AIDesk())
         .environmentObject(VoiceSession())
+        .environmentObject(BabyActivity())
 }

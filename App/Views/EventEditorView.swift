@@ -37,6 +37,7 @@ struct EventEditorView: View {
     var onFinish: ((Bool) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var activity: BabyActivity
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
     @Environment(\.uiLanguage) private var language
@@ -103,7 +104,11 @@ struct EventEditorView: View {
                 .opacity(0.01)
                 .accessibilityElement(children: .contain)
             }
-            .onAppear(perform: seedNewRecordIfNeeded)
+            .onAppear {
+                seedNewRecordIfNeeded()
+                activity.beginForm(baby.uuid)
+            }
+            .onDisappear { activity.endForm(baby.uuid) }
             .themedList()
             .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)

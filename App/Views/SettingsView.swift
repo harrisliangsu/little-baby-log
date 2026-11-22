@@ -33,8 +33,10 @@ struct SettingsView: View {
     @AppStorage(Prefs.dimScreenAtNight) private var dimScreenAtNight = false
     @AppStorage(Prefs.keepScreenOnWhileNursing) private var keepScreenOnWhileNursing = false
     @Environment(\.appTheme) private var theme
+    @EnvironmentObject private var activity: BabyActivity
 
     @State private var babySheet: BabySheet?
+    @State private var pendingSwitch: UUID?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
     @State private var showImporter = false
@@ -137,6 +139,21 @@ struct SettingsView: View {
             Button(language == .zh ? "好" : "OK", role: .cancel) {}
         } message: {
             Text(exportError ?? "")
+        }
+        .confirmationDialog(
+            language == .zh ? "这条还没保存" : "This is not saved",
+            isPresented: Binding(get: { pendingSwitch != nil }, set: { if !$0 { pendingSwitch = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(language == .zh ? "放弃并切换" : "Discard and switch", role: .destructive) {
+                AITasks.shared.cancelAll()
+                activity.clear()
+                if let id = pendingSwitch { selectedBabyID = id.uuidString }
+                pendingSwitch = nil
+            }
+            Button(language == .zh ? "留下" : "Stay", role: .cancel) { pendingSwitch = nil }
+        } message: {
+            Text(language == .zh ? "未保存的表单、录音或还在生成的回复会停在原来的宝宝，不会写到下一个宝宝。" : "The open form, recording, or reply stays with the current baby and is not written to the next one.")
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item]) { result in
             guard case .success(let url) = result else { return }
@@ -467,8 +484,14 @@ struct SettingsView: View {
     private func switchBaby(_ baby: Baby) {
         guard let id = baby.uuid else { return }
         let known = Set(babies.compactMap(\.uuid))
-        guard case .select(let chosen) = BabySwitch.decide(stored: selectedBabyID, target: id, known: known, work: nil) else { return }
-        selectedBabyID = chosen.uuidString
+        switch BabySwitch.decide(stored: selectedBabyID, target: id, known: known, work: activity.work()) {
+        case .select(let chosen):
+            selectedBabyID = chosen.uuidString
+        case .confirmDiscard(_, let to):
+            pendingSwitch = to
+        case nil:
+            return
+        }
     }
 
     private func undoLastImport() {
