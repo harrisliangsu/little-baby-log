@@ -38,8 +38,8 @@ struct TimerLiveActivityWidget: Widget {
                         .frame(height: 42)
                 }
             } compactLeading: {
-                Image(systemName: attributes.kind.symbolName)
-                    .foregroundStyle(attributes.kind.color)
+                RecordGlyph(name: RecordIcons.name(kind: attributes.kind), color: attributes.kind.color)
+                    .frame(width: 16, height: 16)
             } compactTrailing: {
                 TimerClock(attributes: attributes, state: state)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -47,8 +47,8 @@ struct TimerLiveActivityWidget: Widget {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             } minimal: {
-                Image(systemName: attributes.kind.symbolName)
-                    .foregroundStyle(attributes.kind.color)
+                RecordGlyph(name: RecordIcons.name(kind: attributes.kind), color: attributes.kind.color)
+                    .frame(width: 12, height: 12)
             }
             .widgetURL(link(attributes))
             .keylineTint(attributes.kind.color)
@@ -158,7 +158,8 @@ private struct TimerButtons: View {
                         Button(intent: NursingSideIntent(babyID: babyID, side: side)) {
                             TileLabel(
                                 title: activityLanguage() == .zh ? UICopy.side(side, .zh) : side.title,
-                                systemImage: values.activeSide == side ? "pause.fill" : "play.fill",
+                                systemImage: "pause.fill",
+                                recordIcon: values.activeSide == side ? nil : RecordIcons.name(kind: .breastfeed),
                                 tint: side.color,
                                 filled: values.activeSide == side
                             )

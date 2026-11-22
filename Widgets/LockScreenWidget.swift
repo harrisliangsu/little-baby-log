@@ -30,7 +30,8 @@ struct LockScreenWidgetView: View {
                 case .accessoryInline: Text(entry.language == .zh ? "添加宝宝" : "Add a baby")
                 default:
                     VStack(spacing: 2) {
-                        Image(systemName: "heart.fill")
+                        RecordGlyph(name: RecordIcons.name(kind: .breastfeed), color: .primary)
+                            .frame(width: 16, height: 16)
                         Text(entry.language == .zh ? "添加宝宝" : "Add a baby")
                             .font(.caption)
                     }
@@ -49,9 +50,16 @@ private struct Circular: View {
         ZStack {
             AccessoryWidgetBackground()
             VStack(spacing: 0) {
-                Image(systemName: baby.isNursing ? "heart.fill" : "clock.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .widgetAccentable()
+                if baby.isNursing {
+                    RecordGlyph(name: RecordIcons.name(kind: .breastfeed), color: .primary)
+                        .frame(width: 14, height: 14)
+                } else if let feed = baby.lastFeed {
+                    RecordGlyph(name: RecordIcons.name(kind: feed.kind), color: .primary)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                }
                 if let nursing = baby.runningNursing {
                     NursingTotalClock(values: NursingValues(nursing))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -84,7 +92,9 @@ private struct Rectangular: View {
             if let nursing = baby.runningNursing {
                 let values = NursingValues(nursing)
                 HStack(spacing: 4) {
-                    Image(systemName: "heart.fill").widgetAccentable()
+                    RecordGlyph(name: RecordIcons.name(kind: .breastfeed), color: EventKind.breastfeed.color)
+                        .frame(width: 16, height: 16)
+                        .widgetAccentable()
                     Text(values.activeSide.map { language == .zh ? "亲喂 \(UICopy.side($0, .zh))" : "Nursing \($0.shortLabel)" } ?? (language == .zh ? "亲喂暂停" : "Nursing paused"))
                         .fontWeight(.semibold)
                 }
@@ -103,7 +113,9 @@ private struct Rectangular: View {
                 .font(.caption)
             } else if let feed = baby.lastFeed {
                 HStack(spacing: 4) {
-                    Image(systemName: feed.kind.symbolName).widgetAccentable()
+                    RecordGlyph(name: RecordIcons.name(kind: feed.kind), color: feed.kind.color)
+                        .frame(width: 16, height: 16)
+                        .widgetAccentable()
                     Text(language == .zh ? "喂奶" : "Feed").fontWeight(.semibold).lineLimit(1)
                 }
                 .font(.headline)
@@ -141,14 +153,16 @@ private struct Inline: View {
             Label {
                 Text("\(name) \(side) \(values.totalText)")
             } icon: {
-                Image(systemName: "heart.fill")
+                RecordGlyph(name: RecordIcons.name(kind: .breastfeed), color: .primary)
+                    .frame(width: 14, height: 14)
             }
         } else if let feed = baby.lastFeed {
             let side = baby.nextSide.map { language == .zh ? " · \(UICopy.side($0, .zh))" : " · \($0.shortLabel)" } ?? ""
             Label {
                 Text(language == .zh ? "" : "Fed ") + Elapsed.since(feed.referenceDate) + Text((language == .zh ? "前" : " ago") + side)
             } icon: {
-                Image(systemName: "heart.fill")
+                RecordGlyph(name: RecordIcons.name(kind: feed.kind), color: .primary)
+                    .frame(width: 14, height: 14)
             }
         } else {
             Text(language == .zh ? "还没有喂奶" : "No feed yet")

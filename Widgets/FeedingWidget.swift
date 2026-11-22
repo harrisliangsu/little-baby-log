@@ -183,7 +183,8 @@ private struct MediumFeeding: View {
                         Button(intent: NursingSideIntent(babyID: baby.id, side: side)) {
                             TileLabel(
                                 title: language == .zh ? UICopy.side(side, .zh) : side.title,
-                                systemImage: values.activeSide == side ? "pause.fill" : "play.fill",
+                                systemImage: "pause.fill",
+                                recordIcon: values.activeSide == side ? nil : RecordIcons.name(kind: .breastfeed),
                                 tint: side.color,
                                 subtitle: DurationFormat.clock(values.banked(side)),
                                 liveSince: values.sideReference(side),
@@ -207,6 +208,7 @@ private struct MediumFeeding: View {
                             TileLabel(
                                 title: language == .zh ? UICopy.side(side, .zh) : side.title,
                                 systemImage: "play.fill",
+                                recordIcon: RecordIcons.name(kind: .breastfeed),
                                 tint: side.color,
                                 filled: baby.nextSide == side
                             )
@@ -215,7 +217,7 @@ private struct MediumFeeding: View {
                     }
                 }
                 Link(destination: DeepLink.log(.bottle, babyID: baby.id).url) {
-                    TileLabel(title: Copy.card(.formula, language), systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
+                    TileLabel(title: Copy.card(.formula, language), systemImage: "waterbottle.fill", recordIcon: RecordIcons.name(kind: .bottle), tint: EventKind.bottle.color)
                         .frame(maxHeight: 40)
                 }
             }

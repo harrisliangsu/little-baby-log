@@ -47,7 +47,8 @@ struct QuickLogWidgetView: View {
                 Label {
                     NursingTotalClock(values: values)
                 } icon: {
-                    Image(systemName: EventKind.breastfeed.symbolName)
+                    RecordGlyph(name: RecordIcons.name(kind: .breastfeed), color: EventKind.breastfeed.color)
+                        .frame(width: 22, height: 22)
                 }
                 .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(EventKind.breastfeed.color)
@@ -56,7 +57,8 @@ struct QuickLogWidgetView: View {
                 Label {
                     Elapsed.since(started)
                 } icon: {
-                    Image(systemName: EventKind.sleep.symbolName)
+                    RecordGlyph(name: RecordIcons.name(kind: .sleep), color: EventKind.sleep.color)
+                        .frame(width: 22, height: 22)
                 }
                 .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(EventKind.sleep.color)
@@ -86,7 +88,8 @@ struct QuickLogWidgetView: View {
                     Button(intent: NursingSideIntent(babyID: baby.id, side: side)) {
                         TileLabel(
                             title: (entry.language == .zh ? "亲喂" : "Nurse ") + (side == .left ? (entry.language == .zh ? "左" : "L") : (entry.language == .zh ? "右" : "R")),
-                            systemImage: values?.activeSide == side ? "pause.fill" : EventKind.breastfeed.symbolName,
+                            systemImage: "pause.fill",
+                            recordIcon: values?.activeSide == side ? nil : RecordIcons.name(kind: .breastfeed),
                             tint: side.color,
                             filled: values?.activeSide == side || (values == nil && baby.nextSide == side)
                         )
@@ -96,7 +99,8 @@ struct QuickLogWidgetView: View {
                 Button(intent: ToggleSleepIntent(babyID: baby.id)) {
                     TileLabel(
                         title: baby.isSleeping ? (entry.language == .zh ? "醒来" : "Wake") : Copy.card(.sleep, entry.language),
-                        systemImage: baby.isSleeping ? "sun.max.fill" : EventKind.sleep.symbolName,
+                        systemImage: "sun.max.fill",
+                        recordIcon: baby.isSleeping ? nil : RecordIcons.name(kind: .sleep),
                         tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                         filled: baby.isSleeping
                     )
@@ -105,15 +109,15 @@ struct QuickLogWidgetView: View {
             }
             GridRow {
                 Button(intent: LogDiaperIntent(babyID: baby.id, kind: .wet)) {
-                    TileLabel(title: Copy.card(.wet, entry.language), systemImage: DiaperKind.wet.symbolName, tint: EventKind.diaper.color)
+                    TileLabel(title: Copy.card(.wet, entry.language), systemImage: "drop.fill", recordIcon: RecordIcons.name(kind: .diaper, diaper: .wet), tint: EventKind.diaper.color)
                 }
                 .buttonStyle(.plain)
                 Button(intent: LogDiaperIntent(babyID: baby.id, kind: .dirty)) {
-                    TileLabel(title: Copy.card(.dirty, entry.language), systemImage: DiaperKind.dirty.symbolName, tint: .brown)
+                    TileLabel(title: Copy.card(.dirty, entry.language), systemImage: "drop.fill", recordIcon: RecordIcons.name(kind: .diaper, diaper: .dirty), tint: .brown)
                 }
                 .buttonStyle(.plain)
                 Link(destination: DeepLink.log(.bottle, babyID: baby.id).url) {
-                    TileLabel(title: Copy.card(.formula, entry.language), systemImage: EventKind.bottle.symbolName, tint: EventKind.bottle.color)
+                    TileLabel(title: Copy.card(.formula, entry.language), systemImage: "waterbottle.fill", recordIcon: RecordIcons.name(kind: .bottle), tint: EventKind.bottle.color)
                 }
             }
         }

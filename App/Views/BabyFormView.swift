@@ -174,14 +174,12 @@ struct BabyFormView: View {
 
     private var cultureSection: some View {
         let zone = TimeZone(identifier: timeZoneID) ?? TimeZone(identifier: "Asia/Shanghai")!
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = zone
-        let parts = calendar.dateComponents([.year, .month, .day], from: birthDate)
-        let clock = hasClock ? calendar.dateComponents([.hour, .minute], from: birthClock) : nil
+        let parts = BabyCulture.civil(date: birthDate, timeZoneID: zone.identifier)
+        let clock = hasClock ? BabyCulture.civil(date: birthClock, timeZoneID: zone.identifier) : nil
         let profile = BabyCulture.profile(
-            year: parts.year ?? 2000,
-            month: parts.month ?? 1,
-            day: parts.day ?? 1,
+            year: parts.year,
+            month: parts.month,
+            day: parts.day,
             hour: hasClock ? clock?.hour : nil,
             minute: hasClock ? clock?.minute : nil,
             timeZoneID: zone.identifier

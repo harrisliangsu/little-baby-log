@@ -74,7 +74,8 @@ struct SleepWidgetView: View {
             Button(intent: ToggleSleepIntent(babyID: baby.id)) {
                 TileLabel(
                     title: baby.isSleeping ? (entry.language == .zh ? "醒来" : "Wake") : Copy.card(.sleep, entry.language),
-                    systemImage: baby.isSleeping ? "sun.max.fill" : EventKind.sleep.symbolName,
+                    systemImage: "sun.max.fill",
+                    recordIcon: baby.isSleeping ? nil : RecordIcons.name(kind: .sleep),
                     tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                     filled: true
                 )

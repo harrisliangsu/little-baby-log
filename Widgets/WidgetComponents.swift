@@ -210,9 +210,8 @@ struct EmptyWidgetView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Image(systemName: "heart.fill")
-                .font(.title2)
-                .foregroundStyle(EventKind.breastfeed.color)
+            RecordGlyph(name: RecordIcons.name(kind: .breastfeed), color: EventKind.breastfeed.color)
+                .frame(width: 28, height: 28)
                 .widgetAccentable()
             Text(language == .zh ? "还没有记录" : "Nothing logged yet")
                 .font(.headline)
@@ -230,6 +229,7 @@ struct TileLabel: View {
 
     let title: String
     let systemImage: String
+    var recordIcon: String? = nil
     let tint: Color
     var subtitle: String?
     /// When set, the subtitle is a live clock counting up from this date instead of `subtitle`.
@@ -247,8 +247,14 @@ struct TileLabel: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .semibold))
+            if let recordIcon {
+                RecordGlyph(name: recordIcon, color: tint)
+                    .frame(width: 22, height: 22)
+                    .widgetAccentable()
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .semibold))
+            }
             Text(title)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .lineLimit(1)

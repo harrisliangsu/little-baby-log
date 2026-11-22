@@ -13,6 +13,14 @@ public enum VolumeUnit: String, CaseIterable, Identifiable, Sendable, Codable {
     public var symbol: String { self == .milliliters ? "ml" : "oz" }
     public var title: String { self == .milliliters ? "Milliliters (ml)" : "Ounces (oz)" }
 
+    public func label(_ language: ResolvedLanguage) -> String {
+        switch (self, language) {
+        case (.milliliters, .zh): return "毫升"
+        case (.ounces, .zh): return "盎司"
+        default: return title
+        }
+    }
+
     /// Rounded: ml to 1, oz to 0.1.
     public func value(fromMilliliters ml: Double) -> Double {
         switch self {
@@ -42,6 +50,14 @@ public enum UnitSystem: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
     public var title: String { self == .metric ? "Metric (kg, cm)" : "Imperial (lb, in)" }
+
+    public func label(_ language: ResolvedLanguage) -> String {
+        switch (self, language) {
+        case (.metric, .zh): return "公制（千克、厘米）"
+        case (.imperial, .zh): return "英制（磅、英寸）"
+        default: return title
+        }
+    }
     public var lengthSymbol: String { self == .metric ? "cm" : "in" }
 
     /// Ounces are rounded to 0.1.

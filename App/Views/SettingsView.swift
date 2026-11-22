@@ -293,12 +293,12 @@ struct SettingsView: View {
         Section {
             Picker(language == .zh ? "液体" : "Liquids", selection: $volumeUnit) {
                 ForEach(VolumeUnit.allCases) { unit in
-                    Text(unit.title).tag(unit)
+                    Text(unit.label(language)).tag(unit)
                 }
             }
             Picker(language == .zh ? "体重和身长" : "Weight and length", selection: $unitSystem) {
                 ForEach(UnitSystem.allCases) { system in
-                    Text(system.title).tag(system)
+                    Text(system.label(language)).tag(system)
                 }
             }
         } header: {
