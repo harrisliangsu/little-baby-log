@@ -20,7 +20,7 @@ struct BundledIcon: View {
               let match = text.range(of: #"d="([^"]+)""#, options: .regularExpression) else { return nil }
         let raw = text[match]
         let d = raw.dropFirst(3).dropLast()
-        return SVGPath(String(d)).path()
+        return SVGPath(source: String(d)).path()
     }
 }
 
