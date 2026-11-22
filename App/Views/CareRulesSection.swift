@@ -63,9 +63,11 @@ struct CareRulesBabySection: View {
             }
         }
         .sheet(isPresented: $showAIDraft) {
-            AIPhraseSheet(task: .reminderDraft, seed: "", names: [babyName], onReminder: { rule in
-                draft = rule
-            })
+            if let baby = (try? context.fetch(Baby.lblAllByCreation()))?.first(where: { $0.uuid == babyID }) {
+                AIChatView(baby: baby, reminder: true, onReminder: { rule in
+                    draft = rule
+                })
+            }
         }
         .sheet(item: $draft) { rule in
             CareRuleEditor(rule: rule, language: language) { saved in

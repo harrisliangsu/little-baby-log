@@ -116,34 +116,93 @@ struct CareCardRow: View {
     }
 }
 
-/// A function that is not a home card. The whole row opens its form.
-struct OtherKindRow: View {
-    let kind: EventKind
-    let onAdd: () -> Void
+/// Functions that are not in the record area. One icon opens that form. No summary row and no extra plus.
+struct OtherLogStrip: View {
+    let cards: [HomeCard]
+    let kinds: [EventKind]
+    let onCard: (HomeCard) -> Void
+    let onKind: (EventKind) -> Void
 
-    @Environment(\.appTheme) private var theme
     @Environment(\.uiLanguage) private var language
 
+    private let columns = [GridItem(.adaptive(minimum: 64), spacing: 12)]
+
     var body: some View {
-        Button(action: onAdd) {
-            HStack(spacing: 10) {
-                KindIcon(kind: kind, size: 28)
-                Text(UICopy.kind(kind, language))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.primaryText)
-                Spacer(minLength: 8)
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(cards) { card in
+                iconButton(
+                    symbol: symbol(card),
+                    tint: tint(card),
+                    title: Copy.card(card, language),
+                    identifier: addID(card),
+                    action: { onCard(card) }
+                )
             }
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .contentShape(Rectangle())
+            ForEach(kinds) { kind in
+                iconButton(
+                    symbol: kind.symbolName,
+                    tint: kind.color,
+                    title: UICopy.kind(kind, language),
+                    identifier: "add-\(kind.rawValue)",
+                    action: { onKind(kind) }
+                )
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityIdentifier("other-log-icons")
+    }
+
+    private func iconButton(
+        symbol: String,
+        tint: Color,
+        title: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(minWidth: 44, minHeight: 44)
+                .background(Circle().fill(tint))
         }
         .buttonStyle(.borderless)
-        .accessibilityIdentifier("add-\(kind.rawValue)")
-        .accessibilityLabel(language == .zh ? "添加\(UICopy.kind(kind, language))" : "Add \(UICopy.kind(kind, language))")
-        .padding(.vertical, 4)
-        .padding(.horizontal, 10)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")
+    }
+
+    private func symbol(_ card: HomeCard) -> String {
+        switch card {
+        case .breast: return EventKind.breastfeed.symbolName
+        case .formula: return EventKind.bottle.symbolName
+        case .wet: return DiaperKind.wet.symbolName
+        case .dirty: return DiaperKind.dirty.symbolName
+        case .diaperChange: return DiaperKind.dry.symbolName
+        case .sleep: return EventKind.sleep.symbolName
+        }
+    }
+
+    private func tint(_ card: HomeCard) -> Color {
+        switch card {
+        case .breast: return EventKind.breastfeed.color
+        case .formula: return EventKind.bottle.color
+        case .dirty: return .brown
+        case .wet, .diaperChange: return EventKind.diaper.color
+        case .sleep: return EventKind.sleep.color
+        }
+    }
+
+    private func addID(_ card: HomeCard) -> String {
+        switch card {
+        case .breast: return "add-breast"
+        case .formula: return "add-formula"
+        case .wet: return "add-wet"
+        case .dirty: return "add-dirty"
+        case .diaperChange: return "add-diaper-change"
+        case .sleep: return "add-sleep"
+        }
     }
 }
 

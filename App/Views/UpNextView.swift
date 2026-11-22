@@ -10,14 +10,16 @@ import BabyLogKit
 /// There is no polling and no background work.
 struct UpNextView: View {
     @ObservedObject var baby: Baby
+    var now: Date
 
     @Environment(\.appTheme) private var theme
     @Environment(\.uiLanguage) private var language
     @FetchRequest private var events: FetchedResults<LogEvent>
     @State private var showsInfo = false
 
-    init(baby: Baby) {
+    init(baby: Baby, now: Date) {
         _baby = ObservedObject(wrappedValue: baby)
+        self.now = now
         let calendar = Calendar.current
         // A start-of-day bound keeps the request equal all day, so SwiftUI doesn't refetch on every update.
         let from = calendar.date(byAdding: .day, value: -PredictionInputs.lookbackDays, to: calendar.startOfDay(for: .now))
@@ -51,11 +53,9 @@ struct UpNextView: View {
     // MARK: Body
 
     var body: some View {
-        if let first = forecast(at: .now), !first.isEmpty {
+        if let first = forecast(at: now), !first.isEmpty {
             Section {
-                TimelineView(.everyMinute) { timeline in
-                    content(forecast(at: timeline.date) ?? first, now: timeline.date)
-                }
+                content(first, now: now)
             } header: {
                 header(first)
             }
@@ -80,7 +80,7 @@ struct UpNextView: View {
             .accessibilityLabel(language == .zh ? "详情" : "Details")
         }
         .sheet(isPresented: $showsInfo) {
-            UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: .now) ?? initial)
+            UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: now) ?? initial)
         }
     }
 
@@ -246,7 +246,7 @@ private struct UpNextInfoSheet: View {
 
 #Preview {
     List {
-        UpNextView(baby: PreviewData.baby)
+        UpNextView(baby: PreviewData.baby, now: .now)
     }
     .previewEnvironment()
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import CoreData
 import BabyLogKit
 
@@ -26,6 +27,10 @@ struct TodayView: View {
     @State private var timelineCard: HomeCard?
     @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showAIDraft = false
+    /// Relative labels refresh on a timer. The list itself is not a TimelineView:
+    /// wrapping it rebuilt the whole scroll view, and the bottom section only appeared
+    /// once that rebuild was already under way.
+    @State private var now = Date()
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -46,9 +51,8 @@ struct TodayView: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { tick in
-            let care = CareRollup.make(events: Array(allEvents), now: tick.date)
-            List {
+        let care = CareRollup.make(events: Array(allEvents), now: now)
+        List {
                 if !running.isEmpty {
                     Section {
                         ForEach(running, id: \.objectID) { event in
@@ -69,7 +73,7 @@ struct TodayView: View {
                             prominent: true,
                             detailed: layout.isDetailed(card),
                             care: care,
-                            now: tick.date,
+                            now: now,
                             onOpen: { timelineCard = card },
                             onAdd: { add(card) }
                         )
@@ -83,35 +87,24 @@ struct TodayView: View {
 
                 if !layout.otherCards.isEmpty || !OtherLogKinds.kinds.isEmpty {
                     Section {
-                        ForEach(layout.otherCards) { card in
-                            CareCardRow(
-                                card: card,
-                                prominent: false,
-                                detailed: layout.isDetailed(card),
-                                care: care,
-                                now: tick.date,
-                                onOpen: { timelineCard = card },
-                                onAdd: { add(card) }
-                            )
-                            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                            .listRowBackground(Color.clear)
+                        OtherLogStrip(cards: layout.otherCards, kinds: OtherLogKinds.kinds) { card in
+                            add(card)
+                        } onKind: { kind in
+                            editor = .new(kind)
                         }
-                        ForEach(OtherLogKinds.kinds) { kind in
-                            OtherKindRow(kind: kind) { editor = .new(kind) }
-                                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                                .listRowBackground(Color.clear)
-                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                        .listRowBackground(Color.clear)
                     } header: {
                         Text(UICopy.t(.otherLog, language)).textCase(nil)
                     }
                     .themedSection()
                 }
 
-                UpNextView(baby: baby)
+                UpNextView(baby: baby, now: now)
             }
             .themedList()
             .id(day)
-        }
+            .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
         .systemBarChrome()
@@ -130,9 +123,7 @@ struct TodayView: View {
             }
         }
         .sheet(isPresented: $showAIDraft) {
-            AIPhraseSheet(task: .recordDraft, seed: "", names: [baby.displayName], onRecord: { suggestion in
-                editor = .seeded(suggestion.eventDraft())
-            })
+            AIChatView(baby: baby)
         }
         .sensoryFeedback(.success, trigger: feedback)
         .onChange(of: link, initial: true) { _, newLink in

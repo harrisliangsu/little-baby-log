@@ -16,7 +16,8 @@ struct MainTabView: View {
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var settingsPath: [SettingsRoute] = []
     @State private var assistantNotice = ""
-    @State private var showVoice = false
+    @State private var showChat = false
+    @State private var chatVoice = false
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
@@ -53,24 +54,27 @@ struct MainTabView: View {
             .tabItem { Label(Copy.settings(language), systemImage: "gearshape.fill") }
             .tag(Tab.settings)
         }
-        .overlay(alignment: .bottom) {
-            Button(action: voiceTapped) {
-                Image(systemName: "mic.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 64, height: 64)
-                    .background(Circle().fill(Color.accentColor))
+        .safeAreaInset(edge: .bottom, spacing: 4) {
+            // Reserve space under the list. An overlay on the tab view covered the last rows
+            // and sat in the scroll gesture.
+            ZStack {
+                Color.clear
+                    .frame(height: 64)
+                    .allowsHitTesting(false)
+                Button(action: voiceTapped) {
+                    Image(systemName: "mic.fill")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 64, height: 64)
+                        .background(Circle().fill(Color.accentColor))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("voice-log")
+                .accessibilityLabel(language == .zh ? "语音记录" : "Voice log")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("voice-log")
-            .accessibilityLabel(language == .zh ? "语音记录" : "Voice log")
-            .offset(y: -8)
-            .zIndex(1)
         }
-        .sheet(isPresented: $showVoice) {
-            VoiceLogSheet(current: baby) {
-                tab = .today
-            }
+        .sheet(isPresented: $showChat) {
+            AIChatView(baby: baby, startVoice: chatVoice)
         }
         .onChange(of: link, initial: true) { _, newLink in
             if newLink != nil { tab = .today }
@@ -86,7 +90,8 @@ struct MainTabView: View {
     private func voiceTapped() {
         switch AIRuntime.access() {
         case .ready:
-            showVoice = true
+            chatVoice = true
+            showChat = true
         case .offline:
             assistantNotice = language == .zh ? "没有网络。" : "No network."
             openAssistant()
@@ -101,7 +106,7 @@ struct MainTabView: View {
     }
 
     private func openAssistant() {
-        showVoice = false
+        showChat = false
         tab = .settings
         settingsPath = [.assistant]
     }

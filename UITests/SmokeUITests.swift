@@ -640,10 +640,12 @@ final class SmokeUITests: XCTestCase {
         let amount = app.textFields["bottle-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         amount.tap()
+        let done = app.buttons["amount-done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: done)
+        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
         amount.typeText(millilitres)
-        if app.buttons["amount-done"].waitForExistence(timeout: 2) {
-            app.buttons["amount-done"].tap()
-        }
+        done.tap()
         let save = app.buttons["save-entry"]
         if !save.isHittable, app.buttons["完成"].exists {
             app.buttons["完成"].tap()
@@ -699,6 +701,48 @@ final class SmokeUITests: XCTestCase {
         }
     }
 
+    func testBottomOfTodayStaysInteractive() throws {
+        app.launchArguments += ["-lbl-ui-reset"]
+        app.launch()
+        let name = app.textFields["baby-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        name.tap()
+        name.typeText("Beibei")
+        app.buttons["start-tracking"].tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
+
+        for _ in 0..<4 { app.swipeUp() }
+        let solids = app.buttons["add-solids"]
+        XCTAssertTrue(solids.waitForExistence(timeout: 6))
+        XCTAssertGreaterThanOrEqual(solids.frame.height, 44)
+        XCTAssertFalse(solids.label.contains("还没有"))
+        solids.tap()
+        let save = app.buttons["save-entry"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.navigationBars.buttons["取消"].tap()
+        XCTAssertTrue(solids.waitForExistence(timeout: 4))
+
+        app.swipeDown()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+        app.tabBars.buttons["历史"].tap()
+        XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
+        app.tabBars.buttons["今天"].tap()
+        for _ in 0..<4 { app.swipeUp() }
+        let growth = app.buttons["add-growth"]
+        XCTAssertTrue(growth.waitForExistence(timeout: 6))
+        growth.tap()
+        XCTAssertTrue(app.buttons["save-entry"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["取消"].tap()
+
+        let voice = app.buttons["voice-log"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 4))
+        voice.tap()
+        XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
+        XCTAssertFalse(app.buttons["voice-start"].exists)
+        app.tabBars.buttons["今天"].tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+    }
+
     func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
@@ -714,6 +758,9 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
+        let keyField = app.secureTextFields["ai-key-field"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["ai-verify"].exists)
         let model = app.descendants(matching: .any)["ai-model"]
         XCTAssertTrue(model.waitForExistence(timeout: 4))
         XCTAssertTrue(model.label.contains("Flash"))
