@@ -17,8 +17,9 @@ struct UpNextView: View {
     @FetchRequest private var events: FetchedResults<LogEvent>
     @State private var showsInfo = false
 
-    init(baby: Baby) {
+    init(baby: Baby, now: Date) {
         _baby = ObservedObject(wrappedValue: baby)
+        self.now = now
         let calendar = Calendar.current
         // A start-of-day bound keeps the request equal all day, so SwiftUI doesn't refetch on every update.
         let from = calendar.date(byAdding: .day, value: -PredictionInputs.lookbackDays, to: calendar.startOfDay(for: .now))
