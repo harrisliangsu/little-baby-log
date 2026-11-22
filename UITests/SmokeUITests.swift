@@ -112,6 +112,8 @@ final class SmokeUITests: XCTestCase {
         requireAppearance("light", settingsTab: "设置", homeTab: "今天", name: "11-home-light")
 
         tab("设置").tap()
+        let languageModule = app.descendants(matching: .any)["settings-module-language"]
+        if languageModule.waitForExistence(timeout: 4) { languageModule.tap() }
         let languagePicker = app.buttons["app-language"]
         for _ in 0..<6 where !languagePicker.exists {
             app.swipeDown()
@@ -148,8 +150,10 @@ final class SmokeUITests: XCTestCase {
     /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
     private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
         tab(settingsTab).tap()
-        // Settings keeps its scroll offset. The widget preview sits below appearance, so start at the top.
-        for _ in 0..<4 { app.swipeDown() }
+        let appearanceModule = app.descendants(matching: .any)["settings-module-appearance"]
+        if appearanceModule.waitForExistence(timeout: 4) {
+            appearanceModule.tap()
+        }
         let option = appearanceControl(expected, chinese: settingsTab == "设置")
         for _ in 0..<8 where !option.isHittable {
             app.swipeUp()
@@ -691,6 +695,8 @@ final class SmokeUITests: XCTestCase {
     private func openWidgetPreview() {
         let settings = tab("设置").exists ? tab("设置") : tab("Settings")
         settings.tap()
+        let widgets = app.descendants(matching: .any)["settings-module-widgets"]
+        if widgets.waitForExistence(timeout: 4) { widgets.tap() }
         let button = app.buttons["show-widget-preview"]
         for _ in 0..<5 where !button.exists { app.swipeUp() }
         XCTAssertTrue(button.waitForExistence(timeout: 4))
@@ -763,17 +769,21 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
+        XCTAssertFalse(app.buttons["ai-verify"].exists)
+        app.buttons["add-provider"].tap()
+        app.buttons["provider-deepseek"].tap()
         let keyField = app.secureTextFields["ai-key-field"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 4))
-        XCTAssertFalse(app.buttons["ai-verify"].exists)
         let model = app.descendants(matching: .any)["ai-model"]
         XCTAssertTrue(model.waitForExistence(timeout: 4))
         XCTAssertTrue(model.label.contains("Flash"))
         choosePicker("ai-model", option: "V4 Pro")
         waitUntil(model, contains: "V4 Pro")
-        choosePicker("ai-provider", option: "Kimi 国际")
+        app.navigationBars.buttons["取消"].tap()
+        app.buttons["add-provider"].tap()
+        app.buttons["provider-kimiAI"].tap()
+        XCTAssertTrue(model.waitForExistence(timeout: 4))
         waitUntil(model, contains: "K3.1 Pro")
-        XCTAssertFalse(model.label.contains("V4"))
         choosePicker("ai-model", option: "K3", exact: true)
         waitUntil(model, contains: "K3", excluding: "K3.1")
         XCTAssertTrue(tab("历史").exists)
@@ -843,6 +853,8 @@ final class SmokeUITests: XCTestCase {
         tab("设置").tap()
         for _ in 0..<4 { app.swipeDown() }
         shot("review-18-settings")
+        let records = app.descendants(matching: .any)["settings-module-records"]
+        if records.waitForExistence(timeout: 4) { records.tap() }
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
@@ -862,6 +874,8 @@ final class SmokeUITests: XCTestCase {
         shot("review-22-ai-settings")
         popNavigation()
 
+        let dataModule = app.descendants(matching: .any)["settings-module-data"]
+        if dataModule.waitForExistence(timeout: 3) { dataModule.tap() }
         let sync = app.staticTexts["iCloud 同步"]
         var syncSwipes = 0
         while syncSwipes < 8 && !sync.exists {

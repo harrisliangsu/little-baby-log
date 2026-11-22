@@ -12,6 +12,7 @@ struct LittleBabyLogApp: App {
 
     init() {
         AppearanceMigration.apply(UserDefaults.standard)
+        AIKeyStore.migrateLegacyConfigurations()
         let arguments = ProcessInfo.processInfo.arguments
         #if DEBUG
         if arguments.contains("-lbl-ui-reset") {

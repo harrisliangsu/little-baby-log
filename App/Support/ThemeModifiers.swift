@@ -19,14 +19,21 @@ private struct ThemedForeground: ViewModifier {
 }
 
 private struct ThemedList: ViewModifier {
-    @Environment(\.appTheme) private var theme
+    @Environment(\.interfaceStyle) private var style
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
-        if theme.isNight {
+        if style == .liquidGlass, !reduceTransparency {
             content
-                .foregroundStyle(AppTheme.nightPrimaryText)
                 .scrollContentBackground(.hidden)
-                .background { theme.background.ignoresSafeArea() }
+                .background {
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(0.35), Color.purple.opacity(0.25)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
+                }
         } else {
             content
         }
@@ -34,12 +41,15 @@ private struct ThemedList: ViewModifier {
 }
 
 private struct ThemedSection: ViewModifier {
-    @Environment(\.appTheme) private var theme
+    @Environment(\.interfaceStyle) private var style
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
-        content
-            .listRowBackground(theme.isNight ? theme.surface : nil)
-            .listRowSeparatorTint(theme.isNight ? AppTheme.nightSeparator : nil)
+        if style == .liquidGlass, !reduceTransparency {
+            content.listRowBackground(Rectangle().fill(.ultraThinMaterial))
+        } else {
+            content
+        }
     }
 }
 

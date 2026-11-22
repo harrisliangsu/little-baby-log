@@ -27,6 +27,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
     @AppStorage(Prefs.appearanceMode) private var appearanceMode: AppearanceMode = Prefs.defaultAppearanceMode
+    @AppStorage(InterfaceStyle.storageKey) private var interfaceStyleRaw = InterfaceStyle.classic.rawValue
     @AppStorage(Prefs.nightStartMinutes) private var nightStartMinutes = NightSchedule.defaultStartMinutes
     @AppStorage(Prefs.nightEndMinutes) private var nightEndMinutes = NightSchedule.defaultEndMinutes
     @AppStorage(Prefs.dimScreenAtNight) private var dimScreenAtNight = false
@@ -53,17 +54,58 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            babiesSection
-            languageSection
-            remindersSection
-            caregiversSection
-            syncSection
-            unitsSection
-            appearanceSection
-            nursingTimerSection
-            widgetsSection
-            dataSection
-            aboutSection
+            Section {
+                settingsLink(language == .zh ? "宝宝与记录" : "Baby and records", "figure.and.child.holdinghands", "settings-module-records") {
+                    Form {
+                        babiesSection
+                        NavigationLink {
+                            HomeCardsSettingsView()
+                        } label: {
+                            Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
+                        }
+                        .accessibilityIdentifier("settings-home-cards")
+                        unitsSection
+                        nursingTimerSection
+                    }
+                    .themedList()
+                    .navigationTitle(language == .zh ? "宝宝与记录" : "Baby and records")
+                }
+                settingsLink(language == .zh ? "外观" : "Appearance", "circle.lefthalf.filled", "settings-module-appearance") {
+                    Form { appearanceSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "外观" : "Appearance")
+                }
+                settingsLink(language == .zh ? "AI 与语音" : "Assistant", "sparkles", "settings-assistant") {
+                    AISettingsView()
+                }
+                settingsLink(language == .zh ? "通知" : "Notifications", "bell.badge", "settings-reminders") {
+                    RemindersSettingsView()
+                }
+                settingsLink(language == .zh ? "小组件" : "Widgets", "rectangle.3.group", "settings-module-widgets") {
+                    Form { widgetsSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "小组件" : "Widgets")
+                }
+                settingsLink(language == .zh ? "数据与同步" : "Data and sync", "arrow.triangle.2.circlepath", "settings-module-data") {
+                    Form {
+                        syncSection
+                        caregiversSection
+                        dataSection
+                    }
+                    .themedList()
+                    .navigationTitle(language == .zh ? "数据与同步" : "Data and sync")
+                }
+                settingsLink(language == .zh ? "语言" : "Language", "globe", "settings-module-language") {
+                    Form { languageSection }
+                        .themedList()
+                        .navigationTitle(Copy.languageSection(language))
+                }
+                settingsLink(language == .zh ? "关于" : "About", "info.circle", "settings-module-about") {
+                    Form { aboutSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "关于" : "About")
+                }
+            }
         }
         .themedList()
         .navigationTitle(Copy.settings(language))
@@ -118,6 +160,15 @@ struct SettingsView: View {
                 importRequest = ImportRequest(file: file, source: Data(excerpt.text.utf8))
             }
         }
+    }
+
+    private func settingsLink<Destination: View>(_ title: String, _ symbol: String, _ identifier: String, @ViewBuilder destination: () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            Label(title, systemImage: symbol)
+        }
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: Sections
@@ -247,7 +298,21 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("appearance-\(mode.rawValue)")
             }
-
+            ForEach(InterfaceStyle.allCases) { style in
+                Button {
+                    interfaceStyleRaw = style.rawValue
+                } label: {
+                    HStack {
+                        Text(style == .classic ? (language == .zh ? "经典" : "Classic") : (language == .zh ? "液态玻璃" : "Liquid Glass"))
+                        Spacer()
+                        if interfaceStyleRaw == style.rawValue {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("style-\(style.rawValue)")
+            }
         } header: {
             Text(UICopy.t(.appearance, language))
         }

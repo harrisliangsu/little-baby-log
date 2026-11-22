@@ -6,6 +6,11 @@ import BabyLogKit
 /// The value is the three-way setting itself. A background timer does not overwrite it.
 struct AppearanceHost: ViewModifier {
     @AppStorage(Prefs.appearanceMode) private var mode: AppearanceMode = Prefs.defaultAppearanceMode
+    @AppStorage(InterfaceStyle.storageKey) private var styleRaw = InterfaceStyle.classic.rawValue
+
+    private var interfaceStyle: InterfaceStyle {
+        InterfaceStyle(rawValue: styleRaw) ?? .classic
+    }
 
     private var colorScheme: ColorScheme? {
         switch mode.resolved() {
@@ -18,6 +23,7 @@ struct AppearanceHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .environment(\.appTheme, .standard)
+            .environment(\.interfaceStyle, interfaceStyle)
             .preferredColorScheme(colorScheme)
             .onAppear { applyWindow() }
             .onChange(of: mode) { _, _ in applyWindow() }

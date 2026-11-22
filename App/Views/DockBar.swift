@@ -4,6 +4,8 @@ import BabyLogKit
 /// One bottom bar for the four existing tabs and the voice control.
 /// A separate floating button sat on a different material and covered the list.
 struct DockBar: View {
+    @Environment(\.interfaceStyle) private var interfaceStyle
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Binding var tab: MainTab
     let language: ResolvedLanguage
     let voice: VoiceSession
@@ -83,7 +85,9 @@ struct DockBar: View {
     @ViewBuilder
     private var dockBackground: some View {
         let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
-        if #available(iOS 26.0, *) {
+        if interfaceStyle == .classic || reduceTransparency {
+            shape.fill(Color(.secondarySystemGroupedBackground))
+        } else if #available(iOS 26.0, *) {
             shape.fill(.clear)
                 .glassEffect(.regular, in: shape)
         } else {

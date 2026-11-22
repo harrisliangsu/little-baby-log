@@ -54,6 +54,16 @@ public enum ResolvedAppearance: Equatable, Sendable {
     public var isNight: Bool { false }
 }
 
+/// How lists and bars are drawn. Independent of light, dark, or system appearance.
+public enum InterfaceStyle: String, CaseIterable, Identifiable, Sendable {
+    case classic
+    case liquidGlass
+
+    public var id: String { rawValue }
+    public static let storageKey = "interfaceStyle"
+    public static let `default` = InterfaceStyle.classic
+}
+
 /// A daily window, in minutes since midnight, that may wrap past midnight (7:00 PM to 7:00 AM).
 ///
 /// Night is active from `startMinutes` (inclusive) up to `endMinutes` (exclusive). When both are equal the
