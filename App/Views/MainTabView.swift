@@ -132,17 +132,22 @@ struct MainTabView: View {
                 cancelArmed = recording && value.translation.height < -48
             }
             .onEnded { _ in
+                let wasRecording = recording
                 fingerDown = false
                 holdTask?.cancel()
                 holdTask = nil
                 let shouldCancel = cancelArmed
                 cancelArmed = false
-                guard recording else { return }
-                recording = false
-                if shouldCancel {
-                    speech.cancel()
+                if wasRecording {
+                    recording = false
+                    if shouldCancel {
+                        speech.cancel()
+                    } else {
+                        Task { await releaseVoice() }
+                    }
                 } else {
-                    Task { await releaseVoice() }
+                    // Too short to record. A closed or unready assistant still opens its settings.
+                    openAssistantIfBlocked()
                 }
             }
     }
@@ -162,6 +167,16 @@ struct MainTabView: View {
                 return
             }
             recording = true
+        default:
+            openAssistantIfBlocked()
+        }
+    }
+
+    /// A press that does not record. Ready assistants ignore it; every other state opens settings.
+    private func openAssistantIfBlocked() {
+        switch AIRuntime.access() {
+        case .ready:
+            break
         case .offline:
             assistantNotice = language == .zh ? "没有网络。" : "No network."
             openAssistant()

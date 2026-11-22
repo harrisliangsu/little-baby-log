@@ -109,13 +109,15 @@ struct EventEditorView: View {
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom, spacing: 8) {
-                Button(UICopy.t(.save, language)) { save() }
-                    .font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("save-entry")
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 4)
+                Button { save() } label: {
+                    Text(UICopy.t(.save, language))
+                        .font(.title3.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("save-entry")
+                .padding(.horizontal, 20)
+                .padding(.bottom, 4)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
