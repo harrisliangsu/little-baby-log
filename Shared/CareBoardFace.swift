@@ -7,6 +7,7 @@ struct CareBoardFace: View {
     var face: WidgetFace
     var size: WidgetSize
     var destination: ((HomeCard) -> URL)?
+    var marksSizeIdentifier = true
 
     var body: some View {
         Group {
@@ -25,13 +26,13 @@ struct CareBoardFace: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(spoken)
-        .accessibilityIdentifier("widget-face-\(size.rawValue)")
+        .accessibilityIdentifier(marksSizeIdentifier ? "widget-face-\(size.rawValue)" : "widget-sample-face")
     }
 
-    /// One selected item is the headline. Two or more share the card as compact rows, still fully tappable.
+    /// One selected item is the headline. Two or more stay one full-width line each, so a small widget still shows every pick.
     private var small: some View { sized(columns: 1, showsToday: false) }
 
-    private var medium: some View { sized(columns: face.items.count <= 3 ? face.items.count : 2, showsToday: true) }
+    private var medium: some View { sized(columns: 1, showsToday: true) }
 
     private var large: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -47,7 +48,7 @@ struct CareBoardFace: View {
     }
 
     private func sized(columns: Int, showsToday: Bool) -> some View {
-        VStack(alignment: .leading, spacing: face.items.count <= 1 ? 6 : 4) {
+        VStack(alignment: .leading, spacing: face.items.count <= 1 ? 6 : 2) {
             if columns > 1 {
                 let rows = stride(from: 0, to: face.items.count, by: columns).map { start in
                     Array(face.items[start..<min(start + columns, face.items.count)])
@@ -61,8 +62,14 @@ struct CareBoardFace: View {
                 }
             } else {
                 ForEach(face.items, id: \.card) { item in
-                    itemLink(item, showsToday: showsToday && face.items.count <= 4)
+                    itemLink(item, showsToday: showsToday)
                 }
+            }
+            if let note = face.limitNote {
+                Text(note)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
             }
         }
     }
@@ -77,31 +84,42 @@ struct CareBoardFace: View {
                         Text(item.lastValue).font(.title3).lineLimit(2).minimumScaleFactor(0.85)
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(item.title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
+                            .font(rowFont.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Spacer(minLength: 4)
                         Text(item.sinceValue)
-                            .font(.headline.weight(.bold))
-                            .lineLimit(2)
+                            .font(rowFont.weight(.bold))
+                            .lineLimit(1)
                             .minimumScaleFactor(0.85)
                         Text(item.lastValue)
-                            .font(.subheadline)
-                            .lineLimit(2)
+                            .font(rowFont)
+                            .lineLimit(1)
                             .minimumScaleFactor(0.85)
                         if showsToday {
                             Text(item.todayValue)
-                                .font(.subheadline)
-                                .lineLimit(2)
+                                .font(rowFont)
+                                .lineLimit(1)
                                 .minimumScaleFactor(0.85)
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: face.items.count <= 2 ? 28 : 20, alignment: .leading)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(item.accessibilityText)
+            .accessibilityIdentifier("widget-item-\(item.card.rawValue)")
+        }
+    }
+
+    /// Fewer picks use a larger line. Six picks stay at subheadline, above the old caption2 that scaled to about half.
+    private var rowFont: Font {
+        switch face.items.count {
+        case ...2: return .title3
+        case 3...4: return .body
+        default: return .subheadline
         }
     }
 

@@ -5,14 +5,9 @@ import Foundation
 public enum WidgetSize: String, Sendable {
     case small, medium, large
 
-    /// Complete rows only. Extra picks stay off this size instead of shrinking the type.
-    public var itemLimit: Int {
-        switch self {
-        case .small: 2
-        case .medium: 4
-        case .large: 6
-        }
-    }
+    /// The edit screen stores six slots. Every size shows all six.
+    /// A card past that cannot be saved there. If one is passed in, it stays counted and the face says so.
+    public var itemLimit: Int { 6 }
 }
 
 /// One logged row the large widget can list. Amounts stay optional so pee never gains a made-up millilitre.
@@ -197,7 +192,7 @@ public enum WidgetBoard {
             babyName: babyName,
             items: items,
             hiddenCount: fitted.hidden,
-            limitNote: nil,
+            limitNote: fitted.hidden > 0 ? Copy.widgetLimit(fitted.hidden, size, language) : nil,
             tapHint: nil,
             recentTitle: size == .large && !lines.isEmpty ? Copy.recentRecords(language) : nil,
             recentLines: lines,

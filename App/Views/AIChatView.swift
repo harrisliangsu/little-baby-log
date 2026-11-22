@@ -304,18 +304,14 @@ struct AIChatView: View {
             let spoken = desk.thread(for: babyID).messages.first { $0.id == id }?.text ?? ""
             let others = babies.map(\.displayName).filter { $0 != baby.displayName }
             let map = VoiceDrafts.redact(transcript: spoken, currentBaby: baby.displayName, otherBabies: others).map
-            switch try AIProposalDecoder.chatOutcome(from: data) {
-            case .reply(let text):
-                desk.setDelivery(baby: babyID, id: id, delivery: .sent)
-                desk.appendReply(baby: babyID, text: text)
-            case .records(let items):
-                let records = VoiceDrafts.resolve(
-                    items: items,
-                    anchor: VoiceAnchor(startedAt: anchor, timeZone: .current),
-                    map: map
-                )
-                desk.finish(baby: babyID, id: id, records: records)
-            }
+            let updated = try AIChatExchange.apply(
+                response: data,
+                to: desk.thread(for: babyID),
+                message: id,
+                anchor: VoiceAnchor(startedAt: anchor, timeZone: .current),
+                map: map
+            )
+            desk.replaceThread(updated)
         } catch AIClientError.cancelled, is CancellationError {
             desk.cancel(baby: babyID, id: id)
         } catch {
@@ -324,11 +320,7 @@ struct AIChatView: View {
     }
 
     private func persist(_ item: VoiceItemDraft) -> Bool {
-        guard let draft = item.eventDraft(),
-              let target = babies.first(where: { $0.displayName == item.assignedBabyName }) else { return false }
-        let event = LogEvent.create(kind: draft.kind, for: target, start: draft.startDate, in: context)
-        draft.apply(to: event)
-        return context.saveIfNeeded()
+        AIChatCommit.save(item, babies: Array(babies), in: context)
     }
 
     private func dropRecord(_ item: VoiceItemDraft, message: UUID) {

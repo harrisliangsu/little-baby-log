@@ -41,7 +41,7 @@ enum WidgetCareItem: String, AppEnum {
 /// Per-widget configuration stored by the system, not by the home-card order.
 struct CareBoardIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "宝宝小记"
-    static var description = IntentDescription("每个小组件自己选择宝宝和项目顺序。这不改变首页卡片。")
+    static var description = IntentDescription("每个小组件自己保存宝宝和最多 6 个项目，六个位置都会显示，不会藏起已选的项。项目多时字号变小。这不改变首页卡片。")
 
     @Parameter(title: "宝宝")
     var baby: BabyEntity?

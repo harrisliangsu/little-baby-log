@@ -118,6 +118,7 @@ struct SettingsView: View {
                     BabyRow(baby: baby)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-baby")
             }
             Button {
                 babySheet = .add

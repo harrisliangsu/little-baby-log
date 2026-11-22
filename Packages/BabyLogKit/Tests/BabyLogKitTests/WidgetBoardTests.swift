@@ -10,8 +10,8 @@ struct WidgetBoardTests {
         let small = WidgetBoard.fit(cards, size: .small)
         let medium = WidgetBoard.fit(cards, size: .medium)
         let large = WidgetBoard.fit(cards, size: .large)
-        #expect(small.shown == [.formula, .wet])
-        #expect(small.hidden == 2)
+        #expect(small.shown == cards)
+        #expect(small.hidden == 0)
         #expect(medium.shown == cards)
         #expect(medium.hidden == 0)
         #expect(large.shown == cards)
@@ -152,5 +152,57 @@ struct WidgetBoardTests {
         #expect(StartRouting.knownBaby(pee, knownBabyIDs: [ada, bo]))
         #expect(!StartRouting.knownBaby(DeepLink.start(.wet, babyID: UUID()), knownBabyIDs: [ada, bo]))
         #expect(StartRouting.knownBaby(DeepLink.start(.wet, babyID: nil), knownBabyIDs: [ada]))
+    }
+
+    @Test func everySizeShowsEveryStoredPickAndKeepsTheBabyBinding() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var care = CareRollup()
+        care.lastFormulaAt = now.addingTimeInterval(-90)
+        care.lastFormulaML = 1250
+        care.today.formulaCount = 3
+        care.today.formulaML = 1250
+        care.lastSleepAt = now.addingTimeInterval(-3600)
+        care.today.sleepCount = 1
+        care.today.sleepSeconds = (12 * 60 + 40) * 60
+        care.lastWetAt = now.addingTimeInterval(-600)
+        care.today.wetCount = 4
+        let all: [HomeCard] = [.formula, .breast, .wet, .dirty, .diaperChange, .sleep]
+        let counts = [1, 2, 4, 6]
+        for size in [WidgetSize.small, .medium, .large] {
+            for count in counts {
+                let cards = Array(all.prefix(count))
+                let fitted = WidgetBoard.fit(cards, size: size)
+                #expect(fitted.shown == cards)
+                #expect(fitted.hidden == 0)
+                let face = WidgetBoard.face(
+                    babyName: "贝贝", care: care, recent: [], reminder: nil,
+                    cards: cards, size: size, language: .zh, volume: .milliliters, now: now
+                )
+                #expect(face.babyName == "贝贝")
+                #expect(face.items.map(\.card) == cards)
+                #expect(face.hiddenCount == 0)
+                #expect(face.limitNote == nil)
+                let spoken = face.items.map(\.accessibilityText).joined(separator: " ")
+                #expect(!spoken.contains("贝贝"))
+                if cards.contains(.formula) {
+                    #expect(face.items[0].lastValue.filter(\.isNumber) == "1250")
+                }
+                if cards.contains(.sleep) {
+                    let sleep = face.items.first { $0.card == .sleep }
+                    #expect(sleep?.todayValue.contains("12小时40分") == true)
+                }
+                if cards.contains(.wet) {
+                    #expect(face.items.first { $0.card == .wet }?.todayValue.contains("4") == true)
+                }
+                #expect(face.items.allSatisfy { !$0.lastValue.isEmpty && !$0.sinceValue.isEmpty })
+            }
+            let empty = WidgetBoard.face(
+                babyName: "贝贝", care: nil, recent: [], reminder: nil,
+                cards: all, size: size, language: .zh, volume: .milliliters, now: now
+            )
+            #expect(empty.items.count == 6)
+            #expect(empty.items.allSatisfy { $0.lastValue == "还没有" && $0.sinceValue == "还没有" })
+            #expect(empty.limitNote == nil)
+        }
     }
 }
