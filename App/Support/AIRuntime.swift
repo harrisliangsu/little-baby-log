@@ -7,6 +7,7 @@ extension AIPreferences {
 
 /// One place that decides whether any assistant feature may talk to the network.
 enum AIRuntime {
+    @MainActor
     static func access() -> AIAccess {
         let provider = AIPreferences.provider
         let token = AIKeyStore.token(provider: provider)?
@@ -19,6 +20,7 @@ enum AIRuntime {
         )
     }
 
+    @MainActor
     static func send(preview: AISendPreview, ticket: Int) async throws -> Data {
         let access = access()
         guard access.maySend, let token = AIKeyStore.token(provider: preview.provider) else {
