@@ -43,12 +43,15 @@ struct AICredentialTests {
         )
         let data = try #require(request.httpBody)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let messages = try #require(object["messages"] as? [[String: Any]])
+        let user = messages.compactMap { $0["content"] as? String }.joined(separator: "\n")
         let raw = String(decoding: data, as: UTF8.self)
         #expect(object["model"] as? String == "deepseek-v4-pro")
         #expect(object["tools"] == nil)
-        #expect(raw.contains(AIProbe.userText))
+        #expect(user.contains(AIProbe.userText))
+        #expect(!user.contains("secret-token"))
+        #expect(!user.contains("月月"))
         #expect(!raw.contains("secret-token"))
-        #expect(!raw.contains("月月"))
         #expect(request.url?.host == "api.deepseek.com")
     }
 
