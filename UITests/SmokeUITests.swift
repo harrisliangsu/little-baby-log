@@ -852,9 +852,20 @@ final class SmokeUITests: XCTestCase {
         shot("review-22-ai-settings")
         popNavigation()
 
-        for _ in 0..<6 where !app.staticTexts["iCloud 同步"].exists { app.swipeUp() }
-        XCTAssertTrue(app.staticTexts["iCloud 同步"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.buttons["导入标准 CSV / JSON"].exists || app.staticTexts["导入标准 CSV / JSON"].exists)
+        let sync = app.staticTexts["iCloud 同步"]
+        var syncSwipes = 0
+        while syncSwipes < 8 && !sync.exists {
+            app.swipeUp()
+            syncSwipes += 1
+        }
+        XCTAssertTrue(sync.waitForExistence(timeout: 4))
+        let importer = app.descendants(matching: .any)["导入标准 CSV / JSON"]
+        var importSwipes = 0
+        while importSwipes < 4 && !importer.exists {
+            app.swipeUp()
+            importSwipes += 1
+        }
+        XCTAssertTrue(importer.waitForExistence(timeout: 4))
         shot("review-23-sync-import")
 
         openWidgetPreview()
