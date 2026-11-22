@@ -79,13 +79,19 @@ public struct AIChatMessage: Identifiable, Equatable, Sendable {
         case cancelled
     }
 
+    public enum Role: String, Codable, Sendable {
+        case user, assistant
+    }
+
     public var id: UUID
+    public var role: Role
     public var text: String
     public var delivery: Delivery
     public var records: [VoiceItemDraft]
 
-    public init(id: UUID = UUID(), text: String, delivery: Delivery, records: [VoiceItemDraft] = []) {
+    public init(id: UUID = UUID(), role: Role = .user, text: String, delivery: Delivery, records: [VoiceItemDraft] = []) {
         self.id = id
+        self.role = role
         self.text = text
         self.delivery = delivery
         self.records = records

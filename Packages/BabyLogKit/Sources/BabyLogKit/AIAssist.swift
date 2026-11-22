@@ -309,7 +309,7 @@ public enum AIRequestBuilder {
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let system = "Return only the JSON object asked for. Do not give medical advice. Do not invent times or amounts. If a value is missing, use null."
+        let system = "Reply in the person's language. Do not describe your role or the data format. Do not give medical advice. Do not invent times or amounts."
         var body: [String: Any] = [
             "model": AIModelCatalog.resolve(explicit, for: provider),
             "messages": [

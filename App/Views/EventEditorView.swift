@@ -34,6 +34,7 @@ enum EditorTarget: Identifiable {
 struct EventEditorView: View {
     let baby: Baby
     let target: EditorTarget
+    var onFinish: ((Bool) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
@@ -121,7 +122,10 @@ struct EventEditorView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(UICopy.t(.cancel, language)) { dismiss() }
+                    Button(UICopy.t(.cancel, language)) {
+                        onFinish?(false)
+                        dismiss()
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -195,12 +199,18 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            InlineAmountEditor(
-                milliliters: $draft.amountML,
-                unit: volumeUnit,
-                language: language,
-                yesterdayRounded: yesterdayRoundedAmount
-            )
+            if draft.bottleContent == .formula || target.homeCard == .formula {
+                FormulaAmountShortcuts(
+                    milliliters: $draft.amountML,
+                    language: language,
+                    last: lastFormulaAmount,
+                    pinned: pinnedFormulaAmount,
+                    onPin: { pinFormulaAmount($0) },
+                    onClearPin: { pinFormulaAmount(nil) }
+                )
+            } else {
+                InlineAmountEditor(milliliters: $draft.amountML, unit: volumeUnit, language: language)
+            }
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard != .formula {
                 Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
@@ -289,26 +299,33 @@ struct EventEditorView: View {
         }
     }
 
-    /// This baby's same bottle type on yesterday's local day, raised to the next 10 ml. Nil when that day has none.
-    private var yesterdayRoundedAmount: Double? {
-        let request = LogEvent.requestAll(baby: baby, kinds: [.bottle])
+    private var formulaPinKey: String { "lbl-formula-pin-\(baby.uuid?.uuidString ?? "")" }
+
+    private var lastFormulaAmount: Double? {
+        let request = LogEvent.requestAll(baby: baby, kinds: [.bottle], ascending: false)
         let events = (try? context.fetch(request)) ?? []
-        return AmountShortcuts.yesterdayRoundedMilliliters(
-            events: events,
-            baby: baby,
-            content: draft.bottleContent,
-            now: .now,
-            calendar: .current
-        )
+        return FormulaAmountSeed.milliliters(newestFirst: events)
+    }
+
+    private var pinnedFormulaAmount: Double? {
+        let stored = UserDefaults.standard.object(forKey: formulaPinKey) as? Double
+        guard let stored, stored > 0 else { return nil }
+        return stored
+    }
+
+    private func pinFormulaAmount(_ amount: Double?) {
+        if let amount, amount > 0 {
+            UserDefaults.standard.set(amount, forKey: formulaPinKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: formulaPinKey)
+        }
     }
 
     private func seedFormulaAmountIfNeeded() {
         guard !seededFormula else { return }
         seededFormula = true
         guard case .card(.formula) = target, draft.amountML <= 0 else { return }
-        let request = LogEvent.requestAll(baby: baby, kinds: [.bottle], ascending: false)
-        let events = (try? context.fetch(request)) ?? []
-        if let amount = FormulaAmountSeed.milliliters(newestFirst: events) {
+        if let amount = FormulaPreparedTable.prefill(last: lastFormulaAmount, pinned: pinnedFormulaAmount) {
             draft.amountML = amount
         }
     }
@@ -397,6 +414,7 @@ struct EventEditorView: View {
         }
         context.saveIfNeeded()
         Haptics.success()
+        onFinish?(true)
         dismiss()
     }
 
@@ -435,10 +453,8 @@ private struct TimeValueRow: View {
                 shortcut(.twentyMinutes, language == .zh ? "20分钟前" : "20 min ago", "time-20")
             }
             DatePicker(title, selection: $date)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 132)
-                .clipped()
+                .datePickerStyle(.compact)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .accessibilityIdentifier("time-value")
         }
         .padding(.vertical, 4)
@@ -457,18 +473,104 @@ private struct TimeValueRow: View {
     }
 }
 
-/// Amount and nearby logging shortcuts. The number field is not focused until it is tapped.
+/// Prepared totals from the tin. Water amounts are not offered. Off-table history stays editable.
+private struct FormulaAmountShortcuts: View {
+    @Binding var milliliters: Double
+    let language: ResolvedLanguage
+    let last: Double?
+    let pinned: Double?
+    let onPin: (Double) -> Void
+    let onClearPin: () -> Void
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            numberField
+            Text(language == .zh ? "冲好总奶量" : "Prepared total")
+                .font(.subheadline.weight(.semibold))
+            Text(language == .zh
+                 ? "罐上的成品量，用来快捷填写，不是喂养建议。"
+                 : "Prepared amounts from the tin. A shortcut, not feeding advice.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
+                ForEach(Array(FormulaPreparedTable.milliliters.enumerated()), id: \.offset) { index, amount in
+                    Button(label(amount, scoops: FormulaPreparedTable.scoops[index])) {
+                        apply(amount)
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("amount-prepared-\(Int(amount))")
+                }
+            }
+            if let last, last > 0, !FormulaPreparedTable.matches(last), pinned == nil {
+                Text(language == .zh
+                     ? "上次记下 \(shown(last))。它不在冲好总奶量里，所以没有当成默认。历史还在，少量也可以手改保存。"
+                     : "Last saved \(shown(last)). It is not a prepared total, so it is not the default. History stays, and a small amount can still be typed.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button(language == .zh ? "填入上次" : "Use last") { apply(last) }
+                        .frame(minHeight: 44)
+                    Button(language == .zh ? "以后沿用" : "Keep using it") { onPin(last) }
+                        .frame(minHeight: 44)
+                }
+            } else if pinned != nil {
+                Button(language == .zh ? "不再沿用指定用量" : "Stop using the pinned amount") { onClearPin() }
+                    .font(.footnote)
+                    .frame(minHeight: 44)
+            }
+        }
+        .onAppear { text = milliliters > 0 ? NumberField.format(milliliters, digits: 1) : "" }
+    }
+
+    private var numberField: some View {
+        HStack(spacing: 4) {
+            TextField("0", text: $text)
+                .keyboardType(.decimalPad)
+                .font(.system(size: 40, weight: .semibold))
+                .multilineTextAlignment(.trailing)
+                .focused($focused)
+                .frame(minWidth: 56, minHeight: 56)
+                .accessibilityIdentifier("bottle-amount")
+            Text("ml")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+        }
+        .onChange(of: text) { _, newText in
+            guard focused, let parsed = NumberField.parse(newText) else { return }
+            milliliters = parsed
+        }
+    }
+
+    private func label(_ amount: Double, scoops: Int) -> String {
+        language == .zh ? "\(Int(amount)) ml · \(scoops)勺" : "\(Int(amount)) ml · \(scoops)"
+    }
+
+    private func shown(_ amount: Double) -> String {
+        "\(Int(amount.rounded())) ml"
+    }
+
+    private func apply(_ amount: Double) {
+        milliliters = amount
+        text = NumberField.format(amount, digits: 1)
+        focused = false
+    }
+}
+
+/// Amount field for bottle contents other than formula. No invented nearby sizes.
 private struct InlineAmountEditor: View {
     @Binding var milliliters: Double
     let unit: VolumeUnit
     let language: ResolvedLanguage
-    var yesterdayRounded: Double?
     @State private var text = ""
     @FocusState private var focused: Bool
 
     var body: some View {
         let shown = unit.value(fromMilliliters: milliliters)
-        let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil, yesterdayRounded: yesterdayRounded)
         VStack(spacing: 8) {
             HStack(spacing: 4) {
                 TextField("0", text: $text)
@@ -483,29 +585,6 @@ private struct InlineAmountEditor: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: 64)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(language == .zh ? "快捷值" : "Shortcuts")
-                    .font(.subheadline.weight(.semibold))
-                if yesterdayRounded != nil {
-                    Text(language == .zh ? "含昨日均量向上取整到 10 毫升" : "Includes yesterday's average, rounded up to 10 ml")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityIdentifier("amount-shortcuts")
-            HStack(spacing: 8) {
-                ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
-                    Button(Copy.amount(value, unit: unit, language)) {
-                        milliliters = value
-                        text = NumberField.format(unit.value(fromMilliliters: value), digits: 1)
-                        focused = false
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                }
-            }
         }
         .padding(.vertical, 4)
         .onAppear {

@@ -111,7 +111,7 @@ final class SmokeUITests: XCTestCase {
         requireAppearance("dark", settingsTab: "设置", homeTab: "今天", name: "12-zh-home-dark")
         requireAppearance("light", settingsTab: "设置", homeTab: "今天", name: "11-home-light")
 
-        app.tabBars.buttons["设置"].tap()
+        tab("设置").tap()
         let languagePicker = app.buttons["app-language"]
         for _ in 0..<6 where !languagePicker.exists {
             app.swipeDown()
@@ -121,8 +121,8 @@ final class SmokeUITests: XCTestCase {
         let english = app.buttons["英文"]
         XCTAssertTrue(english.waitForExistence(timeout: 4))
         english.tap()
-        if app.tabBars.buttons["Today"].waitForExistence(timeout: 4) {
-            app.tabBars.buttons["Today"].tap()
+        if tab("Today").waitForExistence(timeout: 4) {
+            tab("Today").tap()
         }
         let englishHome = element("summary-formula")
         XCTAssertTrue(englishHome.waitForExistence(timeout: 6))
@@ -147,7 +147,7 @@ final class SmokeUITests: XCTestCase {
 
     /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
     private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
-        app.tabBars.buttons[settingsTab].tap()
+        tab(settingsTab).tap()
         // Settings keeps its scroll offset. The widget preview sits below appearance, so start at the top.
         for _ in 0..<4 { app.swipeDown() }
         let option = appearanceControl(expected, chinese: settingsTab == "设置")
@@ -159,7 +159,7 @@ final class SmokeUITests: XCTestCase {
         let probe = app.descendants(matching: .any)["appearance-scheme"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
         XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
-        app.tabBars.buttons[homeTab].tap()
+        tab(homeTab).tap()
         captureCheckedAppearance(expected, name: name)
     }
 
@@ -666,6 +666,16 @@ final class SmokeUITests: XCTestCase {
         app.descendants(matching: .any)[identifier]
     }
 
+    /// The dock draws the four tabs. A hidden system tab bar is only a fallback.
+    private func tab(_ title: String) -> XCUIElement {
+        let buttons = app.buttons.matching(NSPredicate(format: "label == %@", title))
+        if let hit = buttons.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+            return hit
+        }
+        if buttons.firstMatch.exists { return buttons.firstMatch }
+        return app.tabBars.buttons[title]
+    }
+
     private func logNursing() {
         tap("add-breast")
         let minutes = app.textFields["breast-left-minutes"]
@@ -679,7 +689,7 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func openWidgetPreview() {
-        let settings = app.tabBars.buttons["设置"].exists ? app.tabBars.buttons["设置"] : app.tabBars.buttons["Settings"]
+        let settings = tab("设置").exists ? tab("设置") : tab("Settings")
         settings.tap()
         let button = app.buttons["show-widget-preview"]
         for _ in 0..<5 where !button.exists { app.swipeUp() }
@@ -689,10 +699,10 @@ final class SmokeUITests: XCTestCase {
 
     private func closeWidgetPreview() {
         app.buttons["close-widget-preview"].tap()
-        if app.tabBars.buttons["今天"].exists {
-            app.tabBars.buttons["今天"].tap()
-        } else if app.tabBars.buttons["Today"].waitForExistence(timeout: 2) {
-            app.tabBars.buttons["Today"].tap()
+        if tab("今天").exists {
+            tab("今天").tap()
+        } else if tab("Today").waitForExistence(timeout: 2) {
+            tab("Today").tap()
         }
     }
 
@@ -719,9 +729,9 @@ final class SmokeUITests: XCTestCase {
 
         app.swipeDown()
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
-        app.tabBars.buttons["历史"].tap()
+        tab("历史").tap()
         XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
-        app.tabBars.buttons["今天"].tap()
+        tab("今天").tap()
         for _ in 0..<4 { app.swipeUp() }
         let growth = app.buttons["add-growth"]
         XCTAssertTrue(growth.waitForExistence(timeout: 6))
@@ -734,7 +744,7 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
-        app.tabBars.buttons["今天"].tap()
+        tab("今天").tap()
         XCTAssertTrue(reveal("add-formula", swiping: .down))
     }
 
@@ -766,9 +776,9 @@ final class SmokeUITests: XCTestCase {
         XCTAssertFalse(model.label.contains("V4"))
         choosePicker("ai-model", option: "K3", exact: true)
         waitUntil(model, contains: "K3", excluding: "K3.1")
-        XCTAssertTrue(app.tabBars.buttons["历史"].exists)
-        XCTAssertTrue(app.tabBars.buttons["趋势"].exists)
-        XCTAssertTrue(app.tabBars.buttons["设置"].exists)
+        XCTAssertTrue(tab("历史").exists)
+        XCTAssertTrue(tab("趋势").exists)
+        XCTAssertTrue(tab("设置").exists)
     }
 
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
@@ -814,7 +824,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(back.waitForExistence(timeout: 4))
         back.tap()
 
-        app.tabBars.buttons["历史"].tap()
+        tab("历史").tap()
         XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
         shot("review-15-history")
         app.buttons["列表"].tap()
@@ -826,11 +836,11 @@ final class SmokeUITests: XCTestCase {
         shot("review-16-edit-formula")
         app.navigationBars.buttons["取消"].tap()
 
-        app.tabBars.buttons["趋势"].tap()
+        tab("趋势").tap()
         XCTAssertTrue(app.navigationBars["趋势"].waitForExistence(timeout: 4))
         shot("review-17-trends")
 
-        app.tabBars.buttons["设置"].tap()
+        tab("设置").tap()
         for _ in 0..<4 { app.swipeDown() }
         shot("review-18-settings")
         let baby = app.buttons["settings-baby"]

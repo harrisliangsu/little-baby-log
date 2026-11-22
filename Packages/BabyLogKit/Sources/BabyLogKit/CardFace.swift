@@ -196,6 +196,25 @@ public enum AmountShortcuts {
     }
 }
 
+/// The tin's prepared totals. Water amounts are a different column and are not shortcuts.
+public enum FormulaPreparedTable {
+    public static let milliliters: [Double] = [65, 100, 130, 170, 200]
+    public static let scoops: [Int] = [2, 3, 4, 5, 6]
+
+    public static func matches(_ amount: Double) -> Bool {
+        guard amount.isFinite else { return false }
+        return milliliters.contains { abs($0 - amount) < 0.5 }
+    }
+
+    /// The field starts at the last formula amount only when that amount is one of these totals,
+    /// or the person has explicitly pinned another number. An off-table amount such as 11 is not a default.
+    public static func prefill(last: Double?, pinned: Double?) -> Double? {
+        if let pinned, pinned.isFinite, pinned > 0 { return pinned }
+        if let last, last.isFinite, last > 0, matches(last) { return last }
+        return nil
+    }
+}
+
 public enum FormulaAmountSeed {
     /// Newest-first events for one baby. Only a positive formula bottle counts.
     public static func milliliters(newestFirst events: [LogEvent]) -> Double? {

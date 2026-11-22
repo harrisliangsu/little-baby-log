@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import CoreData
 import BabyLogKit
 
@@ -15,11 +16,10 @@ struct AIChatView: View {
     var onReminder: ((CareRule) -> Void)?
 
     @EnvironmentObject private var desk: AIDesk
+    @EnvironmentObject private var voice: VoiceSession
     @Environment(\.managedObjectContext) private var context
     @FetchRequest(fetchRequest: Baby.lblAllByCreation()) private var babies: FetchedResults<Baby>
-    @StateObject private var speech = SpeechTranscriber()
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
-    @State private var voice: VoiceStep?
     @State private var composer = ""
     @State private var anchor = Date()
     @State private var editing: EditingDraft?
@@ -35,24 +35,42 @@ struct AIChatView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if let voice {
-                    voicePanel(voice)
-                }
-                List {
-                    if !summaryFacts.isEmpty {
-                        Section {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            if thread.messages.isEmpty && summaryFacts.isEmpty {
+                                Text(language == .zh ? "可以问问题，也可以说出要记的事。" : "Ask a question, or say what to log.")
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                             ForEach(summaryFacts) { fact in
                                 Button(fact.line) { onOpenFact?(fact.id) }
                                     .frame(minHeight: 44)
                             }
+                            ForEach(thread.messages) { message in
+                                messageRow(message).id(message.id)
+                            }
                         }
+                        .padding()
                     }
-                    ForEach(thread.messages) { message in
-                        messageRow(message)
+                    .onChange(of: thread.messages.count) { _, _ in
+                        if let last = thread.messages.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
                     }
                 }
                 .accessibilityIdentifier("ai-chat")
-                composerBar
+                .safeAreaInset(edge: .bottom) { composerBar }
+                .overlay(alignment: .bottom) {
+                    if voice.isPresented {
+                        VoiceCapturePanel(voice: voice, language: language) { text in
+                            let id = desk.addDraft(baby: babyID, text: text)
+                            if let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
+                                prepareSend(message)
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle(baby.displayName)
             .navigationBarTitleDisplayMode(.inline)
@@ -64,48 +82,46 @@ struct AIChatView: View {
             .sheet(item: $editing) { item in
                 EventEditorView(baby: item.baby, target: .seeded(item.draft))
             }
-        }
-    }
-
-    @ViewBuilder
-    private func voicePanel(_ step: VoiceStep) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            switch step {
-            case .disclose:
-                Text(language == .zh
-                     ? "系统会把声音转成文字，可能会发给 Apple。录音不会发给 Kimi 或 DeepSeek，也不会留在手机里。"
-                     : "The system may send speech to Apple. The recording is not sent to the model and is not kept.")
-                Button(language == .zh ? "开始" : "Start") { Task { await beginVoice() } }
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("voice-start")
-            case .recording:
-                Text(speech.partial.isEmpty ? (language == .zh ? "正在听" : "Listening") : speech.partial)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                Button(language == .zh ? "停止" : "Stop") { Task { await finishVoice() } }
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("voice-stop")
+            .sheet(item: $desk.pendingForm) { form in
+                EventEditorView(baby: baby, target: .seeded(form.draft)) { saved in
+                    desk.finishForm(saved: saved)
+                }
             }
-            Button(language == .zh ? "取消" : "Cancel") {
-                speech.cancel()
-                voice = nil
-            }
-            .accessibilityIdentifier("voice-cancel")
         }
-        .padding()
-        .accessibilityIdentifier("voice-disclosure")
     }
 
     @ViewBuilder
     private func messageRow(_ message: AIChatMessage) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if message.delivery == .draft || message.delivery == .failed {
-                TextField(language == .zh ? "草稿" : "Draft", text: textBinding(message), axis: .vertical)
-            } else {
-                Text(message.text)
+        let mine = message.role == .user
+        HStack {
+            if mine { Spacer(minLength: 40) }
+            VStack(alignment: .leading, spacing: 8) {
+                Text(shown(message.text))
+                    .textSelection(.enabled)
+                    .padding(12)
+                    .background(mine ? Color.accentColor.opacity(0.9) : Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .foregroundStyle(mine ? Color.white : Color.primary)
+                if !mine, !message.text.isEmpty {
+                    Button(language == .zh ? "复制" : "Copy") {
+                        UIPasteboard.general.string = shown(message.text)
+                    }
+                    .font(.footnote)
+                    .accessibilityIdentifier("ai-copy")
+                }
+                deliveryControls(message)
             }
-            switch message.delivery {
+            if !mine { Spacer(minLength: 40) }
+        }
+    }
+
+    private func shown(_ text: String) -> String {
+        let clean = ChatSurface.present(text).text
+        return clean.isEmpty ? (language == .zh ? "请在表单里确认后再保存。" : "Review the form, then save.") : clean
+    }
+
+    @ViewBuilder
+    private func deliveryControls(_ message: AIChatMessage) -> some View {
+        switch message.delivery {
             case .draft:
                 Button(language == .zh ? "发送" : "Send") { prepareSend(message) }
                     .frame(minHeight: 44)
@@ -127,11 +143,6 @@ struct AIChatView: View {
             case .sent:
                 EmptyView()
             }
-            ForEach(message.records) { item in
-                recordCard(item, message: message.id)
-            }
-        }
-        .padding(.vertical, 4)
     }
 
     private func recordCard(_ item: VoiceItemDraft, message: UUID) -> some View {
@@ -163,6 +174,24 @@ struct AIChatView: View {
             TextField(language == .zh ? "记一条" : "Note", text: $composer, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("ai-chat-input")
+            Image(systemName: "mic.fill")
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            if voice.machine.phase == .idle, AIRuntime.access() == .ready {
+                                voice.pressDown()
+                            }
+                            voice.move(value.translation.height)
+                        }
+                        .onEnded { _ in
+                            if voice.machine.phase == .holding || voice.machine.phase == .recording {
+                                voice.release()
+                            }
+                        }
+                )
+                .accessibilityIdentifier("ai-chat-mic")
             Button(language == .zh ? "发送" : "Send") {
                 let text = composer.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { return }
@@ -205,31 +234,6 @@ struct AIChatView: View {
         }
         if reminder {
             desk.seed(baby: babyID, key: "reminder", text: "")
-        }
-    }
-
-    private func beginVoice() async {
-        guard AIRuntime.access().mayRequestMicrophone else { return }
-        voice = .recording
-        if let started = await speech.start() {
-            anchor = started.startedAt
-        } else {
-            voice = nil
-            _ = desk.addDraft(baby: babyID, text: language == .zh ? "没识别出来" : "Nothing recognized")
-        }
-    }
-
-    private func finishVoice() async {
-        let text = await speech.stop()
-        voice = nil
-        switch VoiceNextStep.after(stopped: true, transcript: text, failed: text == nil) {
-        case .preview:
-            let id = desk.addDraft(baby: babyID, text: text ?? "")
-            if let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
-                prepareSend(message)
-            }
-        case .manual, .discard:
-            _ = desk.addDraft(baby: babyID, text: "")
         }
     }
 
@@ -312,6 +316,16 @@ struct AIChatView: View {
                 map: map
             )
             desk.replaceThread(updated)
+            let records = desk.thread(for: babyID).messages.first { $0.id == id }?.records ?? []
+            if records.contains(where: { $0.conflictsWithCurrentBaby }) {
+                desk.appendReply(baby: babyID, text: language == .zh ? "这句话像是在记另一位宝宝，没有打开表单。" : "That sounded like another baby, so no form was opened.")
+            } else {
+                let drafts = records.compactMap { $0.editableDraft(fallbackStart: anchor) }
+                if !drafts.isEmpty {
+                    desk.appendReply(baby: babyID, text: language == .zh ? "请在表单里看过再保存。" : "Review the form, then save.")
+                    desk.offerForms(drafts)
+                }
+            }
         } catch AIClientError.cancelled, is CancellationError {
             desk.cancel(baby: babyID, id: id)
         } catch {
