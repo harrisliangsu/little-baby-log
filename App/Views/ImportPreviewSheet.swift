@@ -12,11 +12,13 @@ struct ImportRequest: Identifiable {
 struct ImportPreviewSheet: View {
     @State private var file: ImportFile
     let source: Data
+    var allowsModel: Bool
     var onCommitted: (UUID) -> Void
 
-    init(file: ImportFile, source: Data, onCommitted: @escaping (UUID) -> Void) {
+    init(file: ImportFile, source: Data, allowsModel: Bool = false, onCommitted: @escaping (UUID) -> Void) {
         _file = State(initialValue: file)
         self.source = source
+        self.allowsModel = allowsModel
         self.onCommitted = onCommitted
     }
 
@@ -100,7 +102,7 @@ struct ImportPreviewSheet: View {
                         }
                     }
                 }
-                if AIRuntime.access().maySend {
+                if allowsModel, AIRuntime.access().maySend {
                     Section {
                         Button(language == .zh ? "看列名" : "Columns") {
                             guard AIRuntime.access().maySend else { return }

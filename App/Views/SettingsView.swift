@@ -37,7 +37,10 @@ struct SettingsView: View {
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
     @State private var showImporter = false
+    @State private var importDoorIsAssisted = false
     @State private var importRequest: ImportRequest?
+    @State private var manualTable: ManualImport?
+    @State private var assistExcerpt: AssistExcerpt?
     @AppStorage("lastImportBatchID") private var lastImportBatch = ""
     @State private var remindersOn = false
     @State private var showWidgetPreview = false
@@ -93,16 +96,26 @@ struct SettingsView: View {
         } message: {
             Text(exportError ?? "")
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .json, .plainText]) { result in
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item]) { result in
             guard case .success(let url) = result else { return }
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else { return }
-            importRequest = ImportRequest(file: StandardImporter.parse(data: data), source: data)
+            acceptImport(data: data, filename: url.lastPathComponent)
         }
         .sheet(item: $importRequest) { request in
-            ImportPreviewSheet(file: request.file, source: request.source) { batch in
+            ImportPreviewSheet(file: request.file, source: request.source, allowsModel: false) { batch in
                 lastImportBatch = batch.uuidString
+            }
+        }
+        .sheet(item: $manualTable) { table in
+            ImportManualMapSheet(table: table.table) { file, source in
+                importRequest = ImportRequest(file: file, source: source)
+            }
+        }
+        .sheet(item: $assistExcerpt) { excerpt in
+            ImportAssistSheet(excerpt: excerpt.text) { file in
+                importRequest = ImportRequest(file: file, source: Data(excerpt.text.utf8))
             }
         }
     }
@@ -280,10 +293,29 @@ struct SettingsView: View {
                 Label(language == .zh ? "导出全部数据 (CSV)" : "Export all data (CSV)", systemImage: "square.and.arrow.up")
             }
             Button {
+                importDoorIsAssisted = false
                 showImporter = true
             } label: {
-                Label(language == .zh ? "导入标准 CSV / JSON" : "Import standard CSV / JSON", systemImage: "square.and.arrow.down")
+                Label(language == .zh ? "普通导入" : "Import a file", systemImage: "square.and.arrow.down")
             }
+            .accessibilityIdentifier("import-ordinary")
+            Text(ImportIntake.ordinaryFormats)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button {
+                guard AIRuntime.access().maySend else {
+                    exportError = language == .zh ? "AI 已关闭或还没有可用的 Key。请用普通导入。文件不会上传。" : "The assistant is off. Use ordinary import. The file is not uploaded."
+                    return
+                }
+                importDoorIsAssisted = true
+                showImporter = true
+            } label: {
+                Label(language == .zh ? "用 AI 读取文件" : "Read a file with AI", systemImage: "sparkles")
+            }
+            .accessibilityIdentifier("import-assisted")
+            Text(ImportIntake.assistedFormats)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             if !lastImportBatch.isEmpty {
                 Button(language == .zh ? "撤销上一批导入" : "Undo last import", role: .destructive) {
                     undoLastImport()
@@ -341,6 +373,28 @@ struct SettingsView: View {
         case .dark: return language == .zh ? "深色" : "Dark"
         case .night: return language == .zh ? "夜间" : "Night"
         case .nightSchedule: return language == .zh ? "按时夜间" : "Night on a schedule"
+        }
+    }
+
+    private func acceptImport(data: Data, filename: String) {
+        if importDoorIsAssisted {
+            switch ImportIntake.openAssisted(data: data, filename: filename) {
+            case .schema(let file):
+                importRequest = ImportRequest(file: file, source: data)
+            case .text(let text):
+                assistExcerpt = AssistExcerpt(text: text)
+            case .unsupported(let message):
+                exportError = message
+            }
+            return
+        }
+        switch ImportIntake.openOrdinary(data: data, filename: filename) {
+        case .schema(let file):
+            importRequest = ImportRequest(file: file, source: data)
+        case .manual(let table):
+            manualTable = ManualImport(table: table)
+        case .rejected(let message):
+            exportError = message
         }
     }
 
