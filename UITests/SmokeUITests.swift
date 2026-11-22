@@ -809,7 +809,10 @@ final class SmokeUITests: XCTestCase {
         app.buttons["summary-formula"].tap()
         XCTAssertTrue(element("timeline-total").waitForExistence(timeout: 5))
         shot("review-14-formula-timeline")
-        app.navigationBars.buttons["今天"].tap()
+        // The back button uses the previous title, which is the baby's name, not the tab title.
+        let back = app.navigationBars.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 4))
+        back.tap()
 
         app.tabBars.buttons["历史"].tap()
         XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
