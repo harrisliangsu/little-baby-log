@@ -735,7 +735,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
         app.tabBars.buttons["今天"].tap()
-        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+        XCTAssertTrue(reveal("add-formula", swiping: .down))
     }
 
     func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
@@ -881,7 +881,26 @@ final class SmokeUITests: XCTestCase {
         check?()
         shot(shotName)
         app.navigationBars.buttons["取消"].tap()
-        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+        // The list unloads rows that scrolled away, so return to the top before looking for the first card.
+        XCTAssertTrue(reveal("add-formula", swiping: .down), identifier)
+    }
+
+    private enum SwipeDirection {
+        case up, down
+    }
+
+    /// Lazy lists omit off-screen buttons. Swipe until the identifier is back in the tree.
+    private func reveal(_ identifier: String, swiping direction: SwipeDirection) -> Bool {
+        let element = app.buttons[identifier]
+        if element.waitForExistence(timeout: 2) { return true }
+        for _ in 0..<6 {
+            switch direction {
+            case .up: app.swipeUp()
+            case .down: app.swipeDown()
+            }
+            if element.exists { return true }
+        }
+        return element.waitForExistence(timeout: 2)
     }
 
     private func assertWidgetSample(_ identifier: String, cards: [String]) {
