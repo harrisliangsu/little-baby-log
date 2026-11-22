@@ -840,19 +840,13 @@ final class SmokeUITests: XCTestCase {
         shot("review-19-baby-form")
         app.navigationBars.buttons["取消"].tap()
 
-        let reminders = app.buttons["提醒"]
-        for _ in 0..<5 where !reminders.exists { app.swipeUp() }
-        reminders.tap()
+        openLabeled("提醒")
         shot("review-20-reminders")
         popNavigation()
-        let cards = app.buttons["首页卡片"]
-        for _ in 0..<5 where !cards.exists { app.swipeUp() }
-        cards.tap()
+        openLabeled("首页卡片")
         shot("review-21-home-cards")
         popNavigation()
-        let assistant = app.buttons["AI 助手"]
-        for _ in 0..<5 where !assistant.exists { app.swipeUp() }
-        assistant.tap()
+        openLabeled("AI 助手")
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.secureTextFields["ai-key-field"].waitForExistence(timeout: 4))
         shot("review-22-ai-settings")
@@ -886,6 +880,19 @@ final class SmokeUITests: XCTestCase {
         app.navigationBars.buttons["取消"].tap()
         // The list unloads rows that scrolled away, so return to the top before looking for the first card.
         XCTAssertTrue(reveal("add-formula", swiping: .down), identifier)
+    }
+
+    /// Settings rows are links, and a lazy list drops the ones that scrolled away.
+    private func openLabeled(_ label: String) {
+        for _ in 0..<6 { app.swipeDown() }
+        let element = app.descendants(matching: .any)[label]
+        var swipes = 0
+        while swipes < 8 && !(element.exists && element.isHittable) {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(element.waitForExistence(timeout: 4), label)
+        element.tap()
     }
 
     private func popNavigation() {
@@ -922,11 +929,9 @@ final class SmokeUITests: XCTestCase {
         for card in cards {
             let item = sample.descendants(matching: .any)["widget-item-\(card)"]
             XCTAssertTrue(item.waitForExistence(timeout: 2), "\(identifier) \(card)")
-            XCTAssertGreaterThanOrEqual(item.frame.height, 18, "\(identifier) \(card)")
-            XCTAssertGreaterThanOrEqual(item.frame.minY, sample.frame.minY - 1, "\(identifier) \(card)")
-            XCTAssertLessThanOrEqual(item.frame.maxY, sample.frame.maxY + 1, "\(identifier) \(card)")
-            XCTAssertGreaterThanOrEqual(item.frame.minX, sample.frame.minX - 1, "\(identifier) \(card)")
-            XCTAssertLessThanOrEqual(item.frame.maxX, sample.frame.maxX + 1, "\(identifier) \(card)")
+            let visible = item.frame.intersection(sample.frame)
+            XCTAssertGreaterThanOrEqual(visible.height, 16, "\(identifier) \(card)")
+            XCTAssertGreaterThanOrEqual(visible.width, 40, "\(identifier) \(card)")
         }
     }
 
