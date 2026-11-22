@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import CoreData
 import BabyLogKit
 
@@ -470,21 +471,26 @@ private struct AmountSheet: View {
     let language: ResolvedLanguage
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @State private var contentHeight: CGFloat = 180
+    @State private var keyboardOverlap: CGFloat = 0
 
     var body: some View {
+        let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil)
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
+            VStack(spacing: 12) {
+                HStack(spacing: 4) {
                     TextField("0", text: $text)
                         .keyboardType(.decimalPad)
-                        .font(.largeTitle.weight(.semibold))
+                        .font(.system(size: 40, weight: .semibold))
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(minWidth: 44, minHeight: 56)
                         .accessibilityIdentifier("bottle-amount")
                     Text(unit.symbol)
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundStyle(.secondary)
                 }
-                .frame(minHeight: 64)
-                let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil)
+                .frame(maxWidth: .infinity, minHeight: 64)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
                     ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
                         Button(Copy.amount(value, unit: unit, language)) {
@@ -496,7 +502,16 @@ private struct AmountSheet: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 12)
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(key: AmountSheetHeight.self, value: proxy.size.height)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationTitle(UICopy.t(.amount, language))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -511,12 +526,36 @@ private struct AmountSheet: View {
             .onAppear {
                 text = milliliters > 0 ? NumberField.format(unit.value(fromMilliliters: milliliters), digits: 1) : ""
             }
+            .onPreferenceChange(AmountSheetHeight.self) { contentHeight = $0 }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                keyboardOverlap = Self.keyboardOverlap(note)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardOverlap = 0
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.height(sheetHeight)])
+    }
+
+    /// Content plus the bar, and the keyboard when it is up, so Done and the shortcuts stay above the keys.
+    private var sheetHeight: CGFloat {
+        min(max(contentHeight, 140) + 52 + keyboardOverlap, 720)
+    }
+
+    private static func keyboardOverlap(_ note: Notification) -> CGFloat {
+        guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return 0 }
+        return max(0, UIScreen.main.bounds.maxY - frame.minY)
     }
 
     private func applyTyped() {
         guard let parsed = NumberField.parse(text) else { return }
         milliliters = unit.milliliters(from: parsed)
+    }
+}
+
+private struct AmountSheetHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

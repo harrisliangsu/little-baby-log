@@ -640,10 +640,12 @@ final class SmokeUITests: XCTestCase {
         let amount = app.textFields["bottle-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         amount.tap()
+        let done = app.buttons["amount-done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: done)
+        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
         amount.typeText(millilitres)
-        if app.buttons["amount-done"].waitForExistence(timeout: 2) {
-            app.buttons["amount-done"].tap()
-        }
+        done.tap()
         let save = app.buttons["save-entry"]
         if !save.isHittable, app.buttons["完成"].exists {
             app.buttons["完成"].tap()
