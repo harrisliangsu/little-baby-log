@@ -176,13 +176,24 @@ struct SettingsView: View {
     private var babiesSection: some View {
         Section {
             ForEach(babies, id: \.objectID) { baby in
-                Button {
-                    babySheet = .edit(baby)
-                } label: {
-                    BabyRow(baby: baby)
+                HStack {
+                    Button {
+                        switchBaby(baby)
+                    } label: {
+                        HStack {
+                            BabyRow(baby: baby)
+                            if baby.uuid?.uuidString == selectedBabyID {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings-baby-switch")
+                    Button(language == .zh ? "编辑" : "Edit") {
+                        babySheet = .edit(baby)
+                    }
+                    .accessibilityIdentifier("settings-baby")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings-baby")
             }
             Button {
                 babySheet = .add
@@ -451,6 +462,13 @@ struct SettingsView: View {
         case .rejected(let message):
             exportError = message
         }
+    }
+
+    private func switchBaby(_ baby: Baby) {
+        guard let id = baby.uuid else { return }
+        let known = Set(babies.compactMap(\.uuid))
+        guard case .select(let chosen) = BabySwitch.decide(stored: selectedBabyID, target: id, known: known, work: nil) else { return }
+        selectedBabyID = chosen.uuidString
     }
 
     private func undoLastImport() {

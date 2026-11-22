@@ -25,6 +25,7 @@ struct TodayView: View {
     @State private var openedLinkAt: (key: String, date: Date)?
     @State private var feedback = 0
     @State private var timelineCard: HomeCard?
+    @State private var kindHistory: EventKind?
     @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showAIDraft = false
     /// Relative labels refresh on a timer. The list itself is not a TimelineView:
@@ -91,6 +92,8 @@ struct TodayView: View {
                             add(card)
                         } onKind: { kind in
                             editor = .new(kind)
+                        } onHistory: { kind in
+                            kindHistory = kind
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
                         .listRowBackground(Color.clear)
@@ -145,6 +148,9 @@ struct TodayView: View {
         }
         .navigationDestination(item: $timelineCard) { card in
             CategoryTimelineView(baby: baby, card: card)
+        }
+        .navigationDestination(item: $kindHistory) { kind in
+            KindHistoryView(baby: baby, kind: kind)
         }
     }
 

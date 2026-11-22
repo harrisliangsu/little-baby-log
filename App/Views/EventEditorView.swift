@@ -103,7 +103,7 @@ struct EventEditorView: View {
                 .opacity(0.01)
                 .accessibilityElement(children: .contain)
             }
-            .onAppear(perform: seedFormulaAmountIfNeeded)
+            .onAppear(perform: seedNewRecordIfNeeded)
             .themedList()
             .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)
@@ -349,12 +349,30 @@ struct EventEditorView: View {
         }
     }
 
-    private func seedFormulaAmountIfNeeded() {
+    private func seedNewRecordIfNeeded() {
         guard !seededFormula else { return }
         seededFormula = true
-        guard case .card(.formula) = target, draft.amountML <= 0 else { return }
-        if let amount = FormulaPreparedTable.prefill(last: lastFormulaAmount, pinned: pinnedFormulaAmount) {
-            draft.amountML = amount
+        let events = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+        switch target {
+        case .edit, .seeded:
+            return
+        case .new(let kind):
+            draft = RecordDefaults.newDraft(kind: kind, events: events, now: .now, formulaPin: pinnedFormulaAmount)
+        case .card(let card):
+            switch card {
+            case .breast:
+                draft = RecordDefaults.newDraft(kind: .breastfeed, events: events, now: .now)
+            case .formula:
+                draft = RecordDefaults.newDraft(kind: .bottle, bottle: .formula, events: events, now: .now, formulaPin: pinnedFormulaAmount)
+            case .wet:
+                draft = RecordDefaults.newDraft(kind: .diaper, diaper: .wet, events: events, now: .now)
+            case .dirty:
+                draft = RecordDefaults.newDraft(kind: .diaper, diaper: .dirty, events: events, now: .now)
+            case .diaperChange:
+                draft = RecordDefaults.newDraft(kind: .diaper, diaper: .dry, events: events, now: .now)
+            case .sleep:
+                draft = RecordDefaults.newDraft(kind: .sleep, events: events, now: .now)
+            }
         }
     }
 

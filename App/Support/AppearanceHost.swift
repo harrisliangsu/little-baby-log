@@ -7,6 +7,7 @@ import BabyLogKit
 struct AppearanceHost: ViewModifier {
     @AppStorage(Prefs.appearanceMode) private var mode: AppearanceMode = Prefs.defaultAppearanceMode
     @AppStorage(InterfaceStyle.storageKey) private var styleRaw = InterfaceStyle.classic.rawValue
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var interfaceStyle: InterfaceStyle {
         InterfaceStyle(rawValue: styleRaw) ?? .classic
@@ -25,6 +26,16 @@ struct AppearanceHost: ViewModifier {
             .environment(\.appTheme, .standard)
             .environment(\.interfaceStyle, interfaceStyle)
             .preferredColorScheme(colorScheme)
+            .background {
+                if interfaceStyle == .liquidGlass, !reduceTransparency {
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(0.28), Color.purple.opacity(0.18)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
+                }
+            }
             .onAppear { applyWindow() }
             .onChange(of: mode) { _, _ in applyWindow() }
     }

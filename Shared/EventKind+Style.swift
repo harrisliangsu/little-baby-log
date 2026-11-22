@@ -32,24 +32,36 @@ struct KindIcon: View {
     @Environment(\.appTheme) private var theme
 
     let kind: EventKind
+    var diaper: DiaperKind?
     var size: CGFloat = 44
 
     var body: some View {
         let color = theme.color(for: kind)
-        Image(systemName: kind.symbolName)
-            .font(.system(size: size * 0.44, weight: .semibold))
-            .foregroundStyle(theme.onColor)
+        BundledIcon(name: RecordIcons.name(kind: kind, diaper: diaper), color: theme.onColor)
+            .frame(width: size * 0.62, height: size * 0.62)
             .frame(width: size, height: size)
-            .background(
-                Circle().fill(
-                    LinearGradient(
-                        colors: [color.opacity(0.75), color],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-            )
+            .background(Circle().fill(color))
             .accessibilityHidden(true)
+    }
+}
+
+enum RecordIcons {
+    static func name(kind: EventKind, diaper: DiaperKind? = nil) -> String {
+        switch kind {
+        case .breastfeed: return "baby"
+        case .bottle: return "jar"
+        case .solids: return "bowl-food"
+        case .sleep: return "moon"
+        case .pump: return "drop-half"
+        case .growth: return "ruler"
+        case .medicine: return "pill"
+        case .diaper:
+            switch diaper {
+            case .wet: return "drop"
+            case .dirty, .mixed: return "spiral"
+            case .dry, nil: return "drop-half"
+            }
+        }
     }
 }
 

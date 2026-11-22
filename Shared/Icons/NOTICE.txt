@@ -1,0 +1,11 @@
+Phosphor Icons, regular weight.
+
+Source: https://github.com/phosphor-icons/core
+License: MIT. Copyright (c) Phosphor Icons.
+The license text is PHOSPHOR-LICENSE in this folder.
+
+These files are baby, jar, drop, drop-half, bowl-food, moon, pill, ruler, and spiral.
+They are drawn locally. The app does not download them.
+
+Wet uses drop. Dirty uses spiral. A diaper change uses drop-half.
+Phosphor has no diaper glyph, so those three stay distinct without copying another app's icon.

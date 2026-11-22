@@ -28,9 +28,8 @@ struct CareCardRow: View {
         let iconSide: CGFloat = prominent ? 44 : 28
         let plusSide: CGFloat = prominent ? 56 : 44
         HStack(alignment: .center, spacing: prominent ? 12 : 8) {
-            Image(systemName: symbol)
-                .font((prominent ? Font.title3 : Font.caption).weight(.semibold))
-                .foregroundStyle(.white)
+            BundledIcon(name: RecordIcons.name(kind: symbolKind, diaper: symbolDiaper), color: .white)
+                .frame(width: iconSide * 0.62, height: iconSide * 0.62)
                 .frame(width: iconSide, height: iconSide)
                 .background(Circle().fill(tint))
             Button(action: onOpen) {
@@ -70,6 +69,24 @@ struct CareCardRow: View {
         .padding(.horizontal, prominent ? 14 : 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.surface, in: RoundedRectangle(cornerRadius: prominent ? 18 : 12, style: .continuous))
+    }
+
+    private var symbolKind: EventKind {
+        switch card {
+        case .breast: return .breastfeed
+        case .formula: return .bottle
+        case .wet, .dirty, .diaperChange: return .diaper
+        case .sleep: return .sleep
+        }
+    }
+
+    private var symbolDiaper: DiaperKind? {
+        switch card {
+        case .wet: return .wet
+        case .dirty: return .dirty
+        case .diaperChange: return .dry
+        default: return nil
+        }
     }
 
     private var symbol: String {
@@ -122,6 +139,7 @@ struct OtherLogStrip: View {
     let kinds: [EventKind]
     let onCard: (HomeCard) -> Void
     let onKind: (EventKind) -> Void
+    var onHistory: ((EventKind) -> Void)? = nil
 
     @Environment(\.uiLanguage) private var language
 
@@ -131,7 +149,7 @@ struct OtherLogStrip: View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
             ForEach(cards) { card in
                 iconButton(
-                    symbol: symbol(card),
+                    icon: RecordIcons.name(kind: kind(card), diaper: diaper(card)),
                     tint: tint(card),
                     title: Copy.card(card, language),
                     identifier: addID(card),
@@ -140,7 +158,7 @@ struct OtherLogStrip: View {
             }
             ForEach(kinds) { kind in
                 iconButton(
-                    symbol: kind.symbolName,
+                    icon: RecordIcons.name(kind: kind),
                     tint: kind.color,
                     title: UICopy.kind(kind, language),
                     identifier: "add-\(kind.rawValue)",
@@ -153,7 +171,7 @@ struct OtherLogStrip: View {
     }
 
     private func iconButton(
-        symbol: String,
+        icon: String,
         tint: Color,
         title: String,
         identifier: String,
@@ -161,9 +179,8 @@ struct OtherLogStrip: View {
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+                BundledIcon(name: icon, color: .white)
+                    .frame(width: 26, height: 26)
                     .frame(minWidth: 44, minHeight: 44)
                     .background(Circle().fill(tint))
                 Text(title)
@@ -171,6 +188,13 @@ struct OtherLogStrip: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.center)
+                if let onHistory, let kind = EventKind(rawValue: String(identifier.dropFirst(4))), OtherLogKinds.kinds.contains(kind) {
+                    Button(language == .zh ? "记录" : "History") {
+                        onHistory(kind)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .accessibilityIdentifier(identifier.replacingOccurrences(of: "add-", with: "history-"))
+                }
             }
             .frame(maxWidth: .infinity, minHeight: 44)
         }
@@ -178,6 +202,24 @@ struct OtherLogStrip: View {
         .contentShape(Rectangle())
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")
+    }
+
+    private func kind(_ card: HomeCard) -> EventKind {
+        switch card {
+        case .breast: return .breastfeed
+        case .formula: return .bottle
+        case .wet, .dirty, .diaperChange: return .diaper
+        case .sleep: return .sleep
+        }
+    }
+
+    private func diaper(_ card: HomeCard) -> DiaperKind? {
+        switch card {
+        case .wet: return .wet
+        case .dirty: return .dirty
+        case .diaperChange: return .dry
+        default: return nil
+        }
     }
 
     private func symbol(_ card: HomeCard) -> String {
