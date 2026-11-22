@@ -11,7 +11,7 @@ struct CareBoardWidget: Widget {
             CareBoardWidgetView(entry: entry)
         }
         .configurationDisplayName("宝宝小记")
-        .description("所选宝宝和项目。")
+        .description("最多 6 个已选项目都会显示。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

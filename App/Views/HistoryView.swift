@@ -112,6 +112,7 @@ private struct HistoryListView: View {
                             EventRow(event: event)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("history-entry")
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 delete(event)

@@ -125,7 +125,7 @@ struct OtherLogStrip: View {
 
     @Environment(\.uiLanguage) private var language
 
-    private let columns = [GridItem(.adaptive(minimum: 64), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 88), spacing: 12)]
 
     var body: some View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
@@ -160,14 +160,21 @@ struct OtherLogStrip: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 44, minHeight: 44)
-                .background(Circle().fill(tint))
+            VStack(spacing: 4) {
+                Image(systemName: symbol)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .background(Circle().fill(tint))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.borderless)
-        .frame(minWidth: 44, minHeight: 44)
         .contentShape(Rectangle())
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(language == .zh ? "添加\(title)" : "Add \(title)")

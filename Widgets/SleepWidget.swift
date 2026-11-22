@@ -30,33 +30,27 @@ struct SleepWidgetView: View {
 
     private func content(_ baby: WidgetSnapshot.BabySummary) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                WidgetKindIcon(kind: .sleep, size: 22)
-                    .widgetAccentable()
-                Text(baby.name)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            WidgetKindIcon(kind: .sleep, size: 26)
+                .widgetAccentable()
             Spacer(minLength: 4)
 
             VStack(alignment: .leading, spacing: 2) {
                 if let started = baby.runningSleepStartedAt {
                     Text(Copy.sleeping(entry.language))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(EventKind.sleep.color)
                         .widgetAccentable()
                     Elapsed.since(started)
-                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 } else if let ended = baby.lastSleepEndedAt {
                     Text(entry.language == .zh ? "醒了" : "Awake")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(.orange)
                         .widgetAccentable()
                     Elapsed.since(ended)
-                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 } else {
@@ -66,7 +60,7 @@ struct SleepWidgetView: View {
                 }
                 if let next = entry.nextSleep {
                     Text(PredictionFormat.sleepLine(next, language: entry.language))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)

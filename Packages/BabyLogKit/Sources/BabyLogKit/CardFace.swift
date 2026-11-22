@@ -131,11 +131,64 @@ public enum LogTimeShortcut: Int, CaseIterable, Sendable {
 
 public enum AmountShortcuts {
     /// Nearby sizes when this baby has a real last amount. Otherwise common sizes, not a pretended last feed.
-    public static func milliliters(around last: Double?) -> [Double] {
-        guard let last, last > 0 else { return [60, 90, 120, 150] }
+    /// `yesterdayRounded` is that baby's same bottle type, averaged over yesterday and raised to the next 10 ml.
+    /// It is a logging shortcut, not a feeding recommendation. Missing days add nothing, including 0.
+    public static func milliliters(around last: Double?, yesterdayRounded: Double? = nil) -> [Double] {
+        var values: [Double] = []
+        if let yesterdayRounded, let kept = positive(yesterdayRounded) {
+            values.append(kept)
+        }
+        if let last, last > 0 {
+            values.append(contentsOf: [last - 30, last, last + 30])
+        } else {
+            values.append(contentsOf: [60, 90, 120, 150])
+        }
+        return uniquePositive(values)
+    }
+
+    /// Smallest multiple of 10 ml that is still at least `average`. An exact ten stays put. 83 becomes 90.
+    /// Zero, negative, and non-finite values return nil so the form does not offer 0 or NaN.
+    public static func roundedUpToTen(_ average: Double) -> Double? {
+        guard average.isFinite, average > 0 else { return nil }
+        let scaled = average / 10
+        let nearest = scaled.rounded()
+        let steps = abs(scaled - nearest) < 0.000_001 ? nearest : scaled.rounded(.up)
+        let value = steps * 10
+        return positive(value)
+    }
+
+    /// Yesterday's local calendar day, for this baby and this bottle content only.
+    /// Other babies, other contents, non-bottles, empty amounts, and deleted rows are left out.
+    public static func yesterdayRoundedMilliliters(
+        events: [LogEvent],
+        baby: Baby,
+        content: BottleContent,
+        now: Date,
+        calendar: Calendar
+    ) -> Double? {
+        let startOfToday = calendar.startOfDay(for: now)
+        guard let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday) else { return nil }
+        let amounts = events.compactMap { event -> Double? in
+            guard !event.isDeleted else { return nil }
+            guard event.baby?.objectID == baby.objectID else { return nil }
+            guard event.kind == .bottle, event.bottleContent == content else { return nil }
+            guard event.amountML.isFinite, event.amountML > 0 else { return nil }
+            guard let date = event.startDate, date >= startOfYesterday, date < startOfToday else { return nil }
+            return event.amountML
+        }
+        guard !amounts.isEmpty else { return nil }
+        return roundedUpToTen(amounts.reduce(0, +) / Double(amounts.count))
+    }
+
+    private static func positive(_ value: Double) -> Double? {
+        guard value.isFinite, value > 0 else { return nil }
+        return value
+    }
+
+    private static func uniquePositive(_ values: [Double]) -> [Double] {
         var seen = Set<Int>()
         var result: [Double] = []
-        for value in [last - 30, last, last + 30] where value > 0 {
+        for value in values where value > 0 && value.isFinite {
             let key = Int(value.rounded())
             if seen.insert(key).inserted { result.append(value) }
         }

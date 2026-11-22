@@ -630,23 +630,18 @@ final class SmokeUITests: XCTestCase {
     private func logFormula(millilitres: String) {
         app.buttons["add-formula"].tap()
         XCTAssertFalse(app.staticTexts["备注"].exists)
-        let amountRow = app.buttons["amount-value"]
-        XCTAssertTrue(amountRow.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(amountRow.frame.height, 44)
-        let timeRow = app.buttons["time-value"]
-        XCTAssertTrue(timeRow.waitForExistence(timeout: 2))
-        XCTAssertGreaterThanOrEqual(timeRow.frame.height, 44)
-        amountRow.tap()
         let amount = app.textFields["bottle-amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(amount.frame.height, 44)
+        let now = app.buttons["time-now"]
+        XCTAssertTrue(now.waitForExistence(timeout: 2))
+        XCTAssertGreaterThanOrEqual(now.frame.height, 44)
+        XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 2))
         amount.tap()
-        let done = app.buttons["amount-done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 3))
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: done)
-        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
         amount.typeText(millilitres)
-        done.tap()
         let save = app.buttons["save-entry"]
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: save)
+        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
         if !save.isHittable, app.buttons["完成"].exists {
             app.buttons["完成"].tap()
         }
@@ -740,7 +735,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
         app.tabBars.buttons["今天"].tap()
-        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
+        XCTAssertTrue(reveal("add-formula", swiping: .down))
     }
 
     func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
@@ -774,6 +769,201 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["历史"].exists)
         XCTAssertTrue(app.tabBars.buttons["趋势"].exists)
         XCTAssertTrue(app.tabBars.buttons["设置"].exists)
+    }
+
+    /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
+    /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
+    func testReviewSurfacesLeaveScreenshots() throws {
+        app.launchArguments += ["-lbl-ui-reset"]
+        app.launch()
+        let name = app.textFields["baby-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        shot("review-01-new-baby")
+        name.tap()
+        name.typeText("Beibei")
+        app.buttons["start-tracking"].tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
+        shot("review-02-today")
+
+        openForm("add-formula", shotName: "review-03-formula") {
+            XCTAssertTrue(self.app.textFields["bottle-amount"].waitForExistence(timeout: 3))
+            XCTAssertTrue(self.app.buttons["time-now"].exists)
+        }
+        for pair in [
+            ("add-breast", "review-04-breast"),
+            ("add-sleep", "review-05-sleep"),
+            ("add-wet", "review-06-wet"),
+            ("add-dirty", "review-07-dirty"),
+            ("add-diaper-change", "review-08-change"),
+            ("add-solids", "review-09-solids"),
+            ("add-pump", "review-10-pump"),
+            ("add-growth", "review-11-growth"),
+            ("add-medicine", "review-12-medicine"),
+        ] {
+            openForm(pair.0, shotName: pair.1, check: nil)
+        }
+
+        for _ in 0..<4 { app.swipeDown() }
+        logFormula(millilitres: "120")
+        shot("review-13-today-after-formula")
+        app.buttons["summary-formula"].tap()
+        XCTAssertTrue(element("timeline-total").waitForExistence(timeout: 5))
+        shot("review-14-formula-timeline")
+        // The back button uses the previous title, which is the baby's name, not the tab title.
+        let back = app.navigationBars.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 4))
+        back.tap()
+
+        app.tabBars.buttons["历史"].tap()
+        XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
+        shot("review-15-history")
+        app.buttons["列表"].tap()
+        let entry = app.buttons["history-entry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 4))
+        entry.tap()
+        XCTAssertTrue(app.buttons["save-entry"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.textFields["bottle-amount"].exists)
+        shot("review-16-edit-formula")
+        app.navigationBars.buttons["取消"].tap()
+
+        app.tabBars.buttons["趋势"].tap()
+        XCTAssertTrue(app.navigationBars["趋势"].waitForExistence(timeout: 4))
+        shot("review-17-trends")
+
+        app.tabBars.buttons["设置"].tap()
+        for _ in 0..<4 { app.swipeDown() }
+        shot("review-18-settings")
+        let baby = app.buttons["settings-baby"]
+        XCTAssertTrue(baby.waitForExistence(timeout: 4))
+        baby.tap()
+        XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 4))
+        shot("review-19-baby-form")
+        app.navigationBars.buttons["取消"].tap()
+
+        openLabeled("settings-reminders")
+        shot("review-20-reminders")
+        popNavigation()
+        openLabeled("settings-home-cards")
+        shot("review-21-home-cards")
+        popNavigation()
+        openLabeled("settings-assistant")
+        XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.secureTextFields["ai-key-field"].waitForExistence(timeout: 4))
+        shot("review-22-ai-settings")
+        popNavigation()
+
+        let sync = app.staticTexts["iCloud 同步"]
+        var syncSwipes = 0
+        while syncSwipes < 8 && !sync.exists {
+            app.swipeUp()
+            syncSwipes += 1
+        }
+        XCTAssertTrue(sync.waitForExistence(timeout: 4))
+        let importer = app.descendants(matching: .any)["导入标准 CSV / JSON"]
+        var importSwipes = 0
+        while importSwipes < 4 && !importer.exists {
+            app.swipeUp()
+            importSwipes += 1
+        }
+        XCTAssertTrue(importer.waitForExistence(timeout: 4))
+        shot("review-23-sync-import")
+
+        openWidgetPreview()
+        assertWidgetSample("widget-sample-small-1", cards: ["breast"])
+        assertWidgetSample("widget-sample-small-2", cards: ["breast", "formula"])
+        assertWidgetSample("widget-sample-small-6", cards: ["breast", "formula", "wet", "dirty", "diaperChange", "sleep"])
+        assertWidgetSample("widget-sample-medium-4", cards: ["breast", "formula", "wet", "dirty"])
+        assertWidgetSample("widget-sample-medium-6", cards: ["breast", "formula", "wet", "dirty", "diaperChange", "sleep"])
+        assertWidgetSample("widget-sample-large-6", cards: ["breast", "formula", "wet", "dirty", "diaperChange", "sleep"])
+        assertWidgetSample("widget-sample-dark-6", cards: ["breast", "formula", "wet", "dirty", "diaperChange", "sleep"])
+        shot("review-24-widget-samples")
+        closeWidgetPreview()
+        requireAppearance("dark", settingsTab: "设置", homeTab: "今天", name: "review-25-today-dark")
+    }
+
+    private func openForm(_ identifier: String, shotName: String, check: (() -> Void)?) {
+        tap(identifier)
+        let save = app.buttons["save-entry"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), identifier)
+        XCTAssertGreaterThanOrEqual(save.frame.height, 44, identifier)
+        check?()
+        shot(shotName)
+        app.navigationBars.buttons["取消"].tap()
+        // The list unloads rows that scrolled away, so return to the top before looking for the first card.
+        XCTAssertTrue(reveal("add-formula", swiping: .down), identifier)
+    }
+
+    /// Settings rows are links, and a lazy list drops the ones that scrolled away.
+    private func openLabeled(_ label: String) {
+        for _ in 0..<6 { app.swipeDown() }
+        let element = app.descendants(matching: .any)[label]
+        var swipes = 0
+        while swipes < 8 && !(element.exists && element.isHittable) {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(element.waitForExistence(timeout: 4), label)
+        element.tap()
+    }
+
+    private func popNavigation() {
+        let back = app.navigationBars.buttons["BackButton"]
+        if back.waitForExistence(timeout: 2) {
+            back.tap()
+        } else if app.navigationBars.buttons.element(boundBy: 0).exists {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        _ = app.navigationBars["设置"].waitForExistence(timeout: 4)
+    }
+
+    private enum SwipeDirection {
+        case up, down
+    }
+
+    /// Lazy lists omit off-screen buttons. Swipe until the identifier is back in the tree.
+    private func reveal(_ identifier: String, swiping direction: SwipeDirection) -> Bool {
+        let element = app.buttons[identifier]
+        if element.waitForExistence(timeout: 2) { return true }
+        for _ in 0..<6 {
+            switch direction {
+            case .up: app.swipeUp()
+            case .down: app.swipeDown()
+            }
+            if element.exists { return true }
+        }
+        return element.waitForExistence(timeout: 2)
+    }
+
+    private func assertWidgetSample(_ identifier: String, cards: [String]) {
+        let sample = bringOnScreen(identifier)
+        shot(identifier)
+        let labels = sample.descendants(matching: .any).allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        XCTAssertFalse(labels.contains("贝贝"), identifier)
+        XCTAssertFalse(labels.contains("Beibei"), identifier)
+        for card in cards {
+            let item = sample.descendants(matching: .any)["widget-item-\(card)"]
+            XCTAssertTrue(item.waitForExistence(timeout: 2), "\(identifier) \(card)")
+            let visible = item.frame.intersection(sample.frame)
+            XCTAssertGreaterThanOrEqual(visible.height, 16, "\(identifier) \(card)")
+            XCTAssertGreaterThanOrEqual(visible.width, 40, "\(identifier) \(card)")
+        }
+    }
+
+    private func bringOnScreen(_ identifier: String) -> XCUIElement {
+        let element = self.element(identifier)
+        for _ in 0..<12 {
+            if element.exists, element.frame.height > 40,
+               element.frame.minY > 40, element.frame.maxY < app.frame.maxY - 8 {
+                return element
+            }
+            if element.exists, element.frame.minY > app.frame.midY {
+                app.swipeUp()
+            } else {
+                app.swipeUp()
+            }
+        }
+        XCTAssertTrue(element.waitForExistence(timeout: 2), identifier)
+        return element
     }
 
     private func waitUntil(_ element: XCUIElement, contains text: String, excluding: String? = nil) {

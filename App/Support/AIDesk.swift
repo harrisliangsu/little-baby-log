@@ -1,6 +1,11 @@
 import Foundation
 import BabyLogKit
 
+struct AIPendingSend: Equatable {
+    var baby: UUID
+    var message: UUID
+}
+
 /// Settings and the chat read this one object. Keys stay in the keychain.
 @MainActor
 final class AIDesk: ObservableObject {
@@ -8,6 +13,7 @@ final class AIDesk: ObservableObject {
 
     @Published private(set) var threads: [UUID: AIChatThread] = [:]
     @Published private(set) var verification: AIVerifyRecord?
+    @Published var pendingSend: AIPendingSend?
 
     func thread(for baby: UUID) -> AIChatThread {
         AIChatStore.thread(baby, in: threads)
@@ -44,11 +50,22 @@ final class AIDesk: ObservableObject {
         threads[thread.babyID] = thread
     }
 
-    func seed(baby: UUID, key: String, text: String) {
+    @discardableResult
+    func seed(baby: UUID, key: String, text: String) -> UUID? {
         let token = baby.uuidString + "|" + key
-        guard seeded.insert(token).inserted else { return }
-        guard !text.isEmpty else { return }
-        addDraft(baby: baby, text: text)
+        guard seeded.insert(token).inserted else { return nil }
+        guard !text.isEmpty else { return nil }
+        return addDraft(baby: baby, text: text)
+    }
+
+    func notePending(baby: UUID, message: UUID) {
+        pendingSend = AIPendingSend(baby: baby, message: message)
+    }
+
+    func appendReply(baby: UUID, text: String) {
+        var thread = thread(for: baby)
+        thread.messages.append(AIChatMessage(text: text, delivery: .sent))
+        threads[baby] = thread
     }
 
     @Published private var seeded: Set<String> = []

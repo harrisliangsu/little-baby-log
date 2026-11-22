@@ -5,7 +5,8 @@ import Foundation
 public enum WidgetSize: String, Sendable {
     case small, medium, large
 
-    /// Every selected home card fits. The view gets denser as the count grows, instead of hiding items.
+    /// The edit screen stores six slots. Every size shows all six.
+    /// A card past that cannot be saved there. If one is passed in, it stays counted and the face says so.
     public var itemLimit: Int { 6 }
 }
 
@@ -191,7 +192,7 @@ public enum WidgetBoard {
             babyName: babyName,
             items: items,
             hiddenCount: fitted.hidden,
-            limitNote: nil,
+            limitNote: fitted.hidden > 0 ? Copy.widgetLimit(fitted.hidden, size, language) : nil,
             tapHint: nil,
             recentTitle: size == .large && !lines.isEmpty ? Copy.recentRecords(language) : nil,
             recentLines: lines,

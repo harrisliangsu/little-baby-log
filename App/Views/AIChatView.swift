@@ -6,7 +6,6 @@ import BabyLogKit
 /// Nothing is stored until a record card is confirmed. The thread stays on `AIDesk` if this screen closes.
 struct AIChatView: View {
     let baby: Baby
-    var startVoice = false
     var summaryTotal: String?
     var summaryFacts: [SummaryFact] = []
     var mapping: AISendPreview?
@@ -22,8 +21,6 @@ struct AIChatView: View {
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var voice: VoiceStep?
     @State private var composer = ""
-    @State private var consent: AISendPreview?
-    @State private var pendingID: UUID?
     @State private var anchor = Date()
     @State private var editing: EditingDraft?
 
@@ -59,13 +56,11 @@ struct AIChatView: View {
             }
             .navigationTitle(baby.displayName)
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear(perform: seed)
-            .sheet(item: $consent) { preview in
-                AIConsentSheet(preview: preview) {
-                    guard let pendingID else { return }
-                    AITasks.shared.run { await submit(preview, message: pendingID) }
-                }
+            .onAppear {
+                seed()
+                flushPending()
             }
+            .onChange(of: desk.pendingSend) { _, _ in flushPending() }
             .sheet(item: $editing) { item in
                 EventEditorView(baby: item.baby, target: .seeded(item.draft))
             }
@@ -192,13 +187,21 @@ struct AIChatView: View {
         )
     }
 
+    private func flushPending() {
+        guard let pending = desk.pendingSend, pending.baby == babyID,
+              let message = desk.thread(for: babyID).messages.first(where: { $0.id == pending.message }) else { return }
+        desk.pendingSend = nil
+        prepareSend(message)
+    }
+
     private func seed() {
-        if startVoice, voice == nil { voice = .disclose }
-        if let summaryTotal {
-            desk.seed(baby: babyID, key: "summary-\(summaryTotal)", text: summaryTotal)
+        if let summaryTotal, let id = desk.seed(baby: babyID, key: "summary-\(summaryTotal)", text: summaryTotal),
+           let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
+            prepareSend(message)
         }
-        if let mapping {
-            desk.seed(baby: babyID, key: "mapping-\(mapping.id)", text: mapping.userText)
+        if let mapping, let id = desk.seed(baby: babyID, key: "mapping-\(mapping.id)", text: language == .zh ? "看列名" : "Columns"),
+           let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
+            prepareSend(message)
         }
         if reminder {
             desk.seed(baby: babyID, key: "reminder", text: "")
@@ -221,7 +224,10 @@ struct AIChatView: View {
         voice = nil
         switch VoiceNextStep.after(stopped: true, transcript: text, failed: text == nil) {
         case .preview:
-            _ = desk.addDraft(baby: babyID, text: text ?? "")
+            let id = desk.addDraft(baby: babyID, text: text ?? "")
+            if let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
+                prepareSend(message)
+            }
         case .manual, .discard:
             _ = desk.addDraft(baby: babyID, text: "")
         }
@@ -231,8 +237,8 @@ struct AIChatView: View {
         guard AIRuntime.access().maySend else { return }
         guard message.delivery == .draft || message.delivery == .failed else { return }
         let preview: AISendPreview
-        if mapping != nil {
-            preview = AISendPreview(provider: AIPreferences.provider, task: .columnMapping, userText: message.text, removedBabyNames: true)
+        if let mapping {
+            preview = mapping
         } else if summaryTotal != nil {
             preview = AISendPreview(
                 provider: AIPreferences.provider,
@@ -258,8 +264,7 @@ struct AIChatView: View {
             ) else { return }
             preview = outbound.preview
         }
-        pendingID = message.id
-        consent = preview
+        AITasks.shared.run { await submit(preview, message: message.id) }
     }
 
     private func submit(_ preview: AISendPreview, message id: UUID) async {
@@ -296,14 +301,17 @@ struct AIChatView: View {
                 onReminder?(rule)
                 return
             }
+            let spoken = desk.thread(for: babyID).messages.first { $0.id == id }?.text ?? ""
             let others = babies.map(\.displayName).filter { $0 != baby.displayName }
-            let map = VoiceDrafts.redact(transcript: preview.userText, currentBaby: baby.displayName, otherBabies: others).map
-            let records = VoiceDrafts.resolve(
-                items: try VoiceDrafts.items(from: data),
+            let map = VoiceDrafts.redact(transcript: spoken, currentBaby: baby.displayName, otherBabies: others).map
+            let updated = try AIChatExchange.apply(
+                response: data,
+                to: desk.thread(for: babyID),
+                message: id,
                 anchor: VoiceAnchor(startedAt: anchor, timeZone: .current),
                 map: map
             )
-            desk.finish(baby: babyID, id: id, records: records)
+            desk.replaceThread(updated)
         } catch AIClientError.cancelled, is CancellationError {
             desk.cancel(baby: babyID, id: id)
         } catch {
@@ -312,11 +320,7 @@ struct AIChatView: View {
     }
 
     private func persist(_ item: VoiceItemDraft) -> Bool {
-        guard let draft = item.eventDraft(),
-              let target = babies.first(where: { $0.displayName == item.assignedBabyName }) else { return false }
-        let event = LogEvent.create(kind: draft.kind, for: target, start: draft.startDate, in: context)
-        draft.apply(to: event)
-        return context.saveIfNeeded()
+        AIChatCommit.save(item, babies: Array(babies), in: context)
     }
 
     private func dropRecord(_ item: VoiceItemDraft, message: UUID) {

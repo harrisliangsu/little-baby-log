@@ -48,11 +48,11 @@ private struct FeedSummary: View {
                 Text(values.isRunning
                      ? (language == .zh ? "亲喂 · \(values.activeSide.map { UICopy.side($0, .zh) } ?? "")" : "Nursing · \(values.activeSide?.title ?? "")")
                      : (language == .zh ? "亲喂暂停" : "Nursing paused"))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(EventKind.breastfeed.color)
                     .widgetAccentable()
                 NursingTotalClock(values: values)
-                    .font(.system(size: compact ? 30 : 34, weight: .bold, design: .rounded))
+                    .font(.system(size: compact ? 36 : 40, weight: .bold, design: .rounded))
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                 // A ticking timer Text stretches to the width it's offered, so give each side its own half.
@@ -65,19 +65,19 @@ private struct FeedSummary: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: compact ? 14 : 16, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             } else if let feed = baby.lastFeed {
                 Text(Copy.lastFeed(language))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(feed.kind.color)
                     .widgetAccentable()
                 AgoStack(date: feed.referenceDate, language: language)
-                    .font(.system(size: compact ? 17 : 19, weight: .bold, design: .rounded))
+                    .font(.system(size: compact ? 26 : 32, weight: .bold, design: .rounded))
                 if !feed.detail.isEmpty {
                     Text(feed.detail)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: compact ? 15 : 17, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -99,14 +99,8 @@ private struct SmallFeeding: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                WidgetKindIcon(kind: .breastfeed, size: 22)
-                    .widgetAccentable()
-                Text(baby.name)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            WidgetKindIcon(kind: .breastfeed, size: 26)
+                .widgetAccentable()
             Spacer(minLength: 4)
             FeedSummary(baby: baby, compact: true, language: language)
             Spacer(minLength: 4)
@@ -152,14 +146,8 @@ private struct MediumFeeding: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 6) {
-                    WidgetKindIcon(kind: .breastfeed, size: 22)
-                        .widgetAccentable()
-                    Text(baby.name)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                WidgetKindIcon(kind: .breastfeed, size: 28)
+                    .widgetAccentable()
                 Spacer(minLength: 4)
                 FeedSummary(baby: baby, language: language)
                 Spacer(minLength: 4)

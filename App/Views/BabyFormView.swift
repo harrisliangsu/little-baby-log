@@ -42,6 +42,7 @@ struct BabyFormView: View {
                 Section {
                     TextField(UICopy.t(.babyName, language), text: $name)
                         .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("baby-name")
                     DatePicker(
                         UICopy.t(.birthday, language),
                         selection: $birthDate,
