@@ -19,7 +19,7 @@ struct AIChatChainTests {
         #expect(user.contains("今天喂了几次"))
         #expect(!user.contains("secret-token"))
         #expect(!user.contains("月月"))
-        let thread = try #require(turn.thread)
+        let thread = try unwrap(turn.thread)
         #expect(thread.messages[0].text == utterance)
         #expect(thread.messages[0].records.isEmpty)
         #expect(thread.messages[1].text == "今天喂了两次")
@@ -31,8 +31,8 @@ struct AIChatChainTests {
         let store = try makeStore()
         let response = wrapped(#"{"items":[{"kind":"bottle","baby":"Current","minutesAgo":5,"amountML":120,"bottle":"formula"}]}"#)
         let turn = try await exchange(store: store, utterance: "奶粉120", payloads: [response])
-        let thread = try #require(turn.thread)
-        let card = try #require(thread.messages[0].records.first)
+        let thread = try unwrap(turn.thread)
+        let card = try unwrap(thread.messages[0].records.first)
         #expect(card.canWrite)
         #expect(events(store.ada).isEmpty)
         #expect(AIChatCommit.save(card, babies: store.babies, in: store.context))
@@ -40,15 +40,16 @@ struct AIChatChainTests {
         #expect(saved.count == 1)
         #expect(saved[0].amountML == 120)
         #expect(saved[0].baby?.displayName == "月月")
-        let start = try #require(saved[0].startDate)
+        let start = try unwrap(saved[0].startDate)
         #expect(TimelineRange.today.contains(start, now: now, calendar: TestSupport.utcCalendar))
         let overlapping = try store.context.fetch(LogEvent.requestOverlapping(baby: store.ada, from: TestSupport.utcCalendar.startOfDay(for: now)))
         #expect(overlapping.count == 1)
         #expect(HomeCardMatch.card(for: saved[0]) == .formula)
         #expect(!AIChatCommit.save(card, babies: store.babies, in: store.context))
         #expect(events(store.ada).count == 1)
-        let request = try #require(turn.requests.first)
-        let object = try #require(JSONSerialization.jsonObject(with: try #require(request.httpBody)) as? [String: Any])
+        let request = try unwrap(turn.requests.first)
+        let body = try unwrap(request.httpBody)
+        let object = try unwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(object["model"] as? String == "deepseek-flash")
         #expect(object["tools"] == nil)
         #expect(request.url?.host == "api.deepseek.com")
@@ -58,8 +59,8 @@ struct AIChatChainTests {
         let store = try makeStore()
         let response = wrapped(#"{"items":[{"kind":"diaper","baby":"Current","minutesAgo":1,"diaper":"wet"}]}"#)
         let turn = try await exchange(store: store, utterance: "小便", payloads: [response])
-        var thread = try #require(turn.thread)
-        let card = try #require(thread.messages[0].records.first)
+        var thread = try unwrap(turn.thread)
+        let card = try unwrap(thread.messages[0].records.first)
         #expect(card.canWrite)
         thread = thread.cancelling(thread.messages[0].id)
         #expect(thread.messages[0].records.isEmpty)
@@ -68,7 +69,7 @@ struct AIChatChainTests {
 
         let transport = StatusTransport(status: 500, payload: Data(#"{"error":"no"}"#.utf8))
         let client = AIClient(transport: transport)
-        let outbound = try #require(preview("再试一次"))
+        let outbound = try spoken("再试一次")
         do {
             _ = try await client.send(provider: .deepseek, preview: outbound.preview, token: "secret-token", approved: outbound.preview, model: "deepseek-flash")
             Issue.record("http 500 must not become a card")
@@ -86,7 +87,7 @@ struct AIChatChainTests {
             .init(status: 200, payload: response),
         ])
         let client = AIClient(transport: transport)
-        let outbound = try #require(preview("奶粉90"))
+        let outbound = try spoken("奶粉90")
         do {
             _ = try await client.send(provider: .deepseek, preview: outbound.preview, token: "secret-token", approved: outbound.preview, model: "deepseek-flash")
             Issue.record("first try fails")
@@ -100,7 +101,7 @@ struct AIChatChainTests {
             response: data, to: prepared.thread, message: prepared.id,
             anchor: anchor, map: outbound.map
         )
-        let card = try #require(thread.messages[0].records.first)
+        let card = try unwrap(thread.messages[0].records.first)
         #expect(AIChatCommit.save(card, babies: store.babies, in: store.context))
         #expect(!AIChatCommit.save(card, babies: store.babies, in: store.context))
         #expect(events(store.ada).count == 1)
@@ -111,7 +112,7 @@ struct AIChatChainTests {
         let store = try makeStore()
         let response = wrapped(#"{"items":[{"kind":"bottle","baby":"Baby2","minutesAgo":5,"amountML":80,"bottle":"formula"}]}"#)
         let turn = try await exchange(store: store, utterance: "安安喝了80", payloads: [response])
-        var card = try #require(turn.thread?.messages[0].records.first)
+        var card = try unwrap(turn.thread?.messages[0].records.first)
         #expect(card.assignedBabyName == "安安")
         #expect(!card.canWrite)
         #expect(!AIChatCommit.save(card, babies: store.babies, in: store.context))
@@ -130,7 +131,7 @@ struct AIChatChainTests {
         let ticket = flight.ticket()
         let transport = SlowChainTransport()
         let client = AIClient(transport: transport)
-        let outbound = try #require(preview("奶粉120"))
+        let outbound = try spoken("奶粉120")
         let task = Task {
             try await client.send(
                 provider: .deepseek, preview: outbound.preview, token: "secret-token", approved: outbound.preview,
@@ -153,14 +154,20 @@ struct AIChatChainTests {
         VoiceAnchor(startedAt: now, timeZone: TestSupport.utcCalendar.timeZone)
     }
 
-    private func preview(_ utterance: String) -> (preview: AISendPreview, map: VoiceNameMap)? {
-        VoiceDrafts.outbound(
+    private func spoken(_ utterance: String) throws -> (preview: AISendPreview, map: VoiceNameMap) {
+        guard let outbound = VoiceDrafts.outbound(
             transcript: utterance, anchor: anchor, currentBaby: "月月", otherBabies: ["安安"], provider: .deepseek
-        )
+        ) else { throw AIClientError.unreadable }
+        return outbound
+    }
+
+    private func unwrap<T>(_ value: T?) throws -> T {
+        guard let value else { throw AIClientError.unreadable }
+        return value
     }
 
     private func exchange(store: Store, utterance: String, payloads: [Data]) async throws -> (requests: [URLRequest], thread: AIChatThread?) {
-        let outbound = try #require(preview(utterance))
+        let outbound = try spoken(utterance)
         let transport = SequenceTransport(steps: payloads.map { .init(status: 200, payload: $0) })
         let client = AIClient(transport: transport)
         let data = try await client.send(
@@ -188,8 +195,9 @@ struct AIChatChainTests {
     }
 
     private func userContent(_ request: URLRequest) throws -> String {
-        let object = try #require(JSONSerialization.jsonObject(with: try #require(request.httpBody)) as? [String: Any])
-        let messages = try #require(object["messages"] as? [[String: Any]])
+        let body = try unwrap(request.httpBody)
+        let object = try unwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let messages = try unwrap(object["messages"] as? [[String: Any]])
         return messages.compactMap { $0["content"] as? String }.joined(separator: "\n")
     }
 
