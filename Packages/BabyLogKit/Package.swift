@@ -11,7 +11,9 @@ let package = Package(
         .package(url: "https://github.com/6tail/lunar-swift.git", from: "1.1.9"),
     ],
     targets: [
-        .target(name: "BabyLogKit", dependencies: ["LunarSwift"]),
+        .target(name: "BabyLogKit", dependencies: [
+            .product(name: "LunarSwift", package: "lunar-swift"),
+        ]),
         .testTarget(name: "BabyLogKitTests", dependencies: ["BabyLogKit"]),
     ],
     swiftLanguageModes: [.v5]
