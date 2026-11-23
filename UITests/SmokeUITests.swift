@@ -660,8 +660,12 @@ final class SmokeUITests: XCTestCase {
         tap(addIdentifier)
         let save = app.buttons["save-entry"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
+        if !save.isHittable, app.keyboards.buttons["完成"].exists {
+            app.keyboards.buttons["完成"].tap()
+        }
+        XCTAssertTrue(save.isHittable, "\(addIdentifier) save is covered, so the record would stay unsaved")
         save.tap()
-        XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
+        XCTAssertTrue(save.waitForNonExistence(timeout: 4), "\(addIdentifier) form stayed open, so it was not saved")
     }
 
     private func loggedAge(_ label: String) -> Bool {
@@ -719,7 +723,8 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 4))
         XCTAssertTrue(save.isHittable, "save-entry is covered, so the minute would stay unsaved")
         save.tap()
-        XCTAssertTrue(minutes.waitForNonExistence(timeout: 4), "nursing form stayed open, so the minute was not saved")
+        XCTAssertTrue(save.waitForNonExistence(timeout: 4), "nursing form stayed open, so the minute was not saved")
+        XCTAssertTrue(minutes.waitForNonExistence(timeout: 2), "nursing minute field still open")
     }
 
     private func openWidgetPreview() {

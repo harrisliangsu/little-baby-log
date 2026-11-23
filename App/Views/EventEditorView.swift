@@ -118,23 +118,21 @@ struct EventEditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom, spacing: 8) {
-                Button { save() } label: {
-                    Text(UICopy.t(.save, language))
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("save-entry")
-                .padding(.horizontal, 20)
-                .padding(.bottom, 4)
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(UICopy.t(.cancel, language)) {
                         onFinish?(false)
                         dismiss()
                     }
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    Button { save() } label: {
+                        Text(UICopy.t(.save, language))
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("save-entry")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
