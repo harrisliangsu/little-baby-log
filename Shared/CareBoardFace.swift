@@ -111,7 +111,7 @@ struct CareBoardFace: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, minHeight: face.items.count <= 2 ? 28 : 20, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: face.items.count <= 2 ? 28 : 20, maxHeight: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(item.accessibilityText)
             .accessibilityIdentifier("widget-item-\(item.card.rawValue)")

@@ -11,6 +11,7 @@ struct KindHistoryView: View {
     @FetchRequest private var events: FetchedResults<LogEvent>
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var editor: EditorTarget?
+    @State private var pendingDelete: LogEvent?
 
     init(baby: Baby, kind: EventKind) {
         self.baby = baby
@@ -34,9 +35,7 @@ struct KindHistoryView: View {
                 .accessibilityIdentifier("history-entry")
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(language == .zh ? "删除" : "Delete", role: .destructive) {
-                        WetDiaperLink.deleteLinked(to: event, in: context)
-                        context.delete(event)
-                        context.saveIfNeeded()
+                        pendingDelete = event
                     }
                 }
                 .swipeActions(edge: .leading, allowsFullSwipe: false) {
@@ -48,6 +47,21 @@ struct KindHistoryView: View {
         .navigationTitle(UICopy.kind(kind, language))
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+        }
+        .confirmationDialog(
+            language == .zh ? "删除这条记录？" : "Delete this record?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(language == .zh ? "删除" : "Delete", role: .destructive) {
+                if let event = pendingDelete {
+                    WetDiaperLink.deleteLinked(to: event, in: context)
+                    context.delete(event)
+                    context.saveIfNeeded()
+                }
+                pendingDelete = nil
+            }
+            Button(language == .zh ? "取消" : "Cancel", role: .cancel) { pendingDelete = nil }
         }
     }
 }
