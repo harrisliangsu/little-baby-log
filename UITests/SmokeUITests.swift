@@ -920,7 +920,7 @@ final class SmokeUITests: XCTestCase {
         setSwitch(sleep, on: true)
         app.buttons["home-cards-done"].tap()
         XCTAssertTrue(app.buttons["home-cards-done"].waitForNonExistence(timeout: 4))
-        XCTAssertTrue(app.buttons["summary-sleep"].waitForExistence(timeout: 4))
+        XCTAssertTrue(reveal("summary-sleep", swiping: .up))
 
         openForm("add-formula", shotName: "review-03-formula") {
             XCTAssertTrue(self.app.textFields["bottle-amount"].waitForExistence(timeout: 3))

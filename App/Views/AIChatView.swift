@@ -207,6 +207,7 @@ struct AIChatView: View {
             Button(action: sendComposer) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 28))
+                    .foregroundStyle(composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
                     .frame(width: 44, height: 44)
             }
             .disabled(composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
