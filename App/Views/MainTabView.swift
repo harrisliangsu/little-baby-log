@@ -25,32 +25,33 @@ struct MainTabView: View {
     @State private var tab: MainTab = .today
 
     var body: some View {
-        ZStack {
-            NavigationStack {
-                TodayView(baby: baby, day: day, link: $link)
-                    .id(day)
-            }
-            .modifier(DockPage(active: tab == .today))
+        VStack(spacing: 0) {
+            ZStack {
+                NavigationStack {
+                    TodayView(baby: baby, day: day, link: $link)
+                        .id(day)
+                }
+                .modifier(DockPage(active: tab == .today))
 
-            NavigationStack {
-                HistoryView(baby: baby)
-            }
-            .modifier(DockPage(active: tab == .history))
+                NavigationStack {
+                    HistoryView(baby: baby)
+                }
+                .modifier(DockPage(active: tab == .history))
 
-            NavigationStack {
-                TrendsView(baby: baby)
-            }
-            .modifier(DockPage(active: tab == .trends))
+                NavigationStack {
+                    TrendsView(baby: baby)
+                }
+                .modifier(DockPage(active: tab == .trends))
 
-            NavigationStack(path: $settingsPath) {
-                SettingsView()
-                    .navigationDestination(for: SettingsRoute.self) { _ in
-                        AISettingsView(notice: assistantNotice)
-                    }
+                NavigationStack(path: $settingsPath) {
+                    SettingsView()
+                        .navigationDestination(for: SettingsRoute.self) { _ in
+                            AISettingsView(notice: assistantNotice)
+                        }
+                }
+                .modifier(DockPage(active: tab == .settings))
             }
-            .modifier(DockPage(active: tab == .settings))
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             DockBar(tab: $tab, language: language, voice: voice, noticeAck: voiceNoticeAck, onNotice: {
                 showVoiceNotice = true
             }) {
