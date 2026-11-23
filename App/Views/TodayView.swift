@@ -32,6 +32,8 @@ struct TodayView: View {
     /// wrapping it rebuilt the whole scroll view, and the bottom section only appeared
     /// once that rebuild was already under way.
     @State private var now = Date()
+    /// Bumps when the store saves, so the cards re-read the context the form just wrote.
+    @State private var savedRecords = 0
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -51,8 +53,14 @@ struct TodayView: View {
         running.first(where: { $0.kind == .breastfeed })
     }
 
+    /// The form's own refetch already saw the new row. `FetchedResults` under a sheet can keep the previous snapshot.
+    private var loggedEvents: [LogEvent] {
+        _ = savedRecords
+        return (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? Array(allEvents)
+    }
+
     var body: some View {
-        let care = CareRollup.make(events: Array(allEvents), now: now)
+        let care = CareRollup.make(events: loggedEvents, now: now)
         List {
                 if !running.isEmpty {
                     Section {
@@ -137,7 +145,10 @@ struct TodayView: View {
             link = nil
             open(newLink)
         }
-        .sheet(item: $editor) { target in
+        .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: context)) { _ in
+            savedRecords += 1
+        }
+        .sheet(item: $editor, onDismiss: { savedRecords += 1 }) { target in
             EventEditorView(baby: baby, target: target)
                 .interactiveDismissDisabled(true)
         }
