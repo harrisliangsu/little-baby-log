@@ -692,10 +692,11 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func openWidgetPreview() {
-        let settings = tab("设置").exists ? tab("设置") : tab("Settings")
-        settings.tap()
+        let title = tab("设置").exists ? "设置" : "Settings"
+        returnToSettingsHub(tabTitle: title)
         let widgets = app.descendants(matching: .any)["settings-module-widgets"]
-        if widgets.waitForExistence(timeout: 4) { widgets.tap() }
+        XCTAssertTrue(widgets.waitForExistence(timeout: 4), "settings-module-widgets")
+        widgets.tap()
         let button = app.buttons["show-widget-preview"]
         for _ in 0..<5 where !button.exists { app.swipeUp() }
         XCTAssertTrue(button.waitForExistence(timeout: 4))

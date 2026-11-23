@@ -54,6 +54,7 @@ struct CareCardRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
+            .accessibilityElement(children: .combine)
             .accessibilityIdentifier(summaryID)
             Button(action: onAdd) {
                 Image(systemName: "plus.circle.fill")
