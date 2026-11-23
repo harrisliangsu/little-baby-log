@@ -27,7 +27,7 @@ struct NumberField: View {
         HStack(spacing: 8) {
             Text(title)
             Spacer(minLength: 12)
-            TextField("0", text: $text)
+            TextField("0", text: textBinding)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .focused($focused)
@@ -42,16 +42,24 @@ struct NumberField: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
-        .onChange(of: text) { _, newText in
-            guard let parsed = NumberField.parse(newText) else { return }
-            if parsed != value { value = parsed }
-        }
         .onChange(of: value) { _, newValue in
             if !focused { text = NumberField.format(newValue, digits: digits) }
         }
         .onChange(of: focused) { _, isFocused in
             if !isFocused { text = NumberField.format(value, digits: digits) }
         }
+    }
+
+    /// Writes the draft as the characters change, including a UI test `typeText`, not only after focus ends.
+    private var textBinding: Binding<String> {
+        Binding(
+            get: { text },
+            set: { newText in
+                text = newText
+                guard let parsed = NumberField.parse(newText) else { return }
+                if parsed != value { value = parsed }
+            }
+        )
     }
 
     static func format(_ number: Double, digits: Int) -> String {

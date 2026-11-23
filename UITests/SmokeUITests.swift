@@ -111,9 +111,10 @@ final class SmokeUITests: XCTestCase {
         requireAppearance("dark", settingsTab: "设置", homeTab: "今天", name: "12-zh-home-dark")
         requireAppearance("light", settingsTab: "设置", homeTab: "今天", name: "11-home-light")
 
-        tab("设置").tap()
+        returnToSettingsHub(tabTitle: "设置")
         let languageModule = app.descendants(matching: .any)["settings-module-language"]
-        if languageModule.waitForExistence(timeout: 4) { languageModule.tap() }
+        XCTAssertTrue(languageModule.waitForExistence(timeout: 4), "settings-module-language")
+        languageModule.tap()
         let languagePicker = app.buttons["app-language"]
         for _ in 0..<6 where !languagePicker.exists {
             app.swipeDown()
@@ -679,16 +680,22 @@ final class SmokeUITests: XCTestCase {
         return app.tabBars.buttons[title]
     }
 
+    /// Premise: the minute must be stored and the sheet must close. The card then shows that duration.
+    /// A label that still says 还没有 means the save did not happen, not a missing accessibility string.
     private func logNursing() {
         tap("add-breast")
         let minutes = app.textFields["breast-left-minutes"]
         XCTAssertTrue(minutes.waitForExistence(timeout: 5))
         minutes.tap()
         minutes.typeText("1")
-        if !app.buttons["save-entry"].isHittable, app.buttons["完成"].exists {
-            app.buttons["完成"].tap()
-        }
-        app.buttons["save-entry"].tap()
+        let shown = minutes.value as? String ?? ""
+        XCTAssertTrue(shown.contains("1"), "typed minute was not in the field: \(shown)")
+        if app.buttons["完成"].exists { app.buttons["完成"].tap() }
+        let save = app.buttons["save-entry"]
+        XCTAssertTrue(save.waitForExistence(timeout: 4))
+        XCTAssertTrue(save.isHittable, "save-entry is covered, so the minute would stay unsaved")
+        save.tap()
+        XCTAssertTrue(app.navigationBars["记录亲喂"].waitForNonExistence(timeout: 4), "nursing form stayed open")
     }
 
     private func openWidgetPreview() {
