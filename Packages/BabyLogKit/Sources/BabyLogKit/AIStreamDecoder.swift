@@ -64,6 +64,22 @@ public enum AIStreamDecoder {
         }
         return nil
     }
+
+    /// SSE becomes the joined text. A normal JSON body is unchanged.
+    public static func normalizedChatBody(from data: Data) -> Data {
+        if let text = assembledText(from: data, contentType: nil) {
+            return Data(text.utf8)
+        }
+        return data
+    }
+
+    /// Words with no JSON envelope. A `{` or `[` body stays with the JSON decoder.
+    public static func plainReply(from data: Data) -> String? {
+        let text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !text.hasPrefix("{"), !text.hasPrefix("["), !text.hasPrefix("<") else { return nil }
+        guard text.count <= 4000 else { return nil }
+        return text
+    }
 }
 
 /// Separates words the person can read from a record payload. Raw JSON is not shown.

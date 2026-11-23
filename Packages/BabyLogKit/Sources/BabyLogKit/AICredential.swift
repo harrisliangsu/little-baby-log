@@ -92,13 +92,16 @@ public struct AIChatMessage: Identifiable, Equatable, Sendable {
     public var text: String
     public var delivery: Delivery
     public var records: [VoiceItemDraft]
+    /// Set only while `delivery` is `.failed`. Never a key or a response body.
+    public var failure: AIChatFailure?
 
-    public init(id: UUID = UUID(), role: Role = .user, text: String, delivery: Delivery, records: [VoiceItemDraft] = []) {
+    public init(id: UUID = UUID(), role: Role = .user, text: String, delivery: Delivery, records: [VoiceItemDraft] = [], failure: AIChatFailure? = nil) {
         self.id = id
         self.role = role
         self.text = text
         self.delivery = delivery
         self.records = records
+        self.failure = failure
     }
 }
 
@@ -125,6 +128,7 @@ public struct AIChatThread: Equatable, Sendable {
         copy.messages[index].text = text
         copy.messages[index].delivery = .draft
         copy.messages[index].records = []
+        copy.messages[index].failure = nil
         return copy
     }
 

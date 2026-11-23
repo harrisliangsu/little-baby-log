@@ -168,6 +168,23 @@ final class SmokeUITests: XCTestCase {
         let probe = app.descendants(matching: .any)["appearance-scheme"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
         XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
+        XCTAssertEqual(app.descendants(matching: .any)["appearance-\(expected)"].value as? String, "selected")
+        XCTAssertEqual(app.descendants(matching: .any)["style-classic"].value as? String, "selected")
+        XCTAssertEqual(app.descendants(matching: .any)["style-liquidGlass"].value as? String, "unselected")
+        let style = app.descendants(matching: .any)["style-applied"]
+        XCTAssertEqual(style.label, "classic")
+        if name == "review-25-today-dark" {
+            shot("review-26-appearance-groups")
+            app.descendants(matching: .any)["style-liquidGlass"].tap()
+            let glass = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "liquidGlass"), object: style)
+            XCTAssertEqual(XCTWaiter().wait(for: [glass], timeout: 8), .completed, "style stayed \(style.label)")
+            XCTAssertEqual(probe.label, expected, "style changed the appearance")
+            XCTAssertEqual(app.descendants(matching: .any)["appearance-\(expected)"].value as? String, "selected")
+            shot("review-27-liquid-glass")
+            app.descendants(matching: .any)["style-classic"].tap()
+            let classic = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "classic"), object: style)
+            XCTAssertEqual(XCTWaiter().wait(for: [classic], timeout: 8), .completed, "style stayed \(style.label)")
+        }
         tab(homeTab).tap()
         captureCheckedAppearance(expected, name: name)
     }
@@ -643,6 +660,11 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(now.waitForExistence(timeout: 2))
         XCTAssertGreaterThanOrEqual(now.frame.height, 44)
         XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 2))
+        let wheel = app.descendants(matching: .any)["time-wheel"]
+        XCTAssertTrue(wheel.waitForExistence(timeout: 2))
+        XCTAssertGreaterThanOrEqual(wheel.frame.height, 120, "time control is still the compact picker")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "time-heading").count, 1)
+        XCTAssertTrue(app.staticTexts["成品奶量"].exists)
         amount.tap()
         amount.typeText(millilitres)
         let save = tapSave("formula")
@@ -849,6 +871,24 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(tab("设置").exists)
     }
 
+    func testChatComposerStaysAboveTheKeyboard() {
+        app.launchArguments += ["-lbl-ui-reset", "-lbl-show-chat"]
+        app.launch()
+        createBabyNamed("Beibei")
+        let field = app.textFields["ai-chat-input"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8))
+        let bar = app.descendants(matching: .any)["composer-bar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 4))
+        XCTAssertGreaterThan(bar.frame.width, app.frame.width * 0.8)
+        XCTAssertGreaterThanOrEqual(bar.frame.height, 52)
+        shot("review-chat-composer")
+        field.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 6))
+        XCTAssertLessThanOrEqual(bar.frame.maxY, keyboard.frame.minY + 8)
+        shot("review-chat-keyboard")
+    }
+
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
     /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
     func testReviewSurfacesLeaveScreenshots() throws {
@@ -859,11 +899,32 @@ final class SmokeUITests: XCTestCase {
         shot("review-01-new-baby")
         createBabyNamed("Beibei")
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
+        let icon = app.descendants(matching: .any)["icon-formula"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 4))
+        XCTAssertLessThanOrEqual(icon.frame.width, 48)
+        XCTAssertLessThanOrEqual(icon.frame.height, 48)
         shot("review-02-today")
+        app.buttons["home-cards-config"].tap()
+        let sleep = app.switches["home-card-sleep"]
+        XCTAssertTrue(sleep.waitForExistence(timeout: 4))
+        shot("review-02b-home-cards")
+        sleep.tap()
+        app.buttons["home-cards-done"].tap()
+        XCTAssertFalse(app.buttons["summary-sleep"].waitForExistence(timeout: 2))
+        app.buttons["home-cards-config"].tap()
+        XCTAssertTrue(sleep.waitForExistence(timeout: 4))
+        XCTAssertEqual(sleep.value as? String, "0")
+        sleep.tap()
+        app.buttons["home-cards-done"].tap()
+        XCTAssertTrue(app.buttons["summary-sleep"].waitForExistence(timeout: 4))
 
         openForm("add-formula", shotName: "review-03-formula") {
             XCTAssertTrue(self.app.textFields["bottle-amount"].waitForExistence(timeout: 3))
             XCTAssertTrue(self.app.buttons["time-now"].exists)
+            let wheel = self.app.descendants(matching: .any)["time-wheel"]
+            XCTAssertTrue(wheel.waitForExistence(timeout: 3))
+            XCTAssertGreaterThanOrEqual(wheel.frame.height, 120)
+            XCTAssertEqual(self.app.descendants(matching: .any).matching(identifier: "time-heading").count, 1)
         }
         for pair in [
             ("add-breast", "review-04-breast"),

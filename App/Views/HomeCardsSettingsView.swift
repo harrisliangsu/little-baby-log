@@ -45,6 +45,7 @@ struct HomeCardsSettingsView: View {
                     ForEach(HomeCard.allCases) { card in
                         HStack(spacing: 12) {
                             Toggle(Copy.card(card, language), isOn: visible(id, layout, card))
+                                .accessibilityIdentifier("home-card-\(card.rawValue)")
                             Button(layout.isDetailed(card) ? (language == .zh ? "详细" : "Detail") : (language == .zh ? "基础" : "Basic")) {
                                 write(layout.settingDetail(card, detailed: !layout.isDetailed(card)), id)
                             }

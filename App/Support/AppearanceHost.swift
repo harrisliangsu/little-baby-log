@@ -36,22 +36,34 @@ struct AppearanceHost: ViewModifier {
                     .ignoresSafeArea()
                 }
             }
+            .background(alignment: .topLeading) {
+                Text(interfaceStyle.rawValue)
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier("style-applied")
+                    .accessibilityLabel(interfaceStyle.rawValue)
+                    .allowsHitTesting(false)
+            }
             .onAppear { applyWindow() }
             .onChange(of: mode) { _, _ in applyWindow() }
+            .onChange(of: styleRaw) { _, _ in applyWindow() }
     }
 
     private func applyWindow() {
+        WindowChrome.apply(mode: mode)
+    }
+}
+
+enum WindowChrome {
+    static func apply(mode: AppearanceMode) {
         let style: UIUserInterfaceStyle
-        switch colorScheme {
+        switch mode {
         case .light: style = .light
         case .dark: style = .dark
-        default: style = .unspecified
+        case .system: style = .unspecified
         }
-        for scene in UIApplication.shared.connectedScenes {
-            guard let windowScene = scene as? UIWindowScene else { continue }
-            for window in windowScene.windows {
-                window.overrideUserInterfaceStyle = style
-            }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            scene.windows.forEach { $0.overrideUserInterfaceStyle = style }
         }
     }
 }

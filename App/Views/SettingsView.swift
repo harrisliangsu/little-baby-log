@@ -308,43 +308,74 @@ struct SettingsView: View {
     }
 
     private var appearanceSection: some View {
-        Section {
-            ForEach(AppearanceMode.allCases) { mode in
-                Button {
-                    appearanceMode = mode
-                } label: {
-                    HStack {
-                        Text(appearanceTitle(mode))
-                            .foregroundStyle(theme.primaryText)
-                        Spacer()
-                        if appearanceMode == mode {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(theme.accent)
+        Group {
+            Section {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button {
+                        chooseMode(mode)
+                    } label: {
+                        HStack {
+                            Text(appearanceTitle(mode))
+                                .foregroundStyle(theme.primaryText)
+                            Spacer()
+                            if appearanceMode == mode {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(theme.accent)
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("appearance-\(mode.rawValue)")
+                    .accessibilityValue(appearanceMode == mode ? "selected" : "unselected")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("appearance-\(mode.rawValue)")
+            } header: {
+                Text(UICopy.t(.appearance, language))
             }
-            ForEach(InterfaceStyle.allCases) { style in
-                Button {
-                    interfaceStyleRaw = style.rawValue
-                } label: {
-                    HStack {
-                        Text(style == .classic ? (language == .zh ? "经典" : "Classic") : (language == .zh ? "液态玻璃" : "Liquid Glass"))
-                        Spacer()
-                        if interfaceStyleRaw == style.rawValue {
-                            Image(systemName: "checkmark")
+            .themedSection()
+
+            Section {
+                ForEach(InterfaceStyle.allCases) { style in
+                    Button {
+                        chooseStyle(style)
+                    } label: {
+                        HStack {
+                            Text(style == .classic ? (language == .zh ? "经典" : "Classic") : (language == .zh ? "液态玻璃" : "Liquid Glass"))
+                                .foregroundStyle(theme.primaryText)
+                            Spacer()
+                            if interfaceStyleRaw == style.rawValue {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(theme.accent)
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("style-\(style.rawValue)")
+                    .accessibilityValue(interfaceStyleRaw == style.rawValue ? "selected" : "unselected")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("style-\(style.rawValue)")
+            } header: {
+                Text(language == .zh ? "风格" : "Style")
             }
-        } header: {
-            Text(UICopy.t(.appearance, language))
+            .themedSection()
         }
-        .themedSection()
+    }
+
+    /// Writes one group and paints the window in the same turn. The other group is read back and kept.
+    private func chooseMode(_ mode: AppearanceMode) {
+        let next = ChromeSelection(mode: appearanceMode, style: InterfaceStyle(rawValue: interfaceStyleRaw) ?? .classic)
+            .choosingMode(mode)
+        next.save(to: .standard)
+        appearanceMode = next.mode
+        interfaceStyleRaw = next.style.rawValue
+        WindowChrome.apply(mode: next.mode)
+    }
+
+    private func chooseStyle(_ style: InterfaceStyle) {
+        let next = ChromeSelection(mode: appearanceMode, style: InterfaceStyle(rawValue: interfaceStyleRaw) ?? .classic)
+            .choosingStyle(style)
+        next.save(to: .standard)
+        appearanceMode = next.mode
+        interfaceStyleRaw = next.style.rawValue
+        WindowChrome.apply(mode: next.mode)
     }
 
     private var nursingTimerSection: some View {
