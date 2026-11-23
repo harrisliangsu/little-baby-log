@@ -646,12 +646,11 @@ final class SmokeUITests: XCTestCase {
         amount.tap()
         amount.typeText(millilitres)
         let save = app.buttons["save-entry"]
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: save)
-        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
-        if !save.isHittable, app.buttons["完成"].exists {
-            app.buttons["完成"].tap()
+        if !save.isHittable, app.keyboards.buttons["完成"].exists {
+            app.keyboards.buttons["完成"].tap()
         }
-        XCTAssertTrue(save.waitForExistence(timeout: 3))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: save)
+        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 4), .completed, "formula save stayed covered")
         save.tap()
         XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
     }

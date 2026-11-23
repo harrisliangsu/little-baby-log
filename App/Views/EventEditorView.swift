@@ -125,15 +125,6 @@ struct EventEditorView: View {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .bottomBar) {
-                    Button { save() } label: {
-                        Text(UICopy.t(.save, language))
-                            .font(.title3.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("save-entry")
-                }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button(UICopy.t(.done, language)) {
@@ -144,11 +135,21 @@ struct EventEditorView: View {
                     }
                 }
             }
-            .interactiveDismissDisabled()
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 8) {
+            Button { save() } label: {
+                Text(UICopy.t(.save, language))
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("save-entry")
+            .padding(.horizontal, 20)
+            .padding(.bottom, 4)
         }
         .interactiveDismissDisabled()
     }
