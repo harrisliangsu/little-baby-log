@@ -16,11 +16,7 @@ final class SmokeUITests: XCTestCase {
         app.launch()
         shot("01-launch")
 
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
 
         let formula = element("summary-formula")
         XCTAssertTrue(formula.waitForExistence(timeout: 8))
@@ -292,10 +288,7 @@ final class SmokeUITests: XCTestCase {
         appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
         if app.textFields["baby-name"].waitForExistence(timeout: 4) {
-            let name = app.textFields["baby-name"]
-            name.tap()
-            name.typeText("Beibei")
-            app.buttons["start-tracking"].tap()
+            createBabyNamed("Beibei")
         }
         logFormula(millilitres: "120")
         saveCurrentForm("add-wet")
@@ -675,6 +668,26 @@ final class SmokeUITests: XCTestCase {
         label.contains("刚刚") || label.contains("分钟前") || label.contains("小时")
     }
 
+    /// Taps start only after the field value is the full name and the button is enabled.
+    /// A tap while the name is still arriving is ignored, and the welcome screen stays up.
+    private func createBabyNamed(_ babyName: String) {
+        let field = app.textFields["baby-name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8))
+        if (field.value as? String) != babyName {
+            field.tap()
+            field.typeText(babyName)
+        }
+        let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", babyName), object: field)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [committed], timeout: 4),
+            .completed,
+            "baby name stayed \(field.value ?? "nil")"
+        )
+        let start = app.buttons["start-tracking"]
+        XCTAssertTrue(start.isEnabled, "start-tracking stayed disabled after the name was \(field.value ?? "nil")")
+        start.tap()
+    }
+
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }
@@ -756,11 +769,7 @@ final class SmokeUITests: XCTestCase {
     func testBottomOfTodayStaysInteractive() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
 
         for _ in 0..<4 { app.swipeUp() }
@@ -798,11 +807,7 @@ final class SmokeUITests: XCTestCase {
     func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
 
         let voice = app.buttons["voice-log"]
         XCTAssertTrue(voice.waitForExistence(timeout: 6))
@@ -840,9 +845,7 @@ final class SmokeUITests: XCTestCase {
         let name = app.textFields["baby-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 8))
         shot("review-01-new-baby")
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
         shot("review-02-today")
 

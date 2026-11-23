@@ -16,7 +16,8 @@ struct OnboardingView: View {
     }
 
     private var trimmedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let typed = LiveFieldText.text(identifier: "baby-name") ?? name
+        return typed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -55,8 +56,10 @@ struct OnboardingView: View {
                 .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 Button {
+                    let typed = trimmedName
+                    guard !typed.isEmpty else { return }
                     Haptics.success()
-                    onCreate(trimmedName, birthDate)
+                    onCreate(typed, birthDate)
                 } label: {
                     Text(UICopy.t(.startTracking, language))
                         .font(.title3.weight(.semibold))
