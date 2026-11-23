@@ -83,9 +83,9 @@ struct AIChatView: View {
                 EventEditorView(baby: item.baby, target: .seeded(item.draft))
             }
             .sheet(item: $desk.pendingForm) { form in
-                EventEditorView(baby: baby, target: .seeded(form.draft)) { saved in
+                EventEditorView(baby: baby, target: .seeded(form.draft), onFinish: { saved in
                     desk.finishForm(saved: saved)
-                }
+                })
             }
         }
     }

@@ -161,6 +161,11 @@ public enum AIRedactor {
 public struct ColumnMapping: Codable, Equatable, Sendable {
     public var source: String
     public var target: String?
+
+    public init(source: String, target: String?) {
+        self.source = source
+        self.target = target
+    }
 }
 
 public struct RecordDraftSuggestion: Codable, Equatable, Sendable {

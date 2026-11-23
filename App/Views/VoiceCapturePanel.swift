@@ -80,7 +80,7 @@ struct VoiceCapturePanel: View {
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .accessibilityIdentifier("voice-discard")
                 Button(language == .zh ? "确定" : "Send") {
-                    voice.machine.setTranscript(voice.editorText)
+                    voice.setTranscript(voice.editorText)
                     if let text = voice.confirm() { onSend(text) }
                 }
                 .buttonStyle(.borderedProminent)

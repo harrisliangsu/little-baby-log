@@ -164,8 +164,8 @@ struct BabyFormView: View {
             saved.birthClock = nil
         }
         if let uuid = saved.uuid {
-            if removePhoto { BabyAvatarStore.remove(babyID: uuid) }
-            if let pendingImage { try? BabyAvatarStore.save(pendingImage, babyID: uuid) }
+            if removePhoto { BabyAvatarStore.remove(id: uuid) }
+            if let pendingImage { BabyAvatarStore.save(pendingImage, for: uuid) }
         }
         context.saveIfNeeded()
         Haptics.success()

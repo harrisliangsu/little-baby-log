@@ -47,6 +47,11 @@ final class VoiceSession: ObservableObject {
         }
     }
 
+    func setTranscript(_ text: String) {
+        machine.setTranscript(text)
+        publish()
+    }
+
     func confirm() -> String? {
         let effect = machine.confirm()
         publish()
