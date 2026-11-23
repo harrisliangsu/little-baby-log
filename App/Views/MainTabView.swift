@@ -25,25 +25,22 @@ struct MainTabView: View {
     @State private var tab: MainTab = .today
 
     var body: some View {
-        TabView(selection: $tab) {
+        ZStack {
             NavigationStack {
                 TodayView(baby: baby, day: day, link: $link)
                     .id(day)
             }
-            .tabItem { Label(Copy.today(language), systemImage: "sun.max.fill") }
-            .tag(MainTab.today)
+            .modifier(DockPage(active: tab == .today))
 
             NavigationStack {
                 HistoryView(baby: baby)
             }
-            .tabItem { Label(language == .zh ? "历史" : "History", systemImage: "calendar") }
-            .tag(MainTab.history)
+            .modifier(DockPage(active: tab == .history))
 
             NavigationStack {
                 TrendsView(baby: baby)
             }
-            .tabItem { Label(language == .zh ? "趋势" : "Trends", systemImage: "chart.bar.fill") }
-            .tag(MainTab.trends)
+            .modifier(DockPage(active: tab == .trends))
 
             NavigationStack(path: $settingsPath) {
                 SettingsView()
@@ -51,10 +48,8 @@ struct MainTabView: View {
                         AISettingsView(notice: assistantNotice)
                     }
             }
-            .tabItem { Label(Copy.settings(language), systemImage: "gearshape.fill") }
-            .tag(MainTab.settings)
+            .modifier(DockPage(active: tab == .settings))
         }
-        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             DockBar(tab: $tab, language: language, voice: voice, noticeAck: voiceNoticeAck, onNotice: {
                 showVoiceNotice = true
@@ -144,6 +139,19 @@ struct MainTabView: View {
 
 private enum SettingsRoute: Hashable {
     case assistant
+}
+
+/// The dock chooses the visible page. A hidden system tab stayed on Settings after its button was tapped.
+private struct DockPage: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(active ? 1 : 0)
+            .accessibilityHidden(!active)
+            .allowsHitTesting(active)
+            .zIndex(active ? 1 : 0)
+    }
 }
 
 #Preview {

@@ -764,12 +764,12 @@ final class SmokeUITests: XCTestCase {
     }
 
     private func closeWidgetPreview() {
-        app.buttons["close-widget-preview"].tap()
-        if tab("今天").exists {
-            tab("今天").tap()
-        } else if tab("Today").waitForExistence(timeout: 2) {
-            tab("Today").tap()
-        }
+        let close = app.buttons["close-widget-preview"]
+        XCTAssertTrue(close.waitForExistence(timeout: 4))
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 4), "widget preview stayed open")
+        tab("今天").tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4), "today did not appear after the dock tap")
     }
 
     func testBottomOfTodayStaysInteractive() throws {
