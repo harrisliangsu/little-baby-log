@@ -61,7 +61,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(
             XCTWaiter().wait(for: [showedDuration], timeout: 4),
             .completed,
-            "breast card stayed \(breast.label)"
+            "breast card stayed \(breast.label) \(saveTrace)"
         )
         shot("04-after-logging")
 
@@ -649,7 +649,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(save.waitForNonExistence(timeout: 4), "formula form stayed open")
         let card = element("summary-formula")
         let showed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", millilitres), object: card)
-        XCTAssertEqual(XCTWaiter().wait(for: [showed], timeout: 4), .completed, "formula card stayed \(card.label)")
+        XCTAssertEqual(XCTWaiter().wait(for: [showed], timeout: 4), .completed, "formula card stayed \(card.label) \(saveTrace)")
     }
 
     private func saveCurrentForm(_ addIdentifier: String) {
@@ -694,6 +694,11 @@ final class SmokeUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(target.frame.height, 44, note)
         target.tap()
         return target
+    }
+
+    private var saveTrace: String {
+        let probe = app.descendants(matching: .any)["save-trace"]
+        return probe.exists ? probe.label : "no-trace"
     }
 
     private func element(_ identifier: String) -> XCUIElement {

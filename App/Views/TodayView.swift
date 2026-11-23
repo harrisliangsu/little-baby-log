@@ -109,6 +109,9 @@ struct TodayView: View {
             .id(day)
             .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
         .navigationTitle(baby.displayName)
+        .background(alignment: .topLeading) {
+            SaveTraceProbe(babyID: SaveTrace.babyID(baby.uuid), contextID: SaveTrace.contextID(context))
+        }
         .navigationBarTitleDisplayMode(.large)
         .systemBarChrome()
         .toolbar {
@@ -243,6 +246,21 @@ struct TodayView: View {
         nursing = NursingSheetItem(event: event, suggestedSide: nextSide())
     }
 
+}
+
+/// Republishes the save chain so a failed UI assertion can show baby, context, draft, and who closed the sheet.
+private struct SaveTraceProbe: View {
+    @ObservedObject private var trace = SaveTrace.shared
+    let babyID: String
+    let contextID: String
+
+    var body: some View {
+        Text(trace.summary)
+            .frame(width: 1, height: 1)
+            .opacity(0.01)
+            .accessibilityIdentifier("save-trace")
+            .accessibilityLabel("\(trace.summary) todayBaby=\(babyID) todayCtx=\(contextID)")
+    }
 }
 
 #Preview {

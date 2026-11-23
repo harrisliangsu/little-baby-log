@@ -51,6 +51,8 @@ struct EventEditorView: View {
     /// Characters in the minute boxes. Save reads these even when the second binding is still 0.
     @State private var leftMinuteText = ""
     @State private var rightMinuteText = ""
+    /// Stable for this form's state. A new id means SwiftUI rebuilt the form.
+    @State private var formID = UUID()
 
     init(baby: Baby, target: EditorTarget, onFinish: ((Bool) -> Void)? = nil) {
         self.baby = baby
@@ -112,8 +114,12 @@ struct EventEditorView: View {
             .onAppear {
                 seedNewRecordIfNeeded()
                 activity.beginForm(baby.uuid)
+                SaveTrace.shared.record("appear form=\(SaveTrace.babyID(formID)) baby=\(SaveTrace.babyID(baby.uuid)) ctx=\(SaveTrace.contextID(context))")
             }
-            .onDisappear { activity.endForm(baby.uuid) }
+            .onDisappear {
+                activity.endForm(baby.uuid)
+                SaveTrace.shared.record("disappear form=\(SaveTrace.babyID(formID)) close=\(SaveTrace.shared.lastClose)")
+            }
             .themedList()
             .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)
@@ -123,12 +129,13 @@ struct EventEditorView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(UICopy.t(.cancel, language)) {
                         onFinish?(false)
-                        dismiss()
+                        closeSheet("cancel")
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button(UICopy.t(.done, language)) {
+                        SaveTrace.shared.record("keyboard-done form=\(SaveTrace.babyID(formID)) left=\(Int(draft.leftSeconds)) amt=\(Int(draft.amountML))")
                         if draft.kind == .breastfeed {
                             ManualNursingSave.commit(fields: minuteFieldsAtSave(), into: &draft)
                         }
@@ -466,6 +473,8 @@ struct EventEditorView: View {
     // MARK: Actions
 
     private func save() {
+        SaveTrace.shared.reset()
+        SaveTrace.shared.record("action form=\(SaveTrace.babyID(formID)) baby=\(SaveTrace.babyID(baby.uuid)) ctx=\(SaveTrace.contextID(context)) kind=\(draft.kind.rawValue) left=\(Int(draft.leftSeconds)) amt=\(Int(draft.amountML)) mirror=\(leftMinuteText)")
         if draft.kind == .bottle {
             let live = LiveFieldText.text(identifier: "bottle-amount") ?? ""
             if let milliliters = ManualNursingSave.minutes(fromDisplayed: live), milliliters > 0 {
@@ -485,21 +494,31 @@ struct EventEditorView: View {
             let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
             WetDiaperLink.sync(event: event, isNew: true, in: context)
+            SaveTrace.shared.record("insert baby=\(SaveTrace.babyID(event.baby?.uuid)) left=\(Int(event.leftSeconds)) amt=\(Int(event.amountML))")
         case .edit(let event):
             draft.apply(to: event)
             WetDiaperLink.sync(event: event, isNew: false, in: context)
+            SaveTrace.shared.record("edit baby=\(SaveTrace.babyID(event.baby?.uuid)) left=\(Int(event.leftSeconds)) amt=\(Int(event.amountML))")
         }
-        context.saveIfNeeded()
+        let saved = context.saveIfNeeded()
         context.processPendingChanges()
+        SaveTrace.shared.record(refetchNote(saved: saved))
         if draft.kind == .bottle {
             let stored = (try? context.fetch(LogEvent.requestAll(baby: baby, kinds: [.bottle]))) ?? []
             guard stored.contains(where: { $0.amountML > 0 }) else {
                 attemptedSave = true
+                SaveTrace.shared.record("reject-no-amount")
                 return
             }
         }
+        closeSheet("save")
+    }
+
+    private func closeSheet(_ reason: String) {
+        SaveTrace.shared.lastClose = reason
+        SaveTrace.shared.record("close=\(reason) form=\(SaveTrace.babyID(formID))")
         Haptics.success()
-        onFinish?(true)
+        onFinish?(reason == "save")
         dismiss()
     }
 
@@ -515,28 +534,26 @@ struct EventEditorView: View {
             draft.apply(to: event)
             WetDiaperLink.sync(event: event, isNew: false, in: context)
             context.saveIfNeeded()
-            finishSave()
+            closeSheet("save")
             return
         }
         switch ManualNursingSave.save(draft: &draft, fields: fields, baby: baby, in: context) {
         case .saved:
             context.processPendingChanges()
+            SaveTrace.shared.record(refetchNote(saved: true))
             let stored = (try? context.fetch(LogEvent.requestAll(baby: baby, kinds: [.breastfeed]))) ?? []
             let wroteDuration = stored.contains { $0.leftSeconds + $0.rightSeconds > 0 }
+            SaveTrace.shared.record("breastRows=\(stored.count) maxSide=\(Int(stored.map { $0.leftSeconds + $0.rightSeconds }.max() ?? 0))")
             if wroteDuration {
-                finishSave()
+                closeSheet("save")
             } else {
                 attemptedSave = true
+                SaveTrace.shared.record("reject-no-duration")
             }
-        case .rejected:
+        case .rejected(let message):
             attemptedSave = true
+            SaveTrace.shared.record("reject \(message)")
         }
-    }
-
-    private func finishSave() {
-        Haptics.success()
-        onFinish?(true)
-        dismiss()
     }
 
     /// Prefer the text actually drawn in the box. The SwiftUI binding can still be 0 while that text says 1.
@@ -559,7 +576,7 @@ struct EventEditorView: View {
             context.delete(event)
             context.saveIfNeeded()
         }
-        dismiss()
+        closeSheet("delete")
     }
 }
 
