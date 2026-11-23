@@ -641,12 +641,18 @@ final class SmokeUITests: XCTestCase {
 
     private func tap(_ identifier: String) {
         let button = app.buttons[identifier]
+        if !(button.exists && button.isHittable) {
+            for _ in 0..<6 {
+                app.swipeDown()
+                if button.exists && button.isHittable { break }
+            }
+        }
         var swipes = 0
-        while swipes < 8 && !(button.exists && button.isHittable) {
+        while swipes < 6 && !(button.exists && button.isHittable) {
             app.swipeUp()
             swipes += 1
         }
-        XCTAssertTrue(button.waitForExistence(timeout: 4))
+        XCTAssertTrue(button.waitForExistence(timeout: 4), identifier)
         button.tap()
     }
 
