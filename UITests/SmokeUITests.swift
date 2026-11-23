@@ -49,10 +49,10 @@ final class SmokeUITests: XCTestCase {
 
         XCTAssertTrue(formula.label.contains("120"))
         XCTAssertFalse(formula.label.contains("今日"))
-        XCTAssertTrue(loggedAge(element("summary-wet").label))
-        XCTAssertTrue(loggedAge(element("summary-dirty").label))
-        XCTAssertTrue(loggedAge(element("summary-change").label))
-        XCTAssertTrue(loggedAge(element("summary-sleep").label))
+        XCTAssertTrue(loggedAge(element("summary-wet").label), "wet card stayed \(element("summary-wet").label) \(saveTrace)")
+        XCTAssertTrue(loggedAge(element("summary-dirty").label), "dirty card stayed \(element("summary-dirty").label) \(saveTrace)")
+        XCTAssertTrue(loggedAge(element("summary-change").label), "change card stayed \(element("summary-change").label) \(saveTrace)")
+        XCTAssertTrue(loggedAge(element("summary-sleep").label), "sleep card stayed \(element("summary-sleep").label) \(saveTrace)")
         let breast = element("summary-breast")
         let showedDuration = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label CONTAINS %@", "1分钟"),

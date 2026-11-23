@@ -34,6 +34,8 @@ struct TodayView: View {
     @State private var now = Date()
     /// Bumps when the store saves, so the cards re-read the context the form just wrote.
     @State private var savedRecords = 0
+    /// Rollup taken from that re-read. The list was still showing the snapshot from before the sheet closed.
+    @State private var displayedCare: CareRollup?
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -60,7 +62,7 @@ struct TodayView: View {
     }
 
     var body: some View {
-        let care = CareRollup.make(events: loggedEvents, now: now)
+        let care = displayedCare ?? CareRollup.make(events: loggedEvents, now: now)
         List {
                 if !running.isEmpty {
                     Section {
@@ -86,6 +88,7 @@ struct TodayView: View {
                             onOpen: { timelineCard = card },
                             onAdd: { add(card) }
                         )
+                        .id("\(card.id)-\(savedRecords)")
                         .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                         .listRowBackground(Color.clear)
                     }
@@ -147,6 +150,14 @@ struct TodayView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: context)) { _ in
             savedRecords += 1
+        }
+        .onChange(of: savedRecords) { _, _ in
+            let rows = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+            let fresh = CareRollup.make(events: rows, now: .now)
+            displayedCare = fresh
+            let formula = fresh.lastFormulaML.map { String(Int($0)) } ?? "nil"
+            let breast = fresh.lastBreastSeconds.map { String(Int($0)) } ?? "nil"
+            SaveTrace.shared.record("todayFetch rows=\(rows.count) formula=\(formula) breast=\(breast)")
         }
         .sheet(item: $editor, onDismiss: { savedRecords += 1 }) { target in
             EventEditorView(baby: baby, target: target)
