@@ -20,7 +20,7 @@ public enum AIStreamDecoder {
         var events: [String] = []
         var data = ""
         var hasData = false
-        for line in text.split(whereSeparator: \.isNewline) {
+        for line in text.components(separatedBy: .newlines) {
             let row = String(line)
             if row.isEmpty {
                 if hasData {

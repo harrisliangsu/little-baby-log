@@ -45,7 +45,8 @@ public enum BabyCulture {
         let lunar = solar.lunar
         let eight = lunar.eightChar
         eight.sect = 2
-        let lunarText = "\(lunar.year)年\(lunar.monthInChinese)\(lunar.dayInChinese)"
+        let month = lunar.monthInChinese.hasSuffix("月") ? lunar.monthInChinese : lunar.monthInChinese + "月"
+        let lunarText = "\(lunar.year)年\(month)\(lunar.dayInChinese)"
         return Profile(
             lunar: lunarText,
             zodiac: lunar.yearShengXiao,
