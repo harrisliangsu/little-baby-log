@@ -149,11 +149,10 @@ final class SmokeUITests: XCTestCase {
 
     /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
     private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
-        tab(settingsTab).tap()
+        returnToSettingsHub(tabTitle: settingsTab)
         let appearanceModule = app.descendants(matching: .any)["settings-module-appearance"]
-        if appearanceModule.waitForExistence(timeout: 4) {
-            appearanceModule.tap()
-        }
+        XCTAssertTrue(appearanceModule.waitForExistence(timeout: 4), "settings-module-appearance")
+        appearanceModule.tap()
         let option = appearanceControl(expected, chinese: settingsTab == "设置")
         for _ in 0..<8 where !option.isHittable {
             app.swipeUp()
@@ -703,6 +702,27 @@ final class SmokeUITests: XCTestCase {
         button.tap()
     }
 
+    /// Settings tabs keep the last page. Nested widget, baby, and provider screens hide the hub.
+    private func returnToSettingsHub(tabTitle: String) {
+        tab(tabTitle).tap()
+        let hub = app.descendants(matching: .any)["settings-module-records"]
+        if hub.waitForExistence(timeout: 2), hub.isHittable { return }
+        if app.buttons["close-widget-preview"].exists {
+            app.buttons["close-widget-preview"].tap()
+            tab(tabTitle).tap()
+        }
+        if app.navigationBars.buttons["取消"].exists {
+            app.navigationBars.buttons["取消"].tap()
+        }
+        for _ in 0..<4 {
+            if hub.exists, hub.isHittable { return }
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            guard back.exists, back.isHittable else { return }
+            if back.label == tabTitle { return }
+            back.tap()
+        }
+    }
+
     private func closeWidgetPreview() {
         app.buttons["close-widget-preview"].tap()
         if tab("今天").exists {
@@ -875,10 +895,14 @@ final class SmokeUITests: XCTestCase {
         app.buttons["provider-deepseek"].tap()
         XCTAssertTrue(app.secureTextFields["ai-key-field"].waitForExistence(timeout: 4))
         shot("review-22-ai-settings")
-        popNavigation()
+        if app.navigationBars.buttons["取消"].exists {
+            app.navigationBars.buttons["取消"].tap()
+        }
+        returnToSettingsHub(tabTitle: "设置")
 
         let dataModule = app.descendants(matching: .any)["settings-module-data"]
-        if dataModule.waitForExistence(timeout: 3) { dataModule.tap() }
+        XCTAssertTrue(dataModule.waitForExistence(timeout: 4), "settings-module-data")
+        dataModule.tap()
         let sync = app.staticTexts["iCloud 同步"]
         var syncSwipes = 0
         while syncSwipes < 8 && !sync.exists {
@@ -886,13 +910,8 @@ final class SmokeUITests: XCTestCase {
             syncSwipes += 1
         }
         XCTAssertTrue(sync.waitForExistence(timeout: 4))
-        let importer = app.descendants(matching: .any)["导入标准 CSV / JSON"]
-        var importSwipes = 0
-        while importSwipes < 4 && !importer.exists {
-            app.swipeUp()
-            importSwipes += 1
-        }
-        XCTAssertTrue(importer.waitForExistence(timeout: 4))
+        let importer = app.descendants(matching: .any)["import-ordinary"]
+        XCTAssertTrue(importer.waitForExistence(timeout: 4), "import-ordinary")
         shot("review-23-sync-import")
 
         openWidgetPreview()
