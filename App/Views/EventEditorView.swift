@@ -466,6 +466,12 @@ struct EventEditorView: View {
     // MARK: Actions
 
     private func save() {
+        if draft.kind == .bottle {
+            let live = LiveFieldText.text(identifier: "bottle-amount") ?? ""
+            if let milliliters = ManualNursingSave.minutes(fromDisplayed: live), milliliters > 0 {
+                draft.amountML = milliliters
+            }
+        }
         if draft.kind == .breastfeed {
             saveNursing()
             return
@@ -484,6 +490,14 @@ struct EventEditorView: View {
             WetDiaperLink.sync(event: event, isNew: false, in: context)
         }
         context.saveIfNeeded()
+        context.processPendingChanges()
+        if draft.kind == .bottle {
+            let stored = (try? context.fetch(LogEvent.requestAll(baby: baby, kinds: [.bottle]))) ?? []
+            guard stored.contains(where: { $0.amountML > 0 }) else {
+                attemptedSave = true
+                return
+            }
+        }
         Haptics.success()
         onFinish?(true)
         dismiss()
@@ -651,7 +665,7 @@ private struct FormulaAmountShortcuts: View {
 
     private var numberField: some View {
         HStack(spacing: 4) {
-            TextField("0", text: $text)
+            TextField("0", text: amountText)
                 .keyboardType(.decimalPad)
                 .font(.system(size: 40, weight: .semibold))
                 .multilineTextAlignment(.trailing)
@@ -662,10 +676,19 @@ private struct FormulaAmountShortcuts: View {
                 .font(.title2)
                 .foregroundStyle(.secondary)
         }
-        .onChange(of: text) { _, newText in
-            guard focused, let parsed = NumberField.parse(newText) else { return }
-            milliliters = parsed
-        }
+    }
+
+    /// Writes the draft as the characters change, including a UI test `typeText`, not only while FocusState says the field is focused.
+    private var amountText: Binding<String> {
+        Binding(
+            get: { text },
+            set: { newText in
+                text = newText
+                if let parsed = NumberField.parse(newText) {
+                    milliliters = parsed
+                }
+            }
+        )
     }
 
     private func label(_ amount: Double, scoops: Int) -> String {
