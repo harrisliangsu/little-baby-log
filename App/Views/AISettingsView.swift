@@ -1,36 +1,18 @@
 import SwiftUI
 import BabyLogKit
 
-/// The assistant switch, provider, model, and key status. A saved key is not a successful connection.
+/// Assistant switch plus one card per saved provider. A saved key is not a verified connection.
 struct AISettingsView: View {
     var notice: String = ""
     @EnvironmentObject private var desk: AIDesk
     @AppStorage(AIPreferences.enabledKey) private var enabled = false
-    @AppStorage(AIPreferences.providerKey) private var providerRaw = AIProviderID.deepseek.rawValue
-    @AppStorage(AIPreferences.modelsKey) private var modelsJSON = ""
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
-    @State private var draft = ""
-    @State private var replacing = false
-    @State private var savedNote = false
+    @State private var catalog = AIConfigurationCatalog.load()
+    @State private var sheet: ProviderSheet?
+    @State private var pendingDelete: UUID?
 
-    private var provider: AIProviderID { AIProviderID(rawValue: providerRaw) ?? .deepseek }
-    private var phase: AICredentialPhase { desk.phase(for: provider) }
-    private var modelID: String { AIModelSelection(json: modelsJSON).current(for: provider) }
-    private var modelTitle: String {
-        AIModelCatalog.choices(for: provider).first { $0.rawID == modelID }?.title ?? modelID
-    }
-
-    private var modelSelection: Binding<String> {
-        Binding(
-            get: { modelID },
-            set: { modelsJSON = AIModelSelection(json: modelsJSON).choosing($0, for: provider).json }
-        )
-    }
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
-    }
-    private var showsKeyField: Bool {
-        phase == .unconfigured || replacing
     }
 
     var body: some View {
@@ -40,124 +22,223 @@ struct AISettingsView: View {
             }
             Toggle(language == .zh ? "使用 AI 助手" : "Use the assistant", isOn: $enabled)
                 .accessibilityIdentifier("ai-enabled")
-            Picker(language == .zh ? "供应商" : "Provider", selection: $providerRaw) {
-                ForEach(AIProviderID.allCases) { item in
-                    Text(item.displayName).tag(item.rawValue)
+            Section {
+                ForEach(catalog.items) { item in
+                    providerCard(item)
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button(language == .zh ? "设为当前" : "Use") { activate(item.id) }
+                            Button(language == .zh ? "编辑" : "Edit") { sheet = .edit(item.id) }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(language == .zh ? "删除" : "Delete", role: .destructive) {
+                                pendingDelete = item.id
+                            }
+                        }
                 }
-            }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("ai-provider")
-            Picker(language == .zh ? "模型" : "Model", selection: modelSelection) {
-                ForEach(AIModelCatalog.choices(for: provider)) { choice in
-                    Text(choice.title).tag(choice.rawID)
+                Button(language == .zh ? "添加供应商" : "Add a provider") {
+                    sheet = .add
                 }
-            }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("ai-model")
-            status
-            if showsKeyField {
-                SecureField(language == .zh ? "API Key" : "API key", text: $draft)
-                    .accessibilityIdentifier("ai-key-field")
-                Button(language == .zh ? "保存在这台设备" : "Save on this device") {
-                    saveKey()
-                }
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("ai-save-key")
-                if replacing {
-                    Button(language == .zh ? "取消" : "Cancel") {
-                        draft = ""
-                        replacing = false
-                    }
-                }
+                .accessibilityIdentifier("add-provider")
+            } footer: {
+                Text(language == .zh
+                     ? "保存只表示 Key 在这台手机上。验证通过才算连上。删除当前供应商后，需要再点一次「设为当前」。"
+                     : "Saving keeps the key on this phone. A check is a separate step. Deleting the current provider does not switch to another.")
             }
         }
         .navigationTitle(language == .zh ? "AI 助手" : "Assistant")
         .onChange(of: enabled) { _, isOn in
             if !isOn { AITasks.shared.cancelAll() }
         }
-        .onChange(of: providerRaw) { _, _ in
-            replacing = false
-            draft = ""
-            savedNote = false
+        .sheet(item: $sheet) { item in
+            ProviderConfigSheet(mode: item, catalog: $catalog)
         }
-    }
-
-    @ViewBuilder
-    private var status: some View {
-        switch phase {
-        case .unconfigured:
-            EmptyView()
-        case .savedUnverified:
-            savedRow
-            if savedNote {
-                Text(language == .zh ? "已保存在这台设备" : "Saved on this device")
-                    .font(.footnote)
-            }
-            if enabled {
-                Button(language == .zh ? "验证" : "Check") { Task { await desk.verify(provider) } }
-                    .accessibilityIdentifier("ai-verify")
-            }
-        case .checking:
-            HStack {
-                ProgressView()
-                Text(modelTitle)
-            }
-            .accessibilityIdentifier("ai-key-status")
-        case .verified:
-            Text(modelTitle)
-                .accessibilityIdentifier("ai-key-status")
-            savedRow
-        case .rejected:
-            Text(language == .zh ? "Key 不可用" : "The key was rejected")
-                .accessibilityIdentifier("ai-key-status")
-            savedRow
-            if enabled { retry }
-        case .offline:
-            Text(language == .zh ? "没有网络" : "No network")
-                .accessibilityIdentifier("ai-key-status")
-            savedRow
-            if enabled { retry }
-        case .unavailable:
-            Text(language == .zh ? "没有得到回复" : "No reply")
-                .accessibilityIdentifier("ai-key-status")
-            savedRow
-            if enabled { retry }
-        }
-    }
-
-    private var savedRow: some View {
-        let last = AIKeyStore.lastFour(provider: provider)
-        return HStack {
-            Text(last.isEmpty ? (language == .zh ? "已保存" : "Saved") : "····\(last)")
-                .accessibilityIdentifier("ai-key-status")
-            Spacer()
-            Button(language == .zh ? "更换" : "Replace") {
-                replacing = true
-                savedNote = false
-            }
-            .accessibilityIdentifier("ai-replace-key")
+        .confirmationDialog(
+            language == .zh ? "删除这个供应商？" : "Delete this provider?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
             Button(language == .zh ? "删除" : "Delete", role: .destructive) {
-                AIKeyStore.delete(provider: provider)
-                desk.noteDeleted(provider)
-                draft = ""
-                replacing = false
-                savedNote = false
+                if let id = pendingDelete { remove(id) }
+            }
+            Button(language == .zh ? "取消" : "Cancel", role: .cancel) {}
+        }
+    }
+
+    private func providerCard(_ item: AIProviderConfiguration) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(item.provider.displayName).font(.headline)
+                if catalog.activeID == item.id {
+                    Text(language == .zh ? "当前" : "Current")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15), in: Capsule())
+                }
+                Spacer()
+                Menu {
+                    Button(language == .zh ? "设为当前" : "Use") { activate(item.id) }
+                    Button(language == .zh ? "编辑" : "Edit") { sheet = .edit(item.id) }
+                    Button(language == .zh ? "删除" : "Delete", role: .destructive) { pendingDelete = item.id }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityIdentifier("provider-menu-\(item.id.uuidString)")
+            }
+            Text(modelTitle(item))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(status(item))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.provider.displayName) \(modelTitle(item)) \(status(item))")
+    }
+
+    private func modelTitle(_ item: AIProviderConfiguration) -> String {
+        AIModelCatalog.choices(for: item.provider).first { $0.rawID == item.model }?.title ?? item.model
+    }
+
+    private func status(_ item: AIProviderConfiguration) -> String {
+        let last = AIKeyStore.lastFour(account: item.id.uuidString)
+        let phase = desk.phase(for: item.provider)
+        if last.isEmpty { return language == .zh ? "未保存 Key" : "No key" }
+        if catalog.activeID == item.id, phase == .verified {
+            return language == .zh ? "已验证 ····\(last)" : "Checked ····\(last)"
+        }
+        return language == .zh ? "已保存，未验证 ····\(last)" : "Saved, not checked ····\(last)"
+    }
+
+    private func activate(_ id: UUID) {
+        AITasks.shared.cancelAll()
+        catalog = catalog.activating(id)
+        catalog.save()
+    }
+
+    private func remove(_ id: UUID) {
+        AITasks.shared.cancelAll()
+        AIKeyStore.delete(account: id.uuidString)
+        catalog = catalog.deleting(id)
+        catalog.save()
+        pendingDelete = nil
+    }
+}
+
+private enum ProviderSheet: Identifiable {
+    case add
+    case edit(UUID)
+    var id: String {
+        switch self {
+        case .add: return "add"
+        case .edit(let id): return id.uuidString
+        }
+    }
+}
+
+private struct ProviderConfigSheet: View {
+    let mode: ProviderSheet
+    @Binding var catalog: AIConfigurationCatalog
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var desk: AIDesk
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+    @State private var provider: AIProviderID
+    @State private var model: String
+    @State private var draft = ""
+    @State private var choosing = true
+
+    init(mode: ProviderSheet, catalog: Binding<AIConfigurationCatalog>) {
+        self.mode = mode
+        _catalog = catalog
+        switch mode {
+        case .add:
+            _provider = State(initialValue: .deepseek)
+            _model = State(initialValue: AIModelCatalog.defaultID(for: .deepseek))
+            _choosing = State(initialValue: true)
+        case .edit(let id):
+            let item = catalog.wrappedValue.items.first { $0.id == id }
+            _provider = State(initialValue: item?.provider ?? .deepseek)
+            _model = State(initialValue: item?.model ?? AIModelCatalog.defaultID(for: .deepseek))
+            _choosing = State(initialValue: false)
+        }
+    }
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if choosing {
+                    Section {
+                        providerButton(.deepseek, language == .zh ? "对话接口" : "Chat API")
+                        providerButton(.kimiAI, "api.moonshot.ai")
+                        providerButton(.kimiCN, "api.moonshot.cn")
+                    }
+                } else {
+                    Picker(language == .zh ? "模型" : "Model", selection: $model) {
+                        ForEach(AIModelCatalog.choices(for: provider)) { choice in
+                            Text(choice.title).tag(choice.rawID)
+                        }
+                    }
+                    .accessibilityIdentifier("ai-model")
+                    SecureField(language == .zh ? "API Key" : "API key", text: $draft)
+                        .accessibilityIdentifier("ai-key-field")
+                    Button(language == .zh ? "保存在这台设备" : "Save on this device") { save() }
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && modeID == nil)
+                        .accessibilityIdentifier("ai-save-key")
+                }
+            }
+            .navigationTitle(choosing ? (language == .zh ? "添加供应商" : "Add a provider") : provider.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(language == .zh ? "取消" : "Cancel") { dismiss() }
+                }
             }
         }
     }
 
-    private var retry: some View {
-        Button(language == .zh ? "重试" : "Try again") { Task { await desk.verify(provider) } }
-            .accessibilityIdentifier("ai-verify")
+    private var modeID: UUID? {
+        if case .edit(let id) = mode { return id }
+        return nil
     }
 
-    private func saveKey() {
+    private func providerButton(_ item: AIProviderID, _ detail: String) -> some View {
+        Button {
+            provider = item
+            model = AIModelCatalog.defaultID(for: item)
+            choosing = false
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.displayName)
+                Text(detail).font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityIdentifier("provider-\(item.rawValue)")
+    }
+
+    private func save() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        AIKeyStore.save(trimmed, provider: provider)
+        let id = modeID ?? UUID()
+        if !trimmed.isEmpty {
+            AIKeyStore.save(trimmed, account: id.uuidString)
+        }
+        var next = catalog
+        if let index = next.items.firstIndex(where: { $0.id == id }) {
+            next.items[index].model = AIModelCatalog.resolve(model, for: provider)
+        } else if !trimmed.isEmpty {
+            next.items.append(AIProviderConfiguration(id: id, provider: provider, model: model))
+            if next.activeID == nil { next.activeID = id }
+        } else {
+            return
+        }
+        next.save()
+        catalog = next
         desk.noteSaved(provider)
-        draft = ""
-        replacing = false
-        savedNote = true
+        dismiss()
     }
 }

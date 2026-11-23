@@ -7,8 +7,13 @@ let package = Package(
     products: [
         .library(name: "BabyLogKit", targets: ["BabyLogKit"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/6tail/lunar-swift.git", from: "1.1.9"),
+    ],
     targets: [
-        .target(name: "BabyLogKit"),
+        .target(name: "BabyLogKit", dependencies: [
+            .product(name: "LunarSwift", package: "lunar-swift"),
+        ]),
         .testTarget(name: "BabyLogKitTests", dependencies: ["BabyLogKit"]),
     ],
     swiftLanguageModes: [.v5]

@@ -13,6 +13,7 @@ public struct EventDraft: Equatable {
     public var amountML: Double
     public var bottleContent: BottleContent
     public var foodName: String
+    public var solids: SolidsDetail
     public var diaperKind: DiaperKind
     public var leftML: Double
     public var rightML: Double
@@ -35,6 +36,7 @@ public struct EventDraft: Equatable {
         self.amountML = 0
         self.bottleContent = .formula
         self.foodName = ""
+        self.solids = .empty
         self.diaperKind = .wet
         self.leftML = 0
         self.rightML = 0
@@ -99,6 +101,7 @@ public struct EventDraft: Equatable {
         self.amountML = event.amountML
         self.bottleContent = event.bottleContent ?? .formula
         self.foodName = event.foodName ?? ""
+        self.solids = SolidsDetail.reading(foodName: event.foodName, json: event.solidsDetail)
         self.diaperKind = event.diaperKind ?? .wet
         self.leftML = event.leftML
         self.rightML = event.rightML
@@ -164,7 +167,9 @@ public struct EventDraft: Equatable {
             event.bottleContent = bottleContent
         case .solids:
             event.endDate = nil
-            event.foodName = Self.trimmedOrNil(foodName)
+            event.solidsDetail = solids.json
+            let summary = solids.namesSummary
+            event.foodName = summary.isEmpty ? Self.trimmedOrNil(foodName) : summary
         case .diaper:
             event.endDate = nil
             event.diaperKind = diaperKind

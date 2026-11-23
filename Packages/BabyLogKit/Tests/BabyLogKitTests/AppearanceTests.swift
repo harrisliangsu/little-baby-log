@@ -119,39 +119,25 @@ struct AppearanceTests {
     // MARK: Modes
 
     @Test func fixedModesIgnoreTheClock() {
-        let schedule = NightSchedule.default
-        let noon = date(10, 12, 0)
-        let midnight = date(11, 0, 0)
-        for moment in [noon, midnight] {
-            #expect(AppearanceMode.system.resolved(schedule: schedule, at: moment, calendar: calendar) == .system)
-            #expect(AppearanceMode.light.resolved(schedule: schedule, at: moment, calendar: calendar) == .light)
-            #expect(AppearanceMode.dark.resolved(schedule: schedule, at: moment, calendar: calendar) == .dark)
-            #expect(AppearanceMode.night.resolved(schedule: schedule, at: moment, calendar: calendar) == .night)
-        }
+        #expect(AppearanceMode.system.resolved() == .system)
+        #expect(AppearanceMode.light.resolved() == .light)
+        #expect(AppearanceMode.dark.resolved() == .dark)
     }
 
-    @Test func scheduledModeSwitchesBetweenNightAndSystem() {
-        let schedule = NightSchedule.default
-        #expect(AppearanceMode.nightSchedule.resolved(schedule: schedule, at: date(10, 12, 0), calendar: calendar) == .system)
-        #expect(AppearanceMode.nightSchedule.resolved(schedule: schedule, at: date(10, 22, 0), calendar: calendar) == .night)
-        #expect(AppearanceMode.nightSchedule.resolved(schedule: schedule, at: date(10, 22, 0), calendar: calendar).isNight)
-    }
-
-    @Test func onlyTheScheduledModeHasTransitions() {
-        let schedule = NightSchedule.default
-        let noon = date(10, 12, 0)
-        #expect(AppearanceMode.nightSchedule.nextTransition(schedule: schedule, after: noon, calendar: calendar) == date(10, 19, 0))
-        for mode in [AppearanceMode.system, .light, .dark, .night] {
-            #expect(mode.nextTransition(schedule: schedule, after: noon, calendar: calendar) == nil)
-        }
-    }
-
-    @Test func nightIsPossibleOnlyInNightModes() {
-        #expect(AppearanceMode.allCases.filter(\.canShowNight) == [.night, .nightSchedule])
+    @Test func oldNightSettingsBecomeOneOfTheThree() {
+        #expect(AppearanceMigration.storedMode(from: "night") == "dark")
+        #expect(AppearanceMigration.storedMode(from: "nightSchedule") == "system")
+        #expect(AppearanceMigration.storedMode(from: "light") == "light")
+        #expect(AppearanceMigration.storedMode(from: nil) == "system")
+        let defaults = UserDefaults(suiteName: "appearance-migration-\(UUID().uuidString)")!
+        defaults.set("night", forKey: "appearanceMode")
+        defaults.set(19 * 60, forKey: "nightStartMinutes")
+        AppearanceMigration.apply(defaults)
+        #expect(defaults.string(forKey: "appearanceMode") == "dark")
+        #expect(defaults.integer(forKey: "nightStartMinutes") == 19 * 60)
     }
 
     @Test func rawValuesAreStable() {
-        // These are stored with @AppStorage; renaming one would reset people's setting.
-        #expect(AppearanceMode.allCases.map(\.rawValue) == ["system", "light", "dark", "night", "nightSchedule"])
+        #expect(AppearanceMode.allCases.map(\.rawValue) == ["system", "light", "dark"])
     }
 }

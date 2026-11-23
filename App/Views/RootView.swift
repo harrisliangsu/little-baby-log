@@ -12,6 +12,8 @@ struct RootView: View {
     @State private var pendingLink: DeepLink?
     @State private var showMissingBaby = false
     @StateObject private var desk = AIDesk()
+    @StateObject private var voice = VoiceSession()
+    @StateObject private var activity = BabyActivity()
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
 
     private var language: ResolvedLanguage {
@@ -33,6 +35,8 @@ struct RootView: View {
             } else if let baby = selectedBaby {
                 MainTabView(baby: baby, link: $pendingLink)
                     .environmentObject(desk)
+                    .environmentObject(voice)
+                    .environmentObject(activity)
                     .onAppear { AIDesk.current = desk }
                     .id(baby.objectID)
             } else {

@@ -34,8 +34,10 @@ enum EditorTarget: Identifiable {
 struct EventEditorView: View {
     let baby: Baby
     let target: EditorTarget
+    var onFinish: ((Bool) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var activity: BabyActivity
     @Environment(\.managedObjectContext) private var context
     @Environment(\.appTheme) private var theme
     @Environment(\.uiLanguage) private var language
@@ -46,10 +48,16 @@ struct EventEditorView: View {
     @State private var confirmDelete = false
     @State private var attemptedSave = false
     @State private var seededFormula = false
+    /// Characters in the minute boxes. Save reads these even when the second binding is still 0.
+    @State private var leftMinuteText = ""
+    @State private var rightMinuteText = ""
+    /// Stable for this form's state. A new id means SwiftUI rebuilt the form.
+    @State private var formID = UUID()
 
-    init(baby: Baby, target: EditorTarget) {
+    init(baby: Baby, target: EditorTarget, onFinish: ((Bool) -> Void)? = nil) {
         self.baby = baby
         self.target = target
+        self.onFinish = onFinish
         switch target {
         case .new(let kind):
             _draft = State(initialValue: EventDraft(kind: kind))
@@ -75,6 +83,7 @@ struct EventEditorView: View {
 
     var body: some View {
         NavigationStack {
+            VStack(spacing: 0) {
             Form {
                 kindFields
                 if isEditing {
@@ -102,37 +111,54 @@ struct EventEditorView: View {
                 .opacity(0.01)
                 .accessibilityElement(children: .contain)
             }
-            .onAppear(perform: seedFormulaAmountIfNeeded)
+            .onAppear {
+                seedNewRecordIfNeeded()
+                activity.beginForm(baby.uuid)
+                SaveTrace.shared.record("appear form=\(SaveTrace.babyID(formID)) baby=\(SaveTrace.babyID(baby.uuid)) ctx=\(SaveTrace.contextID(context))")
+            }
+            .onDisappear {
+                activity.endForm(baby.uuid)
+                SaveTrace.shared.record("disappear form=\(SaveTrace.babyID(formID)) close=\(SaveTrace.shared.lastClose)")
+            }
             .themedList()
             .systemBarChrome()
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom, spacing: 8) {
-                Button { save() } label: {
-                    Text(UICopy.t(.save, language))
-                        .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("save-entry")
-                .padding(.horizontal, 20)
-                .padding(.bottom, 4)
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(UICopy.t(.cancel, language)) { dismiss() }
+                    Button(UICopy.t(.cancel, language)) {
+                        onFinish?(false)
+                        closeSheet("cancel")
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button(UICopy.t(.done, language)) { UIApplication.endEditing() }
+                    Button(UICopy.t(.done, language)) {
+                        SaveTrace.shared.record("keyboard-done form=\(SaveTrace.babyID(formID)) left=\(Int(draft.leftSeconds)) amt=\(Int(draft.amountML))")
+                        if draft.kind == .breastfeed {
+                            ManualNursingSave.commit(fields: minuteFieldsAtSave(), into: &draft)
+                        }
+                        UIApplication.endEditing()
+                    }
                 }
             }
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
             }
+            Button { save() } label: {
+                Text(UICopy.t(.save, language))
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("save-entry")
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            }
         }
+        .interactiveDismissDisabled()
     }
 
     // MARK: Fields by kind
@@ -184,9 +210,9 @@ struct EventEditorView: View {
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
             } else {
-                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-left-minutes")
+                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-left-minutes", displayed: $leftMinuteText)
                     .frame(minHeight: 56)
-                NumberField(UICopy.t(.rightMinutes, language), value: minutesBinding(\.rightSeconds), unit: language == .zh ? "分钟" : "min")
+                NumberField(UICopy.t(.rightMinutes, language), value: minutesBinding(\.rightSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-right-minutes", displayed: $rightMinuteText)
                     .frame(minHeight: 56)
             }
             saveError
@@ -195,12 +221,18 @@ struct EventEditorView: View {
 
     private var bottleFields: some View {
         Section {
-            InlineAmountEditor(
-                milliliters: $draft.amountML,
-                unit: volumeUnit,
-                language: language,
-                yesterdayRounded: yesterdayRoundedAmount
-            )
+            if draft.bottleContent == .formula || target.homeCard == .formula {
+                FormulaAmountShortcuts(
+                    milliliters: $draft.amountML,
+                    language: language,
+                    last: lastFormulaAmount,
+                    pinned: pinnedFormulaAmount,
+                    onPin: { pinFormulaAmount($0) },
+                    onClearPin: { pinFormulaAmount(nil) }
+                )
+            } else {
+                InlineAmountEditor(milliliters: $draft.amountML, unit: volumeUnit, language: language)
+            }
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
             if target.homeCard != .formula {
                 Picker(UICopy.t(.contents, language), selection: $draft.bottleContent) {
@@ -217,11 +249,39 @@ struct EventEditorView: View {
     private var solidsFields: some View {
         Section {
             TimeValueRow(title: UICopy.t(.time, language), date: $draft.startDate)
-            TextField(UICopy.t(.food, language), text: $draft.foodName)
-                .textInputAutocapitalization(.sentences)
-                .frame(minHeight: 56)
+            if draft.solids.items.isEmpty {
+                TextField(UICopy.t(.food, language), text: $draft.foodName)
+                    .accessibilityIdentifier("solids-name")
+            }
+            ForEach(draft.solids.items.indices, id: \.self) { index in
+                TextField(language == .zh ? "食物" : "Food", text: $draft.solids.items[index].name)
+                    .accessibilityIdentifier("solids-name-\(index)")
+                TextField(language == .zh ? "勺" : "Spoons", value: spoonBinding(index), format: .number)
+                    .accessibilityIdentifier("solids-spoons-\(index)")
+                Button(language == .zh ? "移除" : "Remove") {
+                    draft.solids.items.remove(at: index)
+                }
+            }
+            Button(language == .zh ? "添加食物" : "Add a food") {
+                draft.solids.items.append(SolidsFood(name: ""))
+            }
+            .accessibilityIdentifier("solids-add")
+            TextField(language == .zh ? "水（毫升）" : "Water (ml)", value: $draft.solids.waterML, format: .number)
+                .accessibilityIdentifier("solids-water")
+            Text(language == .zh
+                 ? "勺数和毫升是这次的记录。水是这一顿共用的，不按每种食物再计一次，也不是冲调建议。"
+                 : "Spoons and millilitres are a record of this meal. The water is shared, not counted again for each food, and it is not a mixing recommendation.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             saveError
         }
+    }
+
+    private func spoonBinding(_ index: Int) -> Binding<Double?> {
+        Binding(
+            get: { draft.solids.items.indices.contains(index) ? draft.solids.items[index].spoons : nil },
+            set: { draft.solids.items[index].spoons = $0 }
+        )
     }
 
     private var diaperFields: some View {
@@ -289,27 +349,52 @@ struct EventEditorView: View {
         }
     }
 
-    /// This baby's same bottle type on yesterday's local day, raised to the next 10 ml. Nil when that day has none.
-    private var yesterdayRoundedAmount: Double? {
-        let request = LogEvent.requestAll(baby: baby, kinds: [.bottle])
-        let events = (try? context.fetch(request)) ?? []
-        return AmountShortcuts.yesterdayRoundedMilliliters(
-            events: events,
-            baby: baby,
-            content: draft.bottleContent,
-            now: .now,
-            calendar: .current
-        )
-    }
+    private var formulaPinKey: String { "lbl-formula-pin-\(baby.uuid?.uuidString ?? "")" }
 
-    private func seedFormulaAmountIfNeeded() {
-        guard !seededFormula else { return }
-        seededFormula = true
-        guard case .card(.formula) = target, draft.amountML <= 0 else { return }
+    private var lastFormulaAmount: Double? {
         let request = LogEvent.requestAll(baby: baby, kinds: [.bottle], ascending: false)
         let events = (try? context.fetch(request)) ?? []
-        if let amount = FormulaAmountSeed.milliliters(newestFirst: events) {
-            draft.amountML = amount
+        return FormulaAmountSeed.milliliters(newestFirst: events)
+    }
+
+    private var pinnedFormulaAmount: Double? {
+        let stored = UserDefaults.standard.object(forKey: formulaPinKey) as? Double
+        guard let stored, stored > 0 else { return nil }
+        return stored
+    }
+
+    private func pinFormulaAmount(_ amount: Double?) {
+        if let amount, amount > 0 {
+            UserDefaults.standard.set(amount, forKey: formulaPinKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: formulaPinKey)
+        }
+    }
+
+    private func seedNewRecordIfNeeded() {
+        guard !seededFormula else { return }
+        seededFormula = true
+        let events = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+        switch target {
+        case .edit, .seeded:
+            return
+        case .new(let kind):
+            draft = RecordDefaults.newDraft(kind: kind, events: events, now: .now, formulaPin: pinnedFormulaAmount)
+        case .card(let card):
+            switch card {
+            case .breast:
+                draft = RecordDefaults.newDraft(kind: .breastfeed, events: events, now: .now)
+            case .formula:
+                draft = RecordDefaults.newDraft(kind: .bottle, bottle: .formula, events: events, now: .now, formulaPin: pinnedFormulaAmount)
+            case .wet:
+                draft = RecordDefaults.newDraft(kind: .diaper, diaper: .wet, events: events, now: .now)
+            case .dirty:
+                draft = RecordDefaults.newDraft(kind: .diaper, diaper: .dirty, events: events, now: .now)
+            case .diaperChange:
+                draft = RecordDefaults.newDraft(kind: .diaper, diaper: .dry, events: events, now: .now)
+            case .sleep:
+                draft = RecordDefaults.newDraft(kind: .sleep, events: events, now: .now)
+            }
         }
     }
 
@@ -343,7 +428,11 @@ struct EventEditorView: View {
     private func minutesBinding(_ keyPath: WritableKeyPath<EventDraft, TimeInterval>) -> Binding<Double> {
         Binding(
             get: { draft[keyPath: keyPath] / 60 },
-            set: { draft[keyPath: keyPath] = $0 * 60 }
+            set: { minutes in
+                var copy = draft
+                copy[keyPath: keyPath] = minutes * 60
+                draft = copy
+            }
         )
     }
 
@@ -384,6 +473,18 @@ struct EventEditorView: View {
     // MARK: Actions
 
     private func save() {
+        SaveTrace.shared.reset()
+        SaveTrace.shared.record("action form=\(SaveTrace.babyID(formID)) baby=\(SaveTrace.babyID(baby.uuid)) ctx=\(SaveTrace.contextID(context)) kind=\(draft.kind.rawValue) left=\(Int(draft.leftSeconds)) amt=\(Int(draft.amountML)) mirror=\(leftMinuteText)")
+        if draft.kind == .bottle {
+            let live = LiveFieldText.text(identifier: "bottle-amount") ?? ""
+            if let milliliters = ManualNursingSave.minutes(fromDisplayed: live), milliliters > 0 {
+                draft.amountML = milliliters
+            }
+        }
+        if draft.kind == .breastfeed {
+            saveNursing()
+            return
+        }
         if draft.validationMessage != nil {
             attemptedSave = true
             return
@@ -392,20 +493,98 @@ struct EventEditorView: View {
         case .new, .card, .seeded:
             let event = LogEvent.create(kind: draft.kind, for: baby, start: draft.startDate, in: context)
             draft.apply(to: event)
+            WetDiaperLink.sync(event: event, isNew: true, in: context)
+            SaveTrace.shared.record("insert baby=\(SaveTrace.babyID(event.baby?.uuid)) left=\(Int(event.leftSeconds)) amt=\(Int(event.amountML))")
         case .edit(let event):
             draft.apply(to: event)
+            WetDiaperLink.sync(event: event, isNew: false, in: context)
+            SaveTrace.shared.record("edit baby=\(SaveTrace.babyID(event.baby?.uuid)) left=\(Int(event.leftSeconds)) amt=\(Int(event.amountML))")
         }
-        context.saveIfNeeded()
+        let saved = context.saveIfNeeded()
+        context.processPendingChanges()
+        SaveTrace.shared.record(refetchNote(saved: saved))
+        if draft.kind == .bottle {
+            let stored = (try? context.fetch(LogEvent.requestAll(baby: baby, kinds: [.bottle]))) ?? []
+            guard stored.contains(where: { $0.amountML > 0 }) else {
+                attemptedSave = true
+                SaveTrace.shared.record("reject-no-amount")
+                return
+            }
+        }
+        closeSheet("save")
+    }
+
+    private func refetchNote(saved: Bool) -> String {
+        let rows = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+        let care = CareRollup.make(events: rows, now: .now)
+        let breast = care.lastBreastSeconds.map { String(Int($0)) } ?? "nil"
+        let formula = care.lastFormulaML.map { String(Int($0)) } ?? "nil"
+        return "store=\(saved) rows=\(rows.count) rollupBreast=\(breast) rollupFormula=\(formula)"
+    }
+
+    private func closeSheet(_ reason: String) {
+        SaveTrace.shared.markClosed(reason)
+        SaveTrace.shared.record("close=\(reason) form=\(SaveTrace.babyID(formID))")
         Haptics.success()
+        onFinish?(reason == "save")
         dismiss()
+    }
+
+    /// Reads the minute boxes, then either stores that duration on this baby or leaves the form open.
+    private func saveNursing() {
+        let fields = minuteFieldsAtSave()
+        if case .edit(let event) = target {
+            ManualNursingSave.commit(fields: fields, into: &draft)
+            if draft.validationMessage != nil {
+                attemptedSave = true
+                return
+            }
+            draft.apply(to: event)
+            WetDiaperLink.sync(event: event, isNew: false, in: context)
+            context.saveIfNeeded()
+            closeSheet("save")
+            return
+        }
+        switch ManualNursingSave.save(draft: &draft, fields: fields, baby: baby, in: context) {
+        case .saved:
+            context.processPendingChanges()
+            SaveTrace.shared.record(refetchNote(saved: true))
+            let stored = (try? context.fetch(LogEvent.requestAll(baby: baby, kinds: [.breastfeed]))) ?? []
+            let wroteDuration = stored.contains { $0.leftSeconds + $0.rightSeconds > 0 }
+            SaveTrace.shared.record("breastRows=\(stored.count) maxSide=\(Int(stored.map { $0.leftSeconds + $0.rightSeconds }.max() ?? 0))")
+            if wroteDuration {
+                closeSheet("save")
+            } else {
+                attemptedSave = true
+                SaveTrace.shared.record("reject-no-duration")
+            }
+        case .rejected(let message):
+            attemptedSave = true
+            SaveTrace.shared.record("reject \(message)")
+        }
+    }
+
+    /// Prefer the text actually drawn in the box. The SwiftUI binding can still be 0 while that text says 1.
+    private func minuteFieldsAtSave() -> ManualNursingSave.Fields {
+        ManualNursingSave.Fields(
+            leftMinutesText: ManualNursingSave.choosing(
+                live: LiveFieldText.text(identifier: "breast-left-minutes"),
+                mirror: leftMinuteText
+            ),
+            rightMinutesText: ManualNursingSave.choosing(
+                live: LiveFieldText.text(identifier: "breast-right-minutes"),
+                mirror: rightMinuteText
+            )
+        )
     }
 
     private func deleteEntry() {
         if case .edit(let event) = target {
+            WetDiaperLink.deleteLinked(to: event, in: context)
             context.delete(event)
             context.saveIfNeeded()
         }
-        dismiss()
+        closeSheet("delete")
     }
 }
 
@@ -435,10 +614,8 @@ private struct TimeValueRow: View {
                 shortcut(.twentyMinutes, language == .zh ? "20分钟前" : "20 min ago", "time-20")
             }
             DatePicker(title, selection: $date)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 132)
-                .clipped()
+                .datePickerStyle(.compact)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .accessibilityIdentifier("time-value")
         }
         .padding(.vertical, 4)
@@ -457,18 +634,113 @@ private struct TimeValueRow: View {
     }
 }
 
-/// Amount and nearby logging shortcuts. The number field is not focused until it is tapped.
+/// Prepared totals from the tin. Water amounts are not offered. Off-table history stays editable.
+private struct FormulaAmountShortcuts: View {
+    @Binding var milliliters: Double
+    let language: ResolvedLanguage
+    let last: Double?
+    let pinned: Double?
+    let onPin: (Double) -> Void
+    let onClearPin: () -> Void
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            numberField
+            Text(language == .zh ? "冲好总奶量" : "Prepared total")
+                .font(.subheadline.weight(.semibold))
+            Text(language == .zh
+                 ? "罐上的成品量，用来快捷填写，不是喂养建议。"
+                 : "Prepared amounts from the tin. A shortcut, not feeding advice.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
+                ForEach(Array(FormulaPreparedTable.milliliters.enumerated()), id: \.offset) { index, amount in
+                    Button(label(amount, scoops: FormulaPreparedTable.scoops[index])) {
+                        apply(amount)
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("amount-prepared-\(Int(amount))")
+                }
+            }
+            if let last, last > 0, !FormulaPreparedTable.matches(last), pinned == nil {
+                Text(language == .zh
+                     ? "上次记下 \(shown(last))。它不在冲好总奶量里，所以没有当成默认。历史还在，少量也可以手改保存。"
+                     : "Last saved \(shown(last)). It is not a prepared total, so it is not the default. History stays, and a small amount can still be typed.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button(language == .zh ? "填入上次" : "Use last") { apply(last) }
+                        .frame(minHeight: 44)
+                    Button(language == .zh ? "以后沿用" : "Keep using it") { onPin(last) }
+                        .frame(minHeight: 44)
+                }
+            } else if pinned != nil {
+                Button(language == .zh ? "不再沿用指定用量" : "Stop using the pinned amount") { onClearPin() }
+                    .font(.footnote)
+                    .frame(minHeight: 44)
+            }
+        }
+        .onAppear { text = milliliters > 0 ? NumberField.format(milliliters, digits: 1) : "" }
+    }
+
+    private var numberField: some View {
+        HStack(spacing: 4) {
+            TextField("0", text: amountText)
+                .keyboardType(.decimalPad)
+                .font(.system(size: 40, weight: .semibold))
+                .multilineTextAlignment(.trailing)
+                .focused($focused)
+                .frame(minWidth: 56, minHeight: 56)
+                .accessibilityIdentifier("bottle-amount")
+            Text("ml")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Writes the draft as the characters change, including a UI test `typeText`, not only while FocusState says the field is focused.
+    private var amountText: Binding<String> {
+        Binding(
+            get: { text },
+            set: { newText in
+                text = newText
+                if let parsed = NumberField.parse(newText) {
+                    milliliters = parsed
+                }
+            }
+        )
+    }
+
+    private func label(_ amount: Double, scoops: Int) -> String {
+        language == .zh ? "\(Int(amount)) ml · \(scoops)勺" : "\(Int(amount)) ml · \(scoops)"
+    }
+
+    private func shown(_ amount: Double) -> String {
+        "\(Int(amount.rounded())) ml"
+    }
+
+    private func apply(_ amount: Double) {
+        milliliters = amount
+        text = NumberField.format(amount, digits: 1)
+        focused = false
+    }
+}
+
+/// Amount field for bottle contents other than formula. No invented nearby sizes.
 private struct InlineAmountEditor: View {
     @Binding var milliliters: Double
     let unit: VolumeUnit
     let language: ResolvedLanguage
-    var yesterdayRounded: Double?
     @State private var text = ""
     @FocusState private var focused: Bool
 
     var body: some View {
         let shown = unit.value(fromMilliliters: milliliters)
-        let shortcuts = AmountShortcuts.milliliters(around: milliliters > 0 ? milliliters : nil, yesterdayRounded: yesterdayRounded)
         VStack(spacing: 8) {
             HStack(spacing: 4) {
                 TextField("0", text: $text)
@@ -483,29 +755,6 @@ private struct InlineAmountEditor: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: 64)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(language == .zh ? "快捷值" : "Shortcuts")
-                    .font(.subheadline.weight(.semibold))
-                if yesterdayRounded != nil {
-                    Text(language == .zh ? "含昨日均量向上取整到 10 毫升" : "Includes yesterday's average, rounded up to 10 ml")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityIdentifier("amount-shortcuts")
-            HStack(spacing: 8) {
-                ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, value in
-                    Button(Copy.amount(value, unit: unit, language)) {
-                        milliliters = value
-                        text = NumberField.format(unit.value(fromMilliliters: value), digits: 1)
-                        focused = false
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                }
-            }
         }
         .padding(.vertical, 4)
         .onAppear {

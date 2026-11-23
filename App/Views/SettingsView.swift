@@ -27,17 +27,23 @@ struct SettingsView: View {
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
     @AppStorage(Prefs.appearanceMode) private var appearanceMode: AppearanceMode = Prefs.defaultAppearanceMode
+    @AppStorage(InterfaceStyle.storageKey) private var interfaceStyleRaw = InterfaceStyle.classic.rawValue
     @AppStorage(Prefs.nightStartMinutes) private var nightStartMinutes = NightSchedule.defaultStartMinutes
     @AppStorage(Prefs.nightEndMinutes) private var nightEndMinutes = NightSchedule.defaultEndMinutes
     @AppStorage(Prefs.dimScreenAtNight) private var dimScreenAtNight = false
     @AppStorage(Prefs.keepScreenOnWhileNursing) private var keepScreenOnWhileNursing = false
     @Environment(\.appTheme) private var theme
+    @EnvironmentObject private var activity: BabyActivity
 
     @State private var babySheet: BabySheet?
+    @State private var pendingSwitch: UUID?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
     @State private var showImporter = false
+    @State private var importDoorIsAssisted = false
     @State private var importRequest: ImportRequest?
+    @State private var manualTable: ManualImport?
+    @State private var assistExcerpt: AssistExcerpt?
     @AppStorage("lastImportBatchID") private var lastImportBatch = ""
     @State private var remindersOn = false
     @State private var showWidgetPreview = false
@@ -50,17 +56,58 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            babiesSection
-            languageSection
-            remindersSection
-            caregiversSection
-            syncSection
-            unitsSection
-            appearanceSection
-            nursingTimerSection
-            widgetsSection
-            dataSection
-            aboutSection
+            Section {
+                settingsLink(language == .zh ? "宝宝与记录" : "Baby and records", "figure.and.child.holdinghands", "settings-module-records") {
+                    Form {
+                        babiesSection
+                        NavigationLink {
+                            HomeCardsSettingsView()
+                        } label: {
+                            Label(Copy.homeCards(language), systemImage: "square.grid.2x2.fill")
+                        }
+                        .accessibilityIdentifier("settings-home-cards")
+                        unitsSection
+                        nursingTimerSection
+                    }
+                    .themedList()
+                    .navigationTitle(language == .zh ? "宝宝与记录" : "Baby and records")
+                }
+                settingsLink(language == .zh ? "外观" : "Appearance", "circle.lefthalf.filled", "settings-module-appearance") {
+                    Form { appearanceSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "外观" : "Appearance")
+                }
+                settingsLink(language == .zh ? "AI 与语音" : "Assistant", "sparkles", "settings-assistant") {
+                    AISettingsView()
+                }
+                settingsLink(language == .zh ? "通知" : "Notifications", "bell.badge", "settings-reminders") {
+                    RemindersSettingsView()
+                }
+                settingsLink(language == .zh ? "小组件" : "Widgets", "rectangle.3.group", "settings-module-widgets") {
+                    Form { widgetsSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "小组件" : "Widgets")
+                }
+                settingsLink(language == .zh ? "数据与同步" : "Data and sync", "arrow.triangle.2.circlepath", "settings-module-data") {
+                    Form {
+                        syncSection
+                        caregiversSection
+                        dataSection
+                    }
+                    .themedList()
+                    .navigationTitle(language == .zh ? "数据与同步" : "Data and sync")
+                }
+                settingsLink(language == .zh ? "语言" : "Language", "globe", "settings-module-language") {
+                    Form { languageSection }
+                        .themedList()
+                        .navigationTitle(Copy.languageSection(language))
+                }
+                settingsLink(language == .zh ? "关于" : "About", "info.circle", "settings-module-about") {
+                    Form { aboutSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "关于" : "About")
+                }
+            }
         }
         .themedList()
         .navigationTitle(Copy.settings(language))
@@ -93,18 +140,52 @@ struct SettingsView: View {
         } message: {
             Text(exportError ?? "")
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .json, .plainText]) { result in
+        .confirmationDialog(
+            language == .zh ? "这条还没保存" : "This is not saved",
+            isPresented: Binding(get: { pendingSwitch != nil }, set: { if !$0 { pendingSwitch = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(language == .zh ? "放弃并切换" : "Discard and switch", role: .destructive) {
+                AITasks.shared.cancelAll()
+                activity.clear()
+                if let id = pendingSwitch { selectedBabyID = id.uuidString }
+                pendingSwitch = nil
+            }
+            Button(language == .zh ? "留下" : "Stay", role: .cancel) { pendingSwitch = nil }
+        } message: {
+            Text(language == .zh ? "未保存的表单、录音或还在生成的回复会停在原来的宝宝，不会写到下一个宝宝。" : "The open form, recording, or reply stays with the current baby and is not written to the next one.")
+        }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item]) { result in
             guard case .success(let url) = result else { return }
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else { return }
-            importRequest = ImportRequest(file: StandardImporter.parse(data: data), source: data)
+            acceptImport(data: data, filename: url.lastPathComponent)
         }
         .sheet(item: $importRequest) { request in
-            ImportPreviewSheet(file: request.file, source: request.source) { batch in
+            ImportPreviewSheet(file: request.file, source: request.source, allowsModel: false) { batch in
                 lastImportBatch = batch.uuidString
             }
         }
+        .sheet(item: $manualTable) { table in
+            ImportManualMapSheet(table: table.table) { file, source in
+                importRequest = ImportRequest(file: file, source: source)
+            }
+        }
+        .sheet(item: $assistExcerpt) { excerpt in
+            ImportAssistSheet(excerpt: excerpt.text) { file in
+                importRequest = ImportRequest(file: file, source: Data(excerpt.text.utf8))
+            }
+        }
+    }
+
+    private func settingsLink<Destination: View>(_ title: String, _ symbol: String, _ identifier: String, @ViewBuilder destination: () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            Label(title, systemImage: symbol)
+        }
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: Sections
@@ -112,13 +193,24 @@ struct SettingsView: View {
     private var babiesSection: some View {
         Section {
             ForEach(babies, id: \.objectID) { baby in
-                Button {
-                    babySheet = .edit(baby)
-                } label: {
-                    BabyRow(baby: baby)
+                HStack {
+                    Button {
+                        switchBaby(baby)
+                    } label: {
+                        HStack {
+                            BabyRow(baby: baby)
+                            if baby.uuid?.uuidString == selectedBabyID {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings-baby-switch")
+                    Button(language == .zh ? "编辑" : "Edit") {
+                        babySheet = .edit(baby)
+                    }
+                    .accessibilityIdentifier("settings-baby")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings-baby")
             }
             Button {
                 babySheet = .add
@@ -201,12 +293,12 @@ struct SettingsView: View {
         Section {
             Picker(language == .zh ? "液体" : "Liquids", selection: $volumeUnit) {
                 ForEach(VolumeUnit.allCases) { unit in
-                    Text(unit.title).tag(unit)
+                    Text(unit.label(language)).tag(unit)
                 }
             }
             Picker(language == .zh ? "体重和身长" : "Weight and length", selection: $unitSystem) {
                 ForEach(UnitSystem.allCases) { system in
-                    Text(system.title).tag(system)
+                    Text(system.label(language)).tag(system)
                 }
             }
         } header: {
@@ -234,14 +326,20 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("appearance-\(mode.rawValue)")
             }
-
-            if appearanceMode == .nightSchedule {
-                DatePicker(language == .zh ? "从" : "From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
-                DatePicker(language == .zh ? "到" : "To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
-            }
-
-            if appearanceMode.canShowNight {
-                Toggle(language == .zh ? "夜间降低亮度" : "Dim screen at night", isOn: $dimScreenAtNight)
+            ForEach(InterfaceStyle.allCases) { style in
+                Button {
+                    interfaceStyleRaw = style.rawValue
+                } label: {
+                    HStack {
+                        Text(style == .classic ? (language == .zh ? "经典" : "Classic") : (language == .zh ? "液态玻璃" : "Liquid Glass"))
+                        Spacer()
+                        if interfaceStyleRaw == style.rawValue {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("style-\(style.rawValue)")
             }
         } header: {
             Text(UICopy.t(.appearance, language))
@@ -280,10 +378,29 @@ struct SettingsView: View {
                 Label(language == .zh ? "导出全部数据 (CSV)" : "Export all data (CSV)", systemImage: "square.and.arrow.up")
             }
             Button {
+                importDoorIsAssisted = false
                 showImporter = true
             } label: {
-                Label(language == .zh ? "导入标准 CSV / JSON" : "Import standard CSV / JSON", systemImage: "square.and.arrow.down")
+                Label(language == .zh ? "普通导入" : "Import a file", systemImage: "square.and.arrow.down")
             }
+            .accessibilityIdentifier("import-ordinary")
+            Text(ImportIntake.ordinaryFormats)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button {
+                guard AIRuntime.access().maySend else {
+                    exportError = language == .zh ? "AI 已关闭或还没有可用的 Key。请用普通导入。文件不会上传。" : "The assistant is off. Use ordinary import. The file is not uploaded."
+                    return
+                }
+                importDoorIsAssisted = true
+                showImporter = true
+            } label: {
+                Label(language == .zh ? "用 AI 读取文件" : "Read a file with AI", systemImage: "sparkles")
+            }
+            .accessibilityIdentifier("import-assisted")
+            Text(ImportIntake.assistedFormats)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             if !lastImportBatch.isEmpty {
                 Button(language == .zh ? "撤销上一批导入" : "Undo last import", role: .destructive) {
                     undoLastImport()
@@ -339,8 +456,41 @@ struct SettingsView: View {
         case .system: return language == .zh ? "跟随系统" : "System"
         case .light: return language == .zh ? "浅色" : "Light"
         case .dark: return language == .zh ? "深色" : "Dark"
-        case .night: return language == .zh ? "夜间" : "Night"
-        case .nightSchedule: return language == .zh ? "按时夜间" : "Night on a schedule"
+        }
+    }
+
+    private func acceptImport(data: Data, filename: String) {
+        if importDoorIsAssisted {
+            switch ImportIntake.openAssisted(data: data, filename: filename) {
+            case .schema(let file):
+                importRequest = ImportRequest(file: file, source: data)
+            case .text(let text):
+                assistExcerpt = AssistExcerpt(text: text)
+            case .unsupported(let message):
+                exportError = message
+            }
+            return
+        }
+        switch ImportIntake.openOrdinary(data: data, filename: filename) {
+        case .schema(let file):
+            importRequest = ImportRequest(file: file, source: data)
+        case .manual(let table):
+            manualTable = ManualImport(table: table)
+        case .rejected(let message):
+            exportError = message
+        }
+    }
+
+    private func switchBaby(_ baby: Baby) {
+        guard let id = baby.uuid else { return }
+        let known = Set(babies.compactMap(\.uuid))
+        switch BabySwitch.decide(stored: selectedBabyID, target: id, known: known, work: activity.work()) {
+        case .select(let chosen):
+            selectedBabyID = chosen.uuidString
+        case .confirmDiscard(_, let to):
+            pendingSwitch = to
+        case nil:
+            return
         }
     }
 
@@ -415,6 +565,7 @@ struct CaregiverRow: View {
     @State private var isWorking = false
     @State private var refreshTick = 0
     @State private var problem: CloudSyncProblem?
+    @State private var showRelation = false
 
     var body: some View {
         let _ = refreshTick
@@ -441,7 +592,29 @@ struct CaregiverRow: View {
             if let problem {
                 SyncProblemView(problem: problem) { self.problem = nil }
             }
+            if let id = baby.uuid {
+                Button {
+                    showRelation = true
+                } label: {
+                    HStack {
+                        Text(language == .zh ? "与宝宝的关系" : "Relation to this baby")
+                        Spacer()
+                        Text(relationTitle(id))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("caregiver-relation")
+                .sheet(isPresented: $showRelation) {
+                    CaregiverRelationSheet(babyID: id, babyName: baby.displayName)
+                }
+            }
         }
+    }
+
+    private func relationTitle(_ id: UUID) -> String {
+        let store = CaregiverRelationStore()
+        let relation = store.relation(managerID: store.managerID(), babyID: id)
+        return relation?.title(chinese: language == .zh) ?? (language == .zh ? "未设置" : "Not set")
     }
 
     private var shareButtonTitle: String {

@@ -12,11 +12,13 @@ struct ImportRequest: Identifiable {
 struct ImportPreviewSheet: View {
     @State private var file: ImportFile
     let source: Data
+    var allowsModel: Bool
     var onCommitted: (UUID) -> Void
 
-    init(file: ImportFile, source: Data, onCommitted: @escaping (UUID) -> Void) {
+    init(file: ImportFile, source: Data, allowsModel: Bool = false, onCommitted: @escaping (UUID) -> Void) {
         _file = State(initialValue: file)
         self.source = source
+        self.allowsModel = allowsModel
         self.onCommitted = onCommitted
     }
 
@@ -74,6 +76,7 @@ struct ImportPreviewSheet: View {
                     LabeledContent(language == .zh ? "已导入过" : "Already imported", value: "\(plan.filter { $0.action == .skipIdempotent }.count)")
                     LabeledContent(language == .zh ? "可能重复" : "Possible duplicates", value: "\(plan.filter { $0.action == .skipCandidate }.count)")
                     LabeledContent(language == .zh ? "有问题" : "Problems", value: "\(plan.filter { $0.action == .blocked }.count)")
+                    LabeledContent(language == .zh ? "不写入" : "Not imported", value: "\(plan.filter { $0.action == .hold }.count)")
                 }
                 let missing = Set(plan.filter { $0.action == .unmappedBaby }.map(\.line))
                 if !missing.isEmpty {
@@ -91,6 +94,12 @@ struct ImportPreviewSheet: View {
                     }
                 }
                 Section {
+                    ForEach(file.rows.filter { !$0.notices.isEmpty }) { row in
+                        Text(row.notices.joined(separator: " "))
+                            .font(.footnote)
+                    }
+                }
+                Section {
                     ForEach(file.rows.filter { !$0.problems.isEmpty }) { row in
                         Text(language == .zh ? "第 \(row.line) 行" : "Line \(row.line)")
                         ForEach(row.problems.indices, id: \.self) { index in
@@ -100,7 +109,7 @@ struct ImportPreviewSheet: View {
                         }
                     }
                 }
-                if AIRuntime.access().maySend {
+                if allowsModel, AIRuntime.access().maySend {
                     Section {
                         Button(language == .zh ? "看列名" : "Columns") {
                             guard AIRuntime.access().maySend else { return }

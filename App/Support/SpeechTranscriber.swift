@@ -7,6 +7,8 @@ import BabyLogKit
 @MainActor
 final class SpeechTranscriber: ObservableObject {
     @Published private(set) var partial = ""
+    @Published private(set) var level: Float = 0
+    var onLevel: ((Float) -> Void)?
 
     private var engine: AVAudioEngine?
     private var request: SFSpeechAudioBufferRecognitionRequest?
@@ -54,7 +56,24 @@ final class SpeechTranscriber: ObservableObject {
         generation += 1
         discarded = true
         partial = ""
+        level = 0
         stopEngine()
+    }
+
+    /// 0 when the buffer has no samples. This is the live input level, not a fake animation.
+    static func power(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let channel = buffer.floatChannelData?.pointee else { return 0 }
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return 0 }
+        var sum: Float = 0
+        for index in 0..<count {
+            let sample = channel[index]
+            sum += sample * sample
+        }
+        let mean = sum / Float(count)
+        guard mean > 0 else { return 0 }
+        let decibels = 20 * log10(mean)
+        return min(1, max(0, (decibels + 50) / 40))
     }
 
     private func authorize() async -> Bool {
@@ -85,6 +104,12 @@ final class SpeechTranscriber: ObservableObject {
         guard format.sampleRate > 0, format.channelCount > 0 else { throw CocoaError(.featureUnsupported) }
         engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             request.append(buffer)
+            let power = Self.power(buffer)
+            Task { @MainActor in
+                guard self.generation == token, !self.discarded else { return }
+                self.level = power
+                self.onLevel?(power)
+            }
         }
         tapInstalled = true
         engine.prepare()

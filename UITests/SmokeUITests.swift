@@ -16,11 +16,7 @@ final class SmokeUITests: XCTestCase {
         app.launch()
         shot("01-launch")
 
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
 
         let formula = element("summary-formula")
         XCTAssertTrue(formula.waitForExistence(timeout: 8))
@@ -53,11 +49,20 @@ final class SmokeUITests: XCTestCase {
 
         XCTAssertTrue(formula.label.contains("120"))
         XCTAssertFalse(formula.label.contains("今日"))
-        XCTAssertTrue(loggedAge(element("summary-wet").label))
-        XCTAssertTrue(loggedAge(element("summary-dirty").label))
-        XCTAssertTrue(loggedAge(element("summary-change").label))
-        XCTAssertTrue(loggedAge(element("summary-sleep").label))
-        XCTAssertTrue(element("summary-breast").label.contains("1分钟"))
+        XCTAssertTrue(loggedAge(element("summary-wet").label), "wet card stayed \(element("summary-wet").label) \(saveTrace)")
+        XCTAssertTrue(loggedAge(element("summary-dirty").label), "dirty card stayed \(element("summary-dirty").label) \(saveTrace)")
+        XCTAssertTrue(loggedAge(element("summary-change").label), "change card stayed \(element("summary-change").label) \(saveTrace)")
+        XCTAssertTrue(loggedAge(element("summary-sleep").label), "sleep card stayed \(element("summary-sleep").label) \(saveTrace)")
+        let breast = element("summary-breast")
+        let showedDuration = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "1分钟"),
+            object: breast
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [showedDuration], timeout: 4),
+            .completed,
+            "breast card stayed \(breast.label) \(saveTrace)"
+        )
         shot("04-after-logging")
 
         openWidgetPreview()
@@ -111,7 +116,10 @@ final class SmokeUITests: XCTestCase {
         requireAppearance("dark", settingsTab: "设置", homeTab: "今天", name: "12-zh-home-dark")
         requireAppearance("light", settingsTab: "设置", homeTab: "今天", name: "11-home-light")
 
-        app.tabBars.buttons["设置"].tap()
+        returnToSettingsHub(tabTitle: "设置")
+        let languageModule = app.descendants(matching: .any)["settings-module-language"]
+        XCTAssertTrue(languageModule.waitForExistence(timeout: 4), "settings-module-language")
+        languageModule.tap()
         let languagePicker = app.buttons["app-language"]
         for _ in 0..<6 where !languagePicker.exists {
             app.swipeDown()
@@ -121,8 +129,8 @@ final class SmokeUITests: XCTestCase {
         let english = app.buttons["英文"]
         XCTAssertTrue(english.waitForExistence(timeout: 4))
         english.tap()
-        if app.tabBars.buttons["Today"].waitForExistence(timeout: 4) {
-            app.tabBars.buttons["Today"].tap()
+        if tab("Today").waitForExistence(timeout: 4) {
+            tab("Today").tap()
         }
         let englishHome = element("summary-formula")
         XCTAssertTrue(englishHome.waitForExistence(timeout: 6))
@@ -147,9 +155,10 @@ final class SmokeUITests: XCTestCase {
 
     /// Changes Appearance in Settings, then refuses the screenshot unless the resolved scheme and the pixels agree.
     private func requireAppearance(_ expected: String, settingsTab: String, homeTab: String, name: String) {
-        app.tabBars.buttons[settingsTab].tap()
-        // Settings keeps its scroll offset. The widget preview sits below appearance, so start at the top.
-        for _ in 0..<4 { app.swipeDown() }
+        returnToSettingsHub(tabTitle: settingsTab)
+        let appearanceModule = app.descendants(matching: .any)["settings-module-appearance"]
+        XCTAssertTrue(appearanceModule.waitForExistence(timeout: 4), "settings-module-appearance")
+        appearanceModule.tap()
         let option = appearanceControl(expected, chinese: settingsTab == "设置")
         for _ in 0..<8 where !option.isHittable {
             app.swipeUp()
@@ -159,7 +168,7 @@ final class SmokeUITests: XCTestCase {
         let probe = app.descendants(matching: .any)["appearance-scheme"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
         XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
-        app.tabBars.buttons[homeTab].tap()
+        tab(homeTab).tap()
         captureCheckedAppearance(expected, name: name)
     }
 
@@ -279,10 +288,7 @@ final class SmokeUITests: XCTestCase {
         appIcon?.tap()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
         if app.textFields["baby-name"].waitForExistence(timeout: 4) {
-            let name = app.textFields["baby-name"]
-            name.tap()
-            name.typeText("Beibei")
-            app.buttons["start-tracking"].tap()
+            createBabyNamed("Beibei")
         }
         logFormula(millilitres: "120")
         saveCurrentForm("add-wet")
@@ -639,71 +645,143 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 2))
         amount.tap()
         amount.typeText(millilitres)
-        let save = app.buttons["save-entry"]
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: save)
-        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 3), .completed)
-        if !save.isHittable, app.buttons["完成"].exists {
-            app.buttons["完成"].tap()
-        }
-        XCTAssertTrue(save.waitForExistence(timeout: 3))
-        save.tap()
-        XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
+        let save = tapSave("formula")
+        XCTAssertTrue(save.waitForNonExistence(timeout: 4), "formula form stayed open")
+        let card = element("summary-formula")
+        let showed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", millilitres), object: card)
+        XCTAssertEqual(XCTWaiter().wait(for: [showed], timeout: 4), .completed, "formula card stayed \(card.label) \(saveTrace)")
     }
 
     private func saveCurrentForm(_ addIdentifier: String) {
         tap(addIdentifier)
-        let save = app.buttons["save-entry"]
-        XCTAssertTrue(save.waitForExistence(timeout: 5))
-        save.tap()
-        XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
+        let save = tapSave(addIdentifier)
+        XCTAssertTrue(save.waitForNonExistence(timeout: 4), "\(addIdentifier) form stayed open, so it was not saved")
     }
 
     private func loggedAge(_ label: String) -> Bool {
         label.contains("刚刚") || label.contains("分钟前") || label.contains("小时")
     }
 
+    /// Taps start only after the field value is the full name and the button is enabled.
+    /// A tap while the name is still arriving is ignored, and the welcome screen stays up.
+    private func createBabyNamed(_ babyName: String) {
+        let field = app.textFields["baby-name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8))
+        if (field.value as? String) != babyName {
+            field.tap()
+            field.typeText(babyName)
+        }
+        let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", babyName), object: field)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [committed], timeout: 4),
+            .completed,
+            "baby name stayed \(field.value ?? "nil")"
+        )
+        let key = app.buttons["start-tracking-key"]
+        let start = app.buttons["start-tracking"]
+        let target = key.exists && key.isHittable ? key : start
+        XCTAssertTrue(target.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
+        target.tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 4), "welcome stayed open after start")
+    }
+
+    /// Taps the save control that is actually hittable. Does not dismiss the keyboard first.
+    @discardableResult
+    private func tapSave(_ note: String) -> XCUIElement {
+        let target = app.buttons["save-entry"]
+        XCTAssertTrue(target.waitForExistence(timeout: 4), note)
+        XCTAssertTrue(target.isHittable, "\(note) save is not hittable")
+        XCTAssertGreaterThanOrEqual(target.frame.height, 44, note)
+        target.tap()
+        return target
+    }
+
+    private var saveTrace: String {
+        let probe = app.descendants(matching: .any)["save-trace"]
+        return probe.exists ? probe.label : "no-trace"
+    }
+
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }
 
+    /// The dock draws the four tabs. A hidden system tab bar is only a fallback.
+    private func tab(_ title: String) -> XCUIElement {
+        let buttons = app.buttons.matching(NSPredicate(format: "label == %@", title))
+        if let hit = buttons.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+            return hit
+        }
+        if buttons.firstMatch.exists { return buttons.firstMatch }
+        return app.tabBars.buttons[title]
+    }
+
+    /// Premise: the minute must be stored and the sheet must close. The card then shows that duration.
+    /// A label that still says 还没有 means the save did not happen, not a missing accessibility string.
     private func logNursing() {
         tap("add-breast")
         let minutes = app.textFields["breast-left-minutes"]
         XCTAssertTrue(minutes.waitForExistence(timeout: 5))
         minutes.tap()
         minutes.typeText("1")
-        if !app.buttons["save-entry"].isHittable, app.buttons["完成"].exists {
-            app.buttons["完成"].tap()
-        }
-        app.buttons["save-entry"].tap()
+        let shown = minutes.value as? String ?? ""
+        XCTAssertTrue(shown.contains("1"), "typed minute was not in the field: \(shown)")
+        let save = tapSave("nursing")
+        XCTAssertTrue(save.waitForNonExistence(timeout: 4), "nursing form stayed open, so the minute was not saved")
+        XCTAssertTrue(minutes.waitForNonExistence(timeout: 2), "nursing minute field still open")
     }
 
     private func openWidgetPreview() {
-        let settings = app.tabBars.buttons["设置"].exists ? app.tabBars.buttons["设置"] : app.tabBars.buttons["Settings"]
-        settings.tap()
+        let title = tab("设置").exists ? "设置" : "Settings"
+        returnToSettingsHub(tabTitle: title)
+        let widgets = app.descendants(matching: .any)["settings-module-widgets"]
+        XCTAssertTrue(widgets.waitForExistence(timeout: 4), "settings-module-widgets")
+        widgets.tap()
         let button = app.buttons["show-widget-preview"]
         for _ in 0..<5 where !button.exists { app.swipeUp() }
         XCTAssertTrue(button.waitForExistence(timeout: 4))
         button.tap()
     }
 
-    private func closeWidgetPreview() {
-        app.buttons["close-widget-preview"].tap()
-        if app.tabBars.buttons["今天"].exists {
-            app.tabBars.buttons["今天"].tap()
-        } else if app.tabBars.buttons["Today"].waitForExistence(timeout: 2) {
-            app.tabBars.buttons["Today"].tap()
+    /// Settings tabs keep the last page. Nested widget, baby, and provider screens hide the hub.
+    private func returnToSettingsHub(tabTitle: String) {
+        tab(tabTitle).tap()
+        let hub = app.descendants(matching: .any)["settings-module-records"]
+        for _ in 0..<5 {
+            if hub.exists, hub.isHittable { return }
+            if app.buttons["close-widget-preview"].exists {
+                app.buttons["close-widget-preview"].tap()
+                continue
+            }
+            if app.navigationBars.buttons["取消"].exists {
+                app.navigationBars.buttons["取消"].tap()
+                continue
+            }
+            if !hub.exists {
+                let back = app.navigationBars.buttons.element(boundBy: 0)
+                if back.exists, back.isHittable {
+                    back.tap()
+                    continue
+                }
+            }
+            app.swipeDown()
         }
+    }
+
+    private func closeWidgetPreview() {
+        let close = app.buttons["close-widget-preview"]
+        XCTAssertTrue(close.waitForExistence(timeout: 4))
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 4), "widget preview stayed open")
+        let today = app.buttons["dock-today"]
+        XCTAssertTrue(today.waitForExistence(timeout: 4), "today dock did not return after the widget preview closed")
+        today.tap()
+        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4), "today did not appear after the dock tap")
     }
 
     func testBottomOfTodayStaysInteractive() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
 
         for _ in 0..<4 { app.swipeUp() }
@@ -719,9 +797,9 @@ final class SmokeUITests: XCTestCase {
 
         app.swipeDown()
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4))
-        app.tabBars.buttons["历史"].tap()
+        tab("历史").tap()
         XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
-        app.tabBars.buttons["今天"].tap()
+        tab("今天").tap()
         for _ in 0..<4 { app.swipeUp() }
         let growth = app.buttons["add-growth"]
         XCTAssertTrue(growth.waitForExistence(timeout: 6))
@@ -734,18 +812,14 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
-        app.tabBars.buttons["今天"].tap()
+        tab("今天").tap()
         XCTAssertTrue(reveal("add-formula", swiping: .down))
     }
 
     func testVoiceButtonDoesNotAskForTheMicrophoneWhenAIIsOff() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8))
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
 
         let voice = app.buttons["voice-log"]
         XCTAssertTrue(voice.waitForExistence(timeout: 6))
@@ -753,22 +827,26 @@ final class SmokeUITests: XCTestCase {
         voice.tap()
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.buttons["voice-start"].exists)
+        XCTAssertFalse(app.buttons["ai-verify"].exists)
+        app.buttons["add-provider"].tap()
+        app.buttons["provider-deepseek"].tap()
         let keyField = app.secureTextFields["ai-key-field"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 4))
-        XCTAssertFalse(app.buttons["ai-verify"].exists)
         let model = app.descendants(matching: .any)["ai-model"]
         XCTAssertTrue(model.waitForExistence(timeout: 4))
         XCTAssertTrue(model.label.contains("Flash"))
         choosePicker("ai-model", option: "V4 Pro")
         waitUntil(model, contains: "V4 Pro")
-        choosePicker("ai-provider", option: "Kimi 国际")
+        app.navigationBars.buttons["取消"].tap()
+        app.buttons["add-provider"].tap()
+        app.buttons["provider-kimiAI"].tap()
+        XCTAssertTrue(model.waitForExistence(timeout: 4))
         waitUntil(model, contains: "K3.1 Pro")
-        XCTAssertFalse(model.label.contains("V4"))
         choosePicker("ai-model", option: "K3", exact: true)
         waitUntil(model, contains: "K3", excluding: "K3.1")
-        XCTAssertTrue(app.tabBars.buttons["历史"].exists)
-        XCTAssertTrue(app.tabBars.buttons["趋势"].exists)
-        XCTAssertTrue(app.tabBars.buttons["设置"].exists)
+        XCTAssertTrue(tab("历史").exists)
+        XCTAssertTrue(tab("趋势").exists)
+        XCTAssertTrue(tab("设置").exists)
     }
 
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
@@ -779,9 +857,7 @@ final class SmokeUITests: XCTestCase {
         let name = app.textFields["baby-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 8))
         shot("review-01-new-baby")
-        name.tap()
-        name.typeText("Beibei")
-        app.buttons["start-tracking"].tap()
+        createBabyNamed("Beibei")
         XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 8))
         shot("review-02-today")
 
@@ -814,7 +890,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(back.waitForExistence(timeout: 4))
         back.tap()
 
-        app.tabBars.buttons["历史"].tap()
+        tab("历史").tap()
         XCTAssertTrue(app.navigationBars["历史"].waitForExistence(timeout: 4))
         shot("review-15-history")
         app.buttons["列表"].tap()
@@ -826,13 +902,15 @@ final class SmokeUITests: XCTestCase {
         shot("review-16-edit-formula")
         app.navigationBars.buttons["取消"].tap()
 
-        app.tabBars.buttons["趋势"].tap()
+        tab("趋势").tap()
         XCTAssertTrue(app.navigationBars["趋势"].waitForExistence(timeout: 4))
         shot("review-17-trends")
 
-        app.tabBars.buttons["设置"].tap()
+        tab("设置").tap()
         for _ in 0..<4 { app.swipeDown() }
         shot("review-18-settings")
+        let records = app.descendants(matching: .any)["settings-module-records"]
+        if records.waitForExistence(timeout: 4) { records.tap() }
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
@@ -840,18 +918,27 @@ final class SmokeUITests: XCTestCase {
         shot("review-19-baby-form")
         app.navigationBars.buttons["取消"].tap()
 
+        openLabeled("settings-home-cards")
+        shot("review-21-home-cards")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
         openLabeled("settings-reminders")
         shot("review-20-reminders")
         popNavigation()
-        openLabeled("settings-home-cards")
-        shot("review-21-home-cards")
-        popNavigation()
         openLabeled("settings-assistant")
         XCTAssertTrue(app.navigationBars["AI 助手"].waitForExistence(timeout: 4))
+        app.buttons["add-provider"].tap()
+        app.buttons["provider-deepseek"].tap()
         XCTAssertTrue(app.secureTextFields["ai-key-field"].waitForExistence(timeout: 4))
         shot("review-22-ai-settings")
-        popNavigation()
+        if app.navigationBars.buttons["取消"].exists {
+            app.navigationBars.buttons["取消"].tap()
+        }
+        returnToSettingsHub(tabTitle: "设置")
 
+        let dataModule = app.descendants(matching: .any)["settings-module-data"]
+        XCTAssertTrue(dataModule.waitForExistence(timeout: 4), "settings-module-data")
+        dataModule.tap()
         let sync = app.staticTexts["iCloud 同步"]
         var syncSwipes = 0
         while syncSwipes < 8 && !sync.exists {
@@ -859,13 +946,8 @@ final class SmokeUITests: XCTestCase {
             syncSwipes += 1
         }
         XCTAssertTrue(sync.waitForExistence(timeout: 4))
-        let importer = app.descendants(matching: .any)["导入标准 CSV / JSON"]
-        var importSwipes = 0
-        while importSwipes < 4 && !importer.exists {
-            app.swipeUp()
-            importSwipes += 1
-        }
-        XCTAssertTrue(importer.waitForExistence(timeout: 4))
+        let importer = app.descendants(matching: .any)["import-ordinary"]
+        XCTAssertTrue(importer.waitForExistence(timeout: 4), "import-ordinary")
         shot("review-23-sync-import")
 
         openWidgetPreview()

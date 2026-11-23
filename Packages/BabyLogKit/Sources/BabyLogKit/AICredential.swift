@@ -9,11 +9,15 @@ public struct AIVerifyStamp: Equatable, Sendable {
     public var provider: String
     public var model: String
     public var lastFour: String
+    public var configurationID: String
+    public var endpointHost: String
 
-    public init(provider: String, model: String, lastFour: String) {
+    public init(provider: String, model: String, lastFour: String, configurationID: String = "", endpointHost: String = "") {
         self.provider = provider
         self.model = model
         self.lastFour = lastFour
+        self.configurationID = configurationID
+        self.endpointHost = endpointHost
     }
 }
 
@@ -79,13 +83,19 @@ public struct AIChatMessage: Identifiable, Equatable, Sendable {
         case cancelled
     }
 
+    public enum Role: String, Codable, Sendable {
+        case user, assistant
+    }
+
     public var id: UUID
+    public var role: Role
     public var text: String
     public var delivery: Delivery
     public var records: [VoiceItemDraft]
 
-    public init(id: UUID = UUID(), text: String, delivery: Delivery, records: [VoiceItemDraft] = []) {
+    public init(id: UUID = UUID(), role: Role = .user, text: String, delivery: Delivery, records: [VoiceItemDraft] = []) {
         self.id = id
+        self.role = role
         self.text = text
         self.delivery = delivery
         self.records = records

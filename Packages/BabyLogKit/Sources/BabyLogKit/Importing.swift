@@ -61,6 +61,10 @@ public struct ImportRow: Equatable, Sendable, Identifiable {
     public var line: Int
     public var field: ImportField
     public var problems: [ImportProblem]
+    /// Shown in the preview. They do not block a confirmed insert.
+    public var notices: [String] = []
+    /// Kept visible, but never inserted and never used to delete existing rows.
+    public var hold: Bool = false
 
     public var id: Int { line }
 
@@ -79,6 +83,8 @@ public enum ImportAction: Equatable, Sendable {
     case skipCandidate
     case blocked
     case unmappedBaby
+    /// Explained in the preview. Not inserted, and not a delete of existing data.
+    case hold
 }
 
 public struct PlannedImport: Equatable, Sendable {
@@ -200,6 +206,9 @@ public enum StandardImporter {
         assign: [String: UUID] = [:]
     ) -> [PlannedImport] {
         file.rows.map { row in
+            if row.hold {
+                return PlannedImport(line: row.line, action: .hold, problems: row.problems, babyID: nil)
+            }
             if row.blocksImport {
                 return PlannedImport(line: row.line, action: .blocked, problems: row.problems, babyID: nil)
             }

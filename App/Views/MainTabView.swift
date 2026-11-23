@@ -7,68 +7,69 @@ struct MainTabView: View {
     /// A deep link to act on. Any link brings Today forward; Today consumes it.
     @Binding var link: DeepLink?
 
-    private enum Tab: Hashable {
-        case today, history, trends, settings
-    }
-
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var desk: AIDesk
+    @EnvironmentObject private var voice: VoiceSession
+    @EnvironmentObject private var activity: BabyActivity
     @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var settingsPath: [SettingsRoute] = []
     @State private var assistantNotice = ""
     @State private var showChat = false
     @State private var showVoiceNotice = false
-    @State private var recording = false
-    @State private var fingerDown = false
-    @State private var cancelArmed = false
-    @State private var holdTask: Task<Void, Never>?
-    @StateObject private var speech = SpeechTranscriber()
     @AppStorage(AIPreferences.voiceNoticeKey) private var voiceNoticeAck = false
 
     private var language: ResolvedLanguage {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
     }
-    @State private var tab: Tab = .today
+    @State private var tab: MainTab = .today
 
     var body: some View {
-        TabView(selection: $tab) {
-            NavigationStack {
-                TodayView(baby: baby, day: day, link: $link)
-                    .id(day)
-            }
-            .tabItem { Label(Copy.today(language), systemImage: "sun.max.fill") }
-            .tag(Tab.today)
-
-            NavigationStack {
-                HistoryView(baby: baby)
-            }
-            .tabItem { Label(language == .zh ? "历史" : "History", systemImage: "calendar") }
-            .tag(Tab.history)
-
-            NavigationStack {
-                TrendsView(baby: baby)
-            }
-            .tabItem { Label(language == .zh ? "趋势" : "Trends", systemImage: "chart.bar.fill") }
-            .tag(Tab.trends)
-
-            NavigationStack(path: $settingsPath) {
-                SettingsView()
-                    .navigationDestination(for: SettingsRoute.self) { _ in
-                        AISettingsView(notice: assistantNotice)
-                    }
-            }
-            .tabItem { Label(Copy.settings(language), systemImage: "gearshape.fill") }
-            .tag(Tab.settings)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 4) {
-            // Reserve space under the list. An overlay on the tab view covered the last rows
-            // and sat in the scroll gesture.
+        VStack(spacing: 0) {
             ZStack {
-                Color.clear
-                    .frame(height: 64)
-                    .allowsHitTesting(false)
-                voiceButton
+                NavigationStack {
+                    TodayView(baby: baby, day: day, link: $link)
+                        .id(day)
+                }
+                .modifier(DockPage(active: tab == .today))
+
+                NavigationStack {
+                    HistoryView(baby: baby)
+                }
+                .modifier(DockPage(active: tab == .history))
+
+                NavigationStack {
+                    TrendsView(baby: baby)
+                }
+                .modifier(DockPage(active: tab == .trends))
+
+                NavigationStack(path: $settingsPath) {
+                    SettingsView()
+                        .navigationDestination(for: SettingsRoute.self) { _ in
+                            AISettingsView(notice: assistantNotice)
+                        }
+                }
+                .modifier(DockPage(active: tab == .settings))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            DockBar(tab: $tab, language: language, voice: voice, noticeAck: voiceNoticeAck, onNotice: {
+                showVoiceNotice = true
+            }) {
+                openAssistantIfBlocked()
+            }
+        }
+        .onChange(of: voice.isPresented) { _, shown in
+            activity.recordingBabyID = shown ? baby.uuid : nil
+        }
+        .onChange(of: desk.pendingSend?.baby) { _, id in
+            activity.aiBabyID = id
+        }
+        .overlay(alignment: .bottom) {
+            if voice.isPresented {
+                VoiceCapturePanel(voice: voice, language: language) { text in
+                    sendVoice(text)
+                }
+                .padding(.bottom, 88)
             }
         }
         .sheet(isPresented: $showChat) {
@@ -101,75 +102,11 @@ struct MainTabView: View {
         }
     }
 
-    private var voiceButton: some View {
-        VStack(spacing: 4) {
-            if recording {
-                Text(cancelArmed
-                     ? (language == .zh ? "松开取消" : "Release to cancel")
-                     : (language == .zh ? "松开生成" : "Release to send"))
-                    .font(.caption.weight(.semibold))
-            }
-            Image(systemName: "mic.fill")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 64, height: 64)
-                .background(Circle().fill(cancelArmed ? Color.red : Color.accentColor))
-        }
-        .contentShape(Rectangle())
-        .gesture(voiceHold)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("voice-log")
-        .accessibilityLabel(language == .zh ? "按住说话" : "Hold to talk")
-    }
-
-    private var voiceHold: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                if !fingerDown {
-                    fingerDown = true
-                    holdTask = Task { await armHold() }
-                }
-                cancelArmed = recording && value.translation.height < -48
-            }
-            .onEnded { _ in
-                let wasRecording = recording
-                fingerDown = false
-                holdTask?.cancel()
-                holdTask = nil
-                let shouldCancel = cancelArmed
-                cancelArmed = false
-                if wasRecording {
-                    recording = false
-                    if shouldCancel {
-                        speech.cancel()
-                    } else {
-                        Task { await releaseVoice() }
-                    }
-                } else {
-                    // Too short to record. A closed or unready assistant still opens its settings.
-                    openAssistantIfBlocked()
-                }
-            }
-    }
-
-    private func armHold() async {
-        try? await Task.sleep(nanoseconds: 350_000_000)
-        guard !Task.isCancelled, fingerDown else { return }
-        switch AIRuntime.access() {
-        case .ready:
-            if !voiceNoticeAck {
-                showVoiceNotice = true
-                return
-            }
-            guard await speech.start() != nil else { return }
-            guard fingerDown else {
-                speech.cancel()
-                return
-            }
-            recording = true
-        default:
-            openAssistantIfBlocked()
-        }
+    private func sendVoice(_ text: String) {
+        guard let id = baby.uuid else { return }
+        let message = desk.addDraft(baby: id, text: text)
+        desk.notePending(baby: id, message: message)
+        showChat = true
     }
 
     /// A press that does not record. Ready assistants ignore it; every other state opens settings.
@@ -189,15 +126,6 @@ struct MainTabView: View {
         }
     }
 
-    private func releaseVoice() async {
-        let text = await speech.stop()
-        guard VoiceNextStep.after(stopped: true, transcript: text, failed: text == nil) == .preview,
-              let spoken = text, let id = baby.uuid else { return }
-        let message = desk.addDraft(baby: id, text: spoken)
-        desk.notePending(baby: id, message: message)
-        showChat = true
-    }
-
     private func openAssistant() {
         showChat = false
         tab = .settings
@@ -214,8 +142,23 @@ private enum SettingsRoute: Hashable {
     case assistant
 }
 
+/// The dock chooses the visible page. A hidden system tab stayed on Settings after its button was tapped.
+private struct DockPage: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(active ? 1 : 0)
+            .accessibilityHidden(!active)
+            .allowsHitTesting(active)
+            .zIndex(active ? 1 : 0)
+    }
+}
+
 #Preview {
     MainTabView(baby: PreviewData.baby, link: .constant(nil))
         .previewEnvironment()
         .environmentObject(AIDesk())
+        .environmentObject(VoiceSession())
+        .environmentObject(BabyActivity())
 }

@@ -10,16 +10,25 @@ struct NumberField: View {
     let unit: String?
     let digits: Int
     let identifier: String?
+    private var displayed: Binding<String>?
 
     @State private var text: String
     @FocusState private var focused: Bool
 
-    init(_ title: String, value: Binding<Double>, unit: String? = nil, digits: Int = 1, identifier: String? = nil) {
+    init(
+        _ title: String,
+        value: Binding<Double>,
+        unit: String? = nil,
+        digits: Int = 1,
+        identifier: String? = nil,
+        displayed: Binding<String>? = nil
+    ) {
         self.title = title
         self._value = value
         self.unit = unit
         self.digits = digits
         self.identifier = identifier
+        self.displayed = displayed
         self._text = State(initialValue: NumberField.format(value.wrappedValue, digits: digits))
     }
 
@@ -27,7 +36,7 @@ struct NumberField: View {
         HStack(spacing: 8) {
             Text(title)
             Spacer(minLength: 12)
-            TextField("0", text: $text)
+            TextField("0", text: textBinding)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .focused($focused)
@@ -42,16 +51,32 @@ struct NumberField: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
-        .onChange(of: text) { _, newText in
-            guard focused, let parsed = NumberField.parse(newText) else { return }
-            if parsed != value { value = parsed }
-        }
         .onChange(of: value) { _, newValue in
             if !focused { text = NumberField.format(newValue, digits: digits) }
         }
+        .onAppear { displayed?.wrappedValue = text }
         .onChange(of: focused) { _, isFocused in
-            if !isFocused { text = NumberField.format(value, digits: digits) }
+            if !isFocused {
+                if let parsed = NumberField.parse(text), parsed != value {
+                    value = parsed
+                }
+                text = NumberField.format(value, digits: digits)
+            }
+            displayed?.wrappedValue = text
         }
+    }
+
+    /// Writes the draft as the characters change, including a UI test `typeText`, not only after focus ends.
+    private var textBinding: Binding<String> {
+        Binding(
+            get: { text },
+            set: { newText in
+                text = newText
+                displayed?.wrappedValue = newText
+                guard let parsed = NumberField.parse(newText) else { return }
+                if parsed != value { value = parsed }
+            }
+        )
     }
 
     static func format(_ number: Double, digits: Int) -> String {

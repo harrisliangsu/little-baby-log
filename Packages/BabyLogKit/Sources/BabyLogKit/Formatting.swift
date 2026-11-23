@@ -87,6 +87,15 @@ public struct EventDescriber {
         self.locale = locale
     }
 
+    private func chineseMinutes(_ interval: TimeInterval) -> String {
+        let total = max(0, Int(interval.rounded(.down)))
+        let minutes = total / 60
+        let seconds = total % 60
+        if minutes > 0, seconds == 0 { return "\(minutes)分钟" }
+        if minutes > 0 { return "\(minutes)分钟\(seconds)秒" }
+        return "\(max(total, interval > 0 ? 1 : 0))秒"
+    }
+
     /// One-line detail for timeline rows. English stays the default so existing checks keep their wording.
     public func summary(for event: LogEvent, now: Date = .now, language: ResolvedLanguage = .en) -> String {
         let zh = language == .zh
@@ -100,7 +109,10 @@ public struct EventDescriber {
             var parts: [String] = []
             for side in BreastSide.allCases {
                 let seconds = event.breastSeconds(side, at: now)
-                if seconds > 0 { parts.append("\(zh ? UICopy.side(side, .zh) : side.shortLabel) \(DurationFormat.compact(seconds))") }
+                if seconds > 0 {
+                    let duration = zh ? chineseMinutes(seconds) : DurationFormat.compact(seconds)
+                    parts.append("\(zh ? UICopy.side(side, .zh) : side.shortLabel) \(duration)")
+                }
             }
             if parts.isEmpty { return event.isRunning ? (zh ? "计时中" : "Timer running") : "" }
             return parts.joined(separator: " · ")

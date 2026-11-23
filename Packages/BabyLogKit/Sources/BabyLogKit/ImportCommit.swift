@@ -32,6 +32,10 @@ public enum ImportCommit {
                 skipped += 1
                 continue
             }
+            if kind == .diaper, row.field.diaper == nil {
+                skipped += 1
+                continue
+            }
             let event = LogEvent.create(kind: kind, for: baby, start: start, in: context)
             var draft = EventDraft(kind: kind, now: start)
             draft.startDate = start

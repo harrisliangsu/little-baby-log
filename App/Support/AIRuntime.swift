@@ -9,8 +9,10 @@ extension AIPreferences {
 enum AIRuntime {
     @MainActor
     static func access() -> AIAccess {
-        let provider = AIPreferences.provider
-        let token = AIKeyStore.token(provider: provider)?
+        let catalog = AIConfigurationCatalog.load()
+        let provider = catalog.active?.provider ?? AIPreferences.provider
+        let account = catalog.active?.id.uuidString ?? provider.rawValue
+        let token = AIKeyStore.token(account: account)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return AIAccess.evaluate(
             enabled: AIPreferences.isEnabled,
@@ -23,16 +25,20 @@ enum AIRuntime {
     @MainActor
     static func send(preview: AISendPreview, ticket: Int) async throws -> Data {
         let access = access()
-        guard access.maySend, let token = AIKeyStore.token(provider: preview.provider) else {
+        let catalog = AIConfigurationCatalog.load()
+        guard let active = catalog.active, active.provider == preview.provider else {
+            throw AIClientError.cancelled
+        }
+        guard access.maySend, let token = AIKeyStore.token(account: active.id.uuidString) else {
             throw AIClientError.cancelled
         }
         do {
             return try await AIClient(transport: LockedHostTransport()).send(
-                provider: preview.provider,
+                provider: active.provider,
                 preview: preview,
                 token: token,
                 approved: preview,
-                model: AIPreferences.modelID(for: preview.provider),
+                model: active.model,
                 access: access,
                 flight: AIFlight.shared,
                 ticket: ticket

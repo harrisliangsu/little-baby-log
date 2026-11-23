@@ -23,6 +23,8 @@ public final class LogEvent: NSManagedObject {
 
     // Solids
     @NSManaged public var foodName: String?
+    /// JSON for several foods, spoon counts, and one shared water amount. Nil on older records.
+    @NSManaged public var solidsDetail: String?
 
     // Diaper
     @NSManaged public var diaperKindRaw: String?

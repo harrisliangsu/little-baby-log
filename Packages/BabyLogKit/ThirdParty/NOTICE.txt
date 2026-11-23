@@ -1,0 +1,1 @@
+lunar-swift 1.1.9 is MIT, Copyright (c) 2023 6tail. The license text is lunar-swift-LICENSE. BabyCulture calls it and does not copy the calendar tables.

@@ -25,12 +25,17 @@ struct TodayView: View {
     @State private var openedLinkAt: (key: String, date: Date)?
     @State private var feedback = 0
     @State private var timelineCard: HomeCard?
+    @State private var kindHistory: EventKind?
     @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showAIDraft = false
     /// Relative labels refresh on a timer. The list itself is not a TimelineView:
     /// wrapping it rebuilt the whole scroll view, and the bottom section only appeared
     /// once that rebuild was already under way.
     @State private var now = Date()
+    /// Bumps when the store saves, so the cards re-read the context the form just wrote.
+    @State private var savedRecords = 0
+    /// Rollup taken from that re-read. The list was still showing the snapshot from before the sheet closed.
+    @State private var displayedCare: CareRollup?
 
     init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
@@ -50,8 +55,14 @@ struct TodayView: View {
         running.first(where: { $0.kind == .breastfeed })
     }
 
+    /// The form's own refetch already saw the new row. `FetchedResults` under a sheet can keep the previous snapshot.
+    private var loggedEvents: [LogEvent] {
+        _ = savedRecords
+        return (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? Array(allEvents)
+    }
+
     var body: some View {
-        let care = CareRollup.make(events: Array(allEvents), now: now)
+        let care = displayedCare ?? CareRollup.make(events: loggedEvents, now: now)
         List {
                 if !running.isEmpty {
                     Section {
@@ -77,6 +88,7 @@ struct TodayView: View {
                             onOpen: { timelineCard = card },
                             onAdd: { add(card) }
                         )
+                        .id("\(card.id)-\(savedRecords)")
                         .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                         .listRowBackground(Color.clear)
                     }
@@ -91,6 +103,8 @@ struct TodayView: View {
                             add(card)
                         } onKind: { kind in
                             editor = .new(kind)
+                        } onHistory: { kind in
+                            kindHistory = kind
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
                         .listRowBackground(Color.clear)
@@ -106,6 +120,9 @@ struct TodayView: View {
             .id(day)
             .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
         .navigationTitle(baby.displayName)
+        .background(alignment: .topLeading) {
+            SaveTraceProbe(babyID: SaveTrace.babyID(baby.uuid), contextID: SaveTrace.contextID(context))
+        }
         .navigationBarTitleDisplayMode(.large)
         .systemBarChrome()
         .toolbar {
@@ -131,8 +148,20 @@ struct TodayView: View {
             link = nil
             open(newLink)
         }
-        .sheet(item: $editor) { target in
+        .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: context)) { _ in
+            savedRecords += 1
+        }
+        .onChange(of: savedRecords) { _, _ in
+            let rows = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+            let fresh = CareRollup.make(events: rows, now: .now)
+            displayedCare = fresh
+            let formula = fresh.lastFormulaML.map { String(Int($0)) } ?? "nil"
+            let breast = fresh.lastBreastSeconds.map { String(Int($0)) } ?? "nil"
+            SaveTrace.shared.record("todayFetch rows=\(rows.count) formula=\(formula) breast=\(breast)")
+        }
+        .sheet(item: $editor, onDismiss: { savedRecords += 1 }) { target in
             EventEditorView(baby: baby, target: target)
+                .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $feedChoice) {
             FeedingMethodSheet(babyName: baby.displayName) { card in
@@ -145,6 +174,9 @@ struct TodayView: View {
         }
         .navigationDestination(item: $timelineCard) { card in
             CategoryTimelineView(baby: baby, card: card)
+        }
+        .navigationDestination(item: $kindHistory) { kind in
+            KindHistoryView(baby: baby, kind: kind)
         }
     }
 
@@ -236,6 +268,21 @@ struct TodayView: View {
         nursing = NursingSheetItem(event: event, suggestedSide: nextSide())
     }
 
+}
+
+/// Republishes the save chain so a failed UI assertion can show baby, context, draft, and who closed the sheet.
+private struct SaveTraceProbe: View {
+    @ObservedObject private var trace = SaveTrace.shared
+    let babyID: String
+    let contextID: String
+
+    var body: some View {
+        Text(trace.summary)
+            .frame(width: 1, height: 1)
+            .opacity(0.01)
+            .accessibilityIdentifier("save-trace")
+            .accessibilityLabel("\(trace.summary) todayBaby=\(babyID) todayCtx=\(contextID)")
+    }
 }
 
 #Preview {

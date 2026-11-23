@@ -1,6 +1,12 @@
 import Foundation
 import BabyLogKit
 
+struct PendingLogForm: Identifiable, Equatable {
+    var id = UUID()
+    var draft: EventDraft
+    var rest: [EventDraft]
+}
+
 struct AIPendingSend: Equatable {
     var baby: UUID
     var message: UUID
@@ -14,6 +20,7 @@ final class AIDesk: ObservableObject {
     @Published private(set) var threads: [UUID: AIChatThread] = [:]
     @Published private(set) var verification: AIVerifyRecord?
     @Published var pendingSend: AIPendingSend?
+    @Published var pendingForm: PendingLogForm?
 
     func thread(for baby: UUID) -> AIChatThread {
         AIChatStore.thread(baby, in: threads)
@@ -62,9 +69,24 @@ final class AIDesk: ObservableObject {
         pendingSend = AIPendingSend(baby: baby, message: message)
     }
 
+    /// One form at a time. A second response while a form is open does not open another.
+    func offerForms(_ drafts: [EventDraft]) {
+        guard pendingForm == nil, !drafts.isEmpty else { return }
+        pendingForm = PendingLogForm(draft: drafts[0], rest: Array(drafts.dropFirst()))
+    }
+
+    func finishForm(saved: Bool) {
+        guard let current = pendingForm else { return }
+        if saved, let next = current.rest.first {
+            pendingForm = PendingLogForm(draft: next, rest: Array(current.rest.dropFirst()))
+        } else {
+            pendingForm = nil
+        }
+    }
+
     func appendReply(baby: UUID, text: String) {
         var thread = thread(for: baby)
-        thread.messages.append(AIChatMessage(text: text, delivery: .sent))
+        thread.messages.append(AIChatMessage(role: .assistant, text: text, delivery: .sent))
         threads[baby] = thread
     }
 

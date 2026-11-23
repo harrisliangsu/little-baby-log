@@ -17,7 +17,7 @@ public enum AIChatExchange {
             guard let index = copy.messages.firstIndex(where: { $0.id == id }) else { return copy }
             copy.messages[index].delivery = .sent
             copy.messages[index].records = []
-            copy.messages.append(AIChatMessage(text: text, delivery: .sent))
+            copy.messages.append(AIChatMessage(role: .assistant, text: text, delivery: .sent))
             return copy
         case .records(let items):
             let records = VoiceDrafts.resolve(items: items, anchor: anchor, map: map)

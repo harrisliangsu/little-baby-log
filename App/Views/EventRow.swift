@@ -15,7 +15,7 @@ struct EventRow: View {
             EmptyView()
         } else {
             HStack(spacing: 12) {
-                KindIcon(kind: event.kind, size: 40)
+                KindIcon(kind: event.kind, diaper: event.diaperKind, size: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.headline)

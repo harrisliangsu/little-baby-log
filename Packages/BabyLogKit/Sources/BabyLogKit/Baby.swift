@@ -6,6 +6,10 @@ public final class Baby: NSManagedObject {
     @NSManaged public var name: String?
     @NSManaged public var birthDate: Date?
     @NSManaged public var createdAt: Date?
+    @NSManaged public var genderRaw: String?
+    /// "HH:mm" in `birthTimeZoneID`. Nil means the hour pillar must not be invented.
+    @NSManaged public var birthClock: String?
+    @NSManaged public var birthTimeZoneID: String?
     @NSManaged public var events: NSSet?
 }
 
