@@ -118,7 +118,6 @@ struct EventEditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled()
             .safeAreaInset(edge: .bottom, spacing: 8) {
                 Button { save() } label: {
                     Text(UICopy.t(.save, language))
@@ -139,14 +138,21 @@ struct EventEditorView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button(UICopy.t(.done, language)) { UIApplication.endEditing() }
+                    Button(UICopy.t(.done, language)) {
+                        if draft.kind == .breastfeed {
+                            ManualNursingSave.commit(fields: minuteFieldsAtSave(), into: &draft)
+                        }
+                        UIApplication.endEditing()
+                    }
                 }
             }
+            .interactiveDismissDisabled()
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
             }
         }
+        .interactiveDismissDisabled()
     }
 
     // MARK: Fields by kind
@@ -416,7 +422,11 @@ struct EventEditorView: View {
     private func minutesBinding(_ keyPath: WritableKeyPath<EventDraft, TimeInterval>) -> Binding<Double> {
         Binding(
             get: { draft[keyPath: keyPath] / 60 },
-            set: { draft[keyPath: keyPath] = $0 * 60 }
+            set: { minutes in
+                var copy = draft
+                copy[keyPath: keyPath] = minutes * 60
+                draft = copy
+            }
         )
     }
 
@@ -497,7 +507,14 @@ struct EventEditorView: View {
         }
         switch ManualNursingSave.save(draft: &draft, fields: fields, baby: baby, in: context) {
         case .saved:
-            finishSave()
+            context.processPendingChanges()
+            let stored = (try? context.fetch(LogEvent.requestAll(baby: baby, kinds: [.breastfeed]))) ?? []
+            let wroteDuration = stored.contains { $0.leftSeconds + $0.rightSeconds > 0 }
+            if wroteDuration {
+                finishSave()
+            } else {
+                attemptedSave = true
+            }
         case .rejected:
             attemptedSave = true
         }
@@ -512,8 +529,14 @@ struct EventEditorView: View {
     /// Prefer the text actually drawn in the box. The SwiftUI binding can still be 0 while that text says 1.
     private func minuteFieldsAtSave() -> ManualNursingSave.Fields {
         ManualNursingSave.Fields(
-            leftMinutesText: LiveFieldText.text(identifier: "breast-left-minutes") ?? leftMinuteText,
-            rightMinutesText: LiveFieldText.text(identifier: "breast-right-minutes") ?? rightMinuteText
+            leftMinutesText: ManualNursingSave.choosing(
+                live: LiveFieldText.text(identifier: "breast-left-minutes"),
+                mirror: leftMinuteText
+            ),
+            rightMinutesText: ManualNursingSave.choosing(
+                live: LiveFieldText.text(identifier: "breast-right-minutes"),
+                mirror: rightMinuteText
+            )
         )
     }
 

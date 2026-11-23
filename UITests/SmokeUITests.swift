@@ -712,8 +712,10 @@ final class SmokeUITests: XCTestCase {
         minutes.typeText("1")
         let shown = minutes.value as? String ?? ""
         XCTAssertTrue(shown.contains("1"), "typed minute was not in the field: \(shown)")
-        if app.buttons["完成"].exists { app.buttons["完成"].tap() }
         let save = app.buttons["save-entry"]
+        if !save.isHittable, app.keyboards.buttons["完成"].exists {
+            app.keyboards.buttons["完成"].tap()
+        }
         XCTAssertTrue(save.waitForExistence(timeout: 4))
         XCTAssertTrue(save.isHittable, "save-entry is covered, so the minute would stay unsaved")
         save.tap()

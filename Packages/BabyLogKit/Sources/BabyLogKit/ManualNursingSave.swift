@@ -46,6 +46,14 @@ public enum ManualNursingSave {
         return max(0, value)
     }
 
+    /// An empty system field must not hide the "1" the form is already showing.
+    public static func choosing(live: String?, mirror: String) -> String {
+        let liveText = live ?? ""
+        if (minutes(fromDisplayed: liveText) ?? 0) > 0 { return liveText }
+        if (minutes(fromDisplayed: mirror) ?? 0) > 0 { return mirror }
+        return liveText.isEmpty ? mirror : liveText
+    }
+
     /// A shown minute replaces a binding that is still 0. Blank text does not erase seconds already stored.
     /// A positive duration finishes the session so `apply` cannot drop it as a running timer.
     public static func commit(fields: Fields, into draft: inout EventDraft) {

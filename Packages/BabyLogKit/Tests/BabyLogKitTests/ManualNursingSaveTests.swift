@@ -108,6 +108,29 @@ struct ManualNursingSaveTests {
         #expect(stored[0].endDate != nil)
     }
 
+    @Test func emptySystemFieldDoesNotHideAShownMinute() throws {
+        #expect(ManualNursingSave.choosing(live: "", mirror: "1") == "1")
+        #expect(ManualNursingSave.choosing(live: nil, mirror: "1") == "1")
+        let (_, ctx) = TestSupport.makeContext()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let baby = Baby.create(name: "Beibei", birthDate: now, in: ctx)
+        var draft = cardDraft(now: now)
+        let outcome = ManualNursingSave.save(
+            draft: &draft,
+            fields: .init(
+                leftMinutesText: ManualNursingSave.choosing(live: "", mirror: "1"),
+                rightMinutesText: ""
+            ),
+            baby: baby,
+            in: ctx,
+            now: now
+        )
+        #expect(outcome == .saved)
+        let stored = try ctx.fetch(LogEvent.requestAll(baby: baby, kinds: [.breastfeed]))
+        #expect(stored.count == 1)
+        #expect(stored[0].duration(at: now) == 60)
+    }
+
     @Test func emptyMinuteDoesNotInsert() throws {
         let (_, ctx) = TestSupport.makeContext()
         let now = Date(timeIntervalSince1970: 1_700_000_000)

@@ -136,6 +136,7 @@ struct TodayView: View {
         }
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+                .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $feedChoice) {
             FeedingMethodSheet(babyName: baby.displayName) { card in
