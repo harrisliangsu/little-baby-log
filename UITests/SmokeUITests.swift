@@ -688,9 +688,7 @@ final class SmokeUITests: XCTestCase {
     /// Taps the save control that is actually hittable. Does not dismiss the keyboard first.
     @discardableResult
     private func tapSave(_ note: String) -> XCUIElement {
-        let key = app.buttons["save-entry-key"]
-        let bottom = app.buttons["save-entry"]
-        let target = key.exists && key.isHittable ? key : bottom
+        let target = app.buttons["save-entry"]
         XCTAssertTrue(target.waitForExistence(timeout: 4), note)
         XCTAssertTrue(target.isHittable, "\(note) save is not hittable")
         XCTAssertGreaterThanOrEqual(target.frame.height, 44, note)

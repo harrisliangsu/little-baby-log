@@ -81,17 +81,9 @@ struct EventEditorView: View {
 
     var body: some View {
         NavigationStack {
+            VStack(spacing: 0) {
             Form {
                 kindFields
-                Section {
-                    Button { save() } label: {
-                        Text(UICopy.t(.save, language))
-                            .font(.title3.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 56)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("save-entry")
-                }
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
@@ -135,11 +127,6 @@ struct EventEditorView: View {
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
-                    Button { save() } label: {
-                        Text(UICopy.t(.save, language))
-                            .frame(minWidth: 72, minHeight: 44)
-                    }
-                    .accessibilityIdentifier("save-entry-key")
                     Spacer()
                     Button(UICopy.t(.done, language)) {
                         if draft.kind == .breastfeed {
@@ -152,6 +139,16 @@ struct EventEditorView: View {
             .confirmationDialog(UICopy.t(.deleteConfirm, language), isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
+            }
+            Button { save() } label: {
+                Text(UICopy.t(.save, language))
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 56)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("save-entry")
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
             }
         }
         .interactiveDismissDisabled()
