@@ -706,20 +706,24 @@ final class SmokeUITests: XCTestCase {
     private func returnToSettingsHub(tabTitle: String) {
         tab(tabTitle).tap()
         let hub = app.descendants(matching: .any)["settings-module-records"]
-        if hub.waitForExistence(timeout: 2), hub.isHittable { return }
-        if app.buttons["close-widget-preview"].exists {
-            app.buttons["close-widget-preview"].tap()
-            tab(tabTitle).tap()
-        }
-        if app.navigationBars.buttons["取消"].exists {
-            app.navigationBars.buttons["取消"].tap()
-        }
-        for _ in 0..<4 {
+        for _ in 0..<5 {
             if hub.exists, hub.isHittable { return }
-            let back = app.navigationBars.buttons.element(boundBy: 0)
-            guard back.exists, back.isHittable else { return }
-            if back.label == tabTitle { return }
-            back.tap()
+            if app.buttons["close-widget-preview"].exists {
+                app.buttons["close-widget-preview"].tap()
+                continue
+            }
+            if app.navigationBars.buttons["取消"].exists {
+                app.navigationBars.buttons["取消"].tap()
+                continue
+            }
+            if !hub.exists {
+                let back = app.navigationBars.buttons.element(boundBy: 0)
+                if back.exists, back.isHittable {
+                    back.tap()
+                    continue
+                }
+            }
+            app.swipeDown()
         }
     }
 

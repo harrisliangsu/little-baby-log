@@ -43,7 +43,7 @@ struct NumberField: View {
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
         .onChange(of: text) { _, newText in
-            guard focused, let parsed = NumberField.parse(newText) else { return }
+            guard let parsed = NumberField.parse(newText) else { return }
             if parsed != value { value = parsed }
         }
         .onChange(of: value) { _, newValue in
