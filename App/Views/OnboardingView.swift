@@ -64,7 +64,7 @@ struct OnboardingView: View {
                 }
                 .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                Button(action: begin) label: {
+                Button(action: begin) {
                     Text(UICopy.t(.startTracking, language))
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
