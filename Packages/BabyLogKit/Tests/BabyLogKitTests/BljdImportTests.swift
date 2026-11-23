@@ -149,20 +149,28 @@ struct BljdImportTests {
         let plan = StandardImporter.plan(file: file, babies: known, events: [], assign: assign)
         let urineLine = try #require(file.rows.first { $0.field.externalId == "bljd:urines:u1" }?.line)
         let sleepLine = try #require(file.rows.first { $0.field.externalId == "bljd:sleeps:s1" }?.line)
-        #expect(plan.first { $0.line == urineLine }?.action == .insert)
-        #expect(plan.first { $0.line == sleepLine }?.action == .unmappedBaby)
+        let urineAction = plan.first { $0.line == urineLine }?.action
+        let sleepAction = plan.first { $0.line == sleepLine }?.action
+        #expect(urineAction == .insert)
+        #expect(sleepAction == .unmappedBaby)
         _ = try ImportCommit.apply(file: file, plan: plan, babies: [ada.uuid!: ada, bo.uuid!: bo], in: context)
         let events = try context.fetch(LogEvent.fetchRequest())
-        #expect(events.contains { $0.externalID == "bljd:urines:u1" && $0.diaperKind == .wet })
+        let keptUrine = events.contains { $0.externalID == "bljd:urines:u1" && $0.diaperKind == .wet }
+        #expect(keptUrine)
         let linked = events.contains { event in
             guard let id = event.externalID else { return false }
             return id.hasPrefix(WetDiaperLink.prefix)
         }
         #expect(linked == false)
-        #expect(events.filter { $0.baby?.uuid == bo.uuid }.isEmpty)
+        let writtenToOtherBaby = events.contains { event in
+            guard let baby = event.baby else { return false }
+            return baby.uuid == bo.uuid
+        }
+        #expect(writtenToOtherBaby == false)
         let again = StandardImporter.plan(file: file, babies: known, events: events.map {
             KnownEvent(babyID: $0.baby!.uuid!, externalID: $0.externalID, kind: $0.kind, start: $0.startDate!, diaper: $0.diaperKind)
         }, assign: assign)
-        #expect(again.first { $0.line == urineLine }?.action == .skipIdempotent)
+        let againAction = again.first { $0.line == urineLine }?.action
+        #expect(againAction == .skipIdempotent)
     }
 }
