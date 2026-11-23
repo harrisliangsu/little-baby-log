@@ -110,7 +110,7 @@ public struct EventDescriber {
             for side in BreastSide.allCases {
                 let seconds = event.breastSeconds(side, at: now)
                 if seconds > 0 {
-                    let duration = zh ? Self.chineseMinutes(seconds) : DurationFormat.compact(seconds)
+                    let duration = zh ? chineseMinutes(seconds) : DurationFormat.compact(seconds)
                     parts.append("\(zh ? UICopy.side(side, .zh) : side.shortLabel) \(duration)")
                 }
             }
