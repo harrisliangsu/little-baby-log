@@ -49,9 +49,10 @@ struct EventEditorView: View {
     @State private var attemptedSave = false
     @State private var seededFormula = false
 
-    init(baby: Baby, target: EditorTarget) {
+    init(baby: Baby, target: EditorTarget, onFinish: ((Bool) -> Void)? = nil) {
         self.baby = baby
         self.target = target
+        self.onFinish = onFinish
         switch target {
         case .new(let kind):
             _draft = State(initialValue: EventDraft(kind: kind))
