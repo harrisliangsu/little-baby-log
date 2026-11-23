@@ -514,8 +514,16 @@ struct EventEditorView: View {
         closeSheet("save")
     }
 
+    private func refetchNote(saved: Bool) -> String {
+        let rows = (try? context.fetch(LogEvent.requestAll(baby: baby))) ?? []
+        let care = CareRollup.make(events: rows, now: .now)
+        let breast = care.lastBreastSeconds.map { String(Int($0)) } ?? "nil"
+        let formula = care.lastFormulaML.map { String(Int($0)) } ?? "nil"
+        return "store=\(saved) rows=\(rows.count) rollupBreast=\(breast) rollupFormula=\(formula)"
+    }
+
     private func closeSheet(_ reason: String) {
-        SaveTrace.shared.lastClose = reason
+        SaveTrace.shared.markClosed(reason)
         SaveTrace.shared.record("close=\(reason) form=\(SaveTrace.babyID(formID))")
         Haptics.success()
         onFinish?(reason == "save")

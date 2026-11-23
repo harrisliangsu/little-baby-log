@@ -16,6 +16,10 @@ final class SaveTrace: ObservableObject {
         summary = ""
     }
 
+    func markClosed(_ reason: String) {
+        lastClose = reason
+    }
+
     func record(_ line: String) {
         lines.append(line)
         if lines.count > 8 { lines.removeFirst(lines.count - 8) }
