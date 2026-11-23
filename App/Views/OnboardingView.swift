@@ -16,11 +16,20 @@ struct OnboardingView: View {
     }
 
     private var trimmedName: String {
-        let typed = LiveFieldText.text(identifier: "baby-name") ?? name
-        return typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let live = (LiveFieldText.text(identifier: "baby-name") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !live.isEmpty { return live }
+        return name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func begin() {
+        let typed = trimmedName
+        guard !typed.isEmpty else { return }
+        Haptics.success()
+        onCreate(typed, birthDate)
     }
 
     var body: some View {
+        NavigationStack {
         ScrollView {
             VStack(spacing: 28) {
                 VStack(spacing: 12) {
@@ -55,12 +64,7 @@ struct OnboardingView: View {
                 }
                 .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                Button {
-                    let typed = trimmedName
-                    guard !typed.isEmpty else { return }
-                    Haptics.success()
-                    onCreate(typed, birthDate)
-                } label: {
+                Button(action: begin) label: {
                     Text(UICopy.t(.startTracking, language))
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
@@ -78,6 +82,18 @@ struct OnboardingView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(theme.background)
         .themedForeground()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Button(action: begin) {
+                    Text(UICopy.t(.startTracking, language))
+                        .frame(minWidth: 88, minHeight: 44)
+                }
+                .disabled(trimmedName.isEmpty)
+                .accessibilityIdentifier("start-tracking-key")
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        }
     }
 }
 

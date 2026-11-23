@@ -83,6 +83,15 @@ struct EventEditorView: View {
         NavigationStack {
             Form {
                 kindFields
+                Section {
+                    Button { save() } label: {
+                        Text(UICopy.t(.save, language))
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("save-entry")
+                }
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
@@ -126,6 +135,11 @@ struct EventEditorView: View {
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
+                    Button { save() } label: {
+                        Text(UICopy.t(.save, language))
+                            .frame(minWidth: 72, minHeight: 44)
+                    }
+                    .accessibilityIdentifier("save-entry-key")
                     Spacer()
                     Button(UICopy.t(.done, language)) {
                         if draft.kind == .breastfeed {
@@ -139,17 +153,6 @@ struct EventEditorView: View {
                 Button(UICopy.t(.delete, language), role: .destructive) { deleteEntry() }
                 Button(UICopy.t(.cancel, language), role: .cancel) {}
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 8) {
-            Button { save() } label: {
-                Text(UICopy.t(.save, language))
-                    .font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 56)
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("save-entry")
-            .padding(.horizontal, 20)
-            .padding(.bottom, 4)
         }
         .interactiveDismissDisabled()
     }

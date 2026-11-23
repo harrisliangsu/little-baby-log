@@ -645,25 +645,16 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 2))
         amount.tap()
         amount.typeText(millilitres)
-        let save = app.buttons["save-entry"]
-        if !save.isHittable, app.keyboards.buttons["完成"].exists {
-            app.keyboards.buttons["完成"].tap()
-        }
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: save)
-        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 4), .completed, "formula save stayed covered")
-        save.tap()
-        XCTAssertTrue(element("summary-formula").waitForExistence(timeout: 5))
+        let save = tapSave("formula")
+        XCTAssertTrue(save.waitForNonExistence(timeout: 4), "formula form stayed open")
+        let card = element("summary-formula")
+        let showed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", millilitres), object: card)
+        XCTAssertEqual(XCTWaiter().wait(for: [showed], timeout: 4), .completed, "formula card stayed \(card.label)")
     }
 
     private func saveCurrentForm(_ addIdentifier: String) {
         tap(addIdentifier)
-        let save = app.buttons["save-entry"]
-        XCTAssertTrue(save.waitForExistence(timeout: 5))
-        if !save.isHittable, app.keyboards.buttons["完成"].exists {
-            app.keyboards.buttons["完成"].tap()
-        }
-        XCTAssertTrue(save.isHittable, "\(addIdentifier) save is covered, so the record would stay unsaved")
-        save.tap()
+        let save = tapSave(addIdentifier)
         XCTAssertTrue(save.waitForNonExistence(timeout: 4), "\(addIdentifier) form stayed open, so it was not saved")
     }
 
@@ -686,9 +677,25 @@ final class SmokeUITests: XCTestCase {
             .completed,
             "baby name stayed \(field.value ?? "nil")"
         )
+        let key = app.buttons["start-tracking-key"]
         let start = app.buttons["start-tracking"]
-        XCTAssertTrue(start.isEnabled, "start-tracking stayed disabled after the name was \(field.value ?? "nil")")
-        start.tap()
+        let target = key.exists && key.isHittable ? key : start
+        XCTAssertTrue(target.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
+        target.tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 4), "welcome stayed open after start")
+    }
+
+    /// Taps the save control that is actually hittable. Does not dismiss the keyboard first.
+    @discardableResult
+    private func tapSave(_ note: String) -> XCUIElement {
+        let key = app.buttons["save-entry-key"]
+        let bottom = app.buttons["save-entry"]
+        let target = key.exists && key.isHittable ? key : bottom
+        XCTAssertTrue(target.waitForExistence(timeout: 4), note)
+        XCTAssertTrue(target.isHittable, "\(note) save is not hittable")
+        XCTAssertGreaterThanOrEqual(target.frame.height, 44, note)
+        target.tap()
+        return target
     }
 
     private func element(_ identifier: String) -> XCUIElement {
@@ -715,13 +722,7 @@ final class SmokeUITests: XCTestCase {
         minutes.typeText("1")
         let shown = minutes.value as? String ?? ""
         XCTAssertTrue(shown.contains("1"), "typed minute was not in the field: \(shown)")
-        let save = app.buttons["save-entry"]
-        if !save.isHittable, app.keyboards.buttons["完成"].exists {
-            app.keyboards.buttons["完成"].tap()
-        }
-        XCTAssertTrue(save.waitForExistence(timeout: 4))
-        XCTAssertTrue(save.isHittable, "save-entry is covered, so the minute would stay unsaved")
-        save.tap()
+        let save = tapSave("nursing")
         XCTAssertTrue(save.waitForNonExistence(timeout: 4), "nursing form stayed open, so the minute was not saved")
         XCTAssertTrue(minutes.waitForNonExistence(timeout: 2), "nursing minute field still open")
     }
