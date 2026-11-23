@@ -46,7 +46,12 @@ struct NumberField: View {
             if !focused { text = NumberField.format(newValue, digits: digits) }
         }
         .onChange(of: focused) { _, isFocused in
-            if !isFocused { text = NumberField.format(value, digits: digits) }
+            if !isFocused {
+                if let parsed = NumberField.parse(text), parsed != value {
+                    value = parsed
+                }
+                text = NumberField.format(value, digits: digits)
+            }
         }
     }
 

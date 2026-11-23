@@ -115,6 +115,7 @@ struct EventEditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled()
             .safeAreaInset(edge: .bottom, spacing: 8) {
                 Button { save() } label: {
                     Text(UICopy.t(.save, language))

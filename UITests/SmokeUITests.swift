@@ -57,7 +57,16 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(loggedAge(element("summary-dirty").label))
         XCTAssertTrue(loggedAge(element("summary-change").label))
         XCTAssertTrue(loggedAge(element("summary-sleep").label))
-        XCTAssertTrue(element("summary-breast").label.contains("1分钟"))
+        let breast = element("summary-breast")
+        let showedDuration = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "1分钟"),
+            object: breast
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [showedDuration], timeout: 4),
+            .completed,
+            "breast card stayed \(breast.label)"
+        )
         shot("04-after-logging")
 
         openWidgetPreview()
@@ -695,7 +704,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 4))
         XCTAssertTrue(save.isHittable, "save-entry is covered, so the minute would stay unsaved")
         save.tap()
-        XCTAssertTrue(app.navigationBars["记录亲喂"].waitForNonExistence(timeout: 4), "nursing form stayed open")
+        XCTAssertTrue(minutes.waitForNonExistence(timeout: 4), "nursing form stayed open, so the minute was not saved")
     }
 
     private func openWidgetPreview() {
