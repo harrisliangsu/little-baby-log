@@ -10,16 +10,25 @@ struct NumberField: View {
     let unit: String?
     let digits: Int
     let identifier: String?
+    private var displayed: Binding<String>?
 
     @State private var text: String
     @FocusState private var focused: Bool
 
-    init(_ title: String, value: Binding<Double>, unit: String? = nil, digits: Int = 1, identifier: String? = nil) {
+    init(
+        _ title: String,
+        value: Binding<Double>,
+        unit: String? = nil,
+        digits: Int = 1,
+        identifier: String? = nil,
+        displayed: Binding<String>? = nil
+    ) {
         self.title = title
         self._value = value
         self.unit = unit
         self.digits = digits
         self.identifier = identifier
+        self.displayed = displayed
         self._text = State(initialValue: NumberField.format(value.wrappedValue, digits: digits))
     }
 
@@ -45,6 +54,7 @@ struct NumberField: View {
         .onChange(of: value) { _, newValue in
             if !focused { text = NumberField.format(newValue, digits: digits) }
         }
+        .onAppear { displayed?.wrappedValue = text }
         .onChange(of: focused) { _, isFocused in
             if !isFocused {
                 if let parsed = NumberField.parse(text), parsed != value {
@@ -52,6 +62,7 @@ struct NumberField: View {
                 }
                 text = NumberField.format(value, digits: digits)
             }
+            displayed?.wrappedValue = text
         }
     }
 
@@ -61,6 +72,7 @@ struct NumberField: View {
             get: { text },
             set: { newText in
                 text = newText
+                displayed?.wrappedValue = newText
                 guard let parsed = NumberField.parse(newText) else { return }
                 if parsed != value { value = parsed }
             }

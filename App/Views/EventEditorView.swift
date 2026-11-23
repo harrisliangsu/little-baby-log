@@ -48,6 +48,9 @@ struct EventEditorView: View {
     @State private var confirmDelete = false
     @State private var attemptedSave = false
     @State private var seededFormula = false
+    /// Characters in the minute boxes. Save reads these even when the second binding is still 0.
+    @State private var leftMinuteText = ""
+    @State private var rightMinuteText = ""
 
     init(baby: Baby, target: EditorTarget, onFinish: ((Bool) -> Void)? = nil) {
         self.baby = baby
@@ -195,9 +198,9 @@ struct EventEditorView: View {
                     .font(.subheadline)
                     .foregroundStyle(theme.secondary)
             } else {
-                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-left-minutes")
+                NumberField(UICopy.t(.leftMinutes, language), value: minutesBinding(\.leftSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-left-minutes", displayed: $leftMinuteText)
                     .frame(minHeight: 56)
-                NumberField(UICopy.t(.rightMinutes, language), value: minutesBinding(\.rightSeconds), unit: language == .zh ? "分钟" : "min")
+                NumberField(UICopy.t(.rightMinutes, language), value: minutesBinding(\.rightSeconds), unit: language == .zh ? "分钟" : "min", identifier: "breast-right-minutes", displayed: $rightMinuteText)
                     .frame(minHeight: 56)
             }
             saveError
@@ -454,6 +457,10 @@ struct EventEditorView: View {
     // MARK: Actions
 
     private func save() {
+        if draft.kind == .breastfeed {
+            saveNursing()
+            return
+        }
         if draft.validationMessage != nil {
             attemptedSave = true
             return
@@ -471,6 +478,43 @@ struct EventEditorView: View {
         Haptics.success()
         onFinish?(true)
         dismiss()
+    }
+
+    /// Reads the minute boxes, then either stores that duration on this baby or leaves the form open.
+    private func saveNursing() {
+        let fields = minuteFieldsAtSave()
+        if case .edit(let event) = target {
+            ManualNursingSave.commit(fields: fields, into: &draft)
+            if draft.validationMessage != nil {
+                attemptedSave = true
+                return
+            }
+            draft.apply(to: event)
+            WetDiaperLink.sync(event: event, isNew: false, in: context)
+            context.saveIfNeeded()
+            finishSave()
+            return
+        }
+        switch ManualNursingSave.save(draft: &draft, fields: fields, baby: baby, in: context) {
+        case .saved:
+            finishSave()
+        case .rejected:
+            attemptedSave = true
+        }
+    }
+
+    private func finishSave() {
+        Haptics.success()
+        onFinish?(true)
+        dismiss()
+    }
+
+    /// Prefer the text actually drawn in the box. The SwiftUI binding can still be 0 while that text says 1.
+    private func minuteFieldsAtSave() -> ManualNursingSave.Fields {
+        ManualNursingSave.Fields(
+            leftMinutesText: LiveFieldText.text(identifier: "breast-left-minutes") ?? leftMinuteText,
+            rightMinutesText: LiveFieldText.text(identifier: "breast-right-minutes") ?? rightMinuteText
+        )
     }
 
     private func deleteEntry() {
