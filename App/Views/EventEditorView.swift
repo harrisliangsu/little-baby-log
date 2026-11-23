@@ -601,6 +601,7 @@ private struct InlineTimeWheel: UIViewRepresentable {
         let picker = UIDatePicker()
         picker.preferredDatePickerStyle = .wheels
         picker.datePickerMode = .dateAndTime
+        picker.accessibilityIdentifier = "time-wheel"
         picker.date = date
         picker.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
         return picker
@@ -644,7 +645,7 @@ private struct TimeValueRow: View {
                 .accessibilityIdentifier("time-wheel")
         }
         .padding(.vertical, 4)
-        .accessibilityIdentifier("time-value")
+        .accessibilityElement(children: .contain)
     }
 
     private func shortcut(_ choice: LogTimeShortcut, _ title: String, _ identifier: String) -> some View {

@@ -182,8 +182,9 @@ struct AIChatView: View {
         HStack(alignment: .bottom, spacing: 4) {
             TextField(language == .zh ? "记一条" : "Note", text: $composer, axis: .vertical)
                 .lineLimit(1...6)
-                .padding(.leading, 16)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .frame(minHeight: 52, alignment: .leading)
                 .accessibilityIdentifier("ai-chat-input")
             Image(systemName: "mic.fill")
                 .frame(width: 44, height: 44)
@@ -216,8 +217,9 @@ struct AIChatView: View {
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, 10)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 64)
         .background(.bar)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer-bar")
     }
 

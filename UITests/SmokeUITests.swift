@@ -660,7 +660,7 @@ final class SmokeUITests: XCTestCase {
         revealFormControl(now)
         XCTAssertTrue(now.waitForExistence(timeout: 6))
         XCTAssertGreaterThanOrEqual(now.frame.height, 44)
-        XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["time-heading"].waitForExistence(timeout: 4))
         let wheel = app.descendants(matching: .any)["time-wheel"]
         revealFormControl(wheel)
         XCTAssertTrue(wheel.waitForExistence(timeout: 6))
@@ -1033,10 +1033,10 @@ final class SmokeUITests: XCTestCase {
         let wanted = on ? "1" : "0"
         if control.value as? String == wanted { return }
         control.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
-        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", wanted), object: control)
-        if XCTWaiter().wait(for: [ready], timeout: 2) != .completed {
-            control.tap()
-        }
+        var ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", wanted), object: control)
+        if XCTWaiter().wait(for: [ready], timeout: 2) == .completed { return }
+        control.tap()
+        ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", wanted), object: control)
         XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 4), .completed, "switch stayed \(control.value ?? "nil")")
     }
 
