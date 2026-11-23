@@ -91,7 +91,7 @@ struct MainTabView: View {
             .padding(20)
             .presentationDetents([.height(220)])
         }
-        .onAppear {
+        .task {
             if ProcessInfo.processInfo.arguments.contains("-lbl-show-chat") {
                 showChat = true
             }

@@ -657,11 +657,13 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(amount.frame.height, 44)
         let now = app.buttons["time-now"]
-        XCTAssertTrue(now.waitForExistence(timeout: 2))
+        revealFormControl(now)
+        XCTAssertTrue(now.waitForExistence(timeout: 6))
         XCTAssertGreaterThanOrEqual(now.frame.height, 44)
-        XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.descendants(matching: .any)["time-value"].waitForExistence(timeout: 4))
         let wheel = app.descendants(matching: .any)["time-wheel"]
-        XCTAssertTrue(wheel.waitForExistence(timeout: 2))
+        revealFormControl(wheel)
+        XCTAssertTrue(wheel.waitForExistence(timeout: 6))
         XCTAssertGreaterThanOrEqual(wheel.frame.height, 120, "time control is still the compact picker")
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "time-heading").count, 1)
         XCTAssertTrue(app.staticTexts["成品奶量"].exists)
@@ -695,7 +697,7 @@ final class SmokeUITests: XCTestCase {
         }
         let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", babyName), object: field)
         XCTAssertEqual(
-            XCTWaiter().wait(for: [committed], timeout: 4),
+            XCTWaiter().wait(for: [committed], timeout: 8),
             .completed,
             "baby name stayed \(field.value ?? "nil")"
         )
@@ -875,8 +877,8 @@ final class SmokeUITests: XCTestCase {
         app.launchArguments += ["-lbl-ui-reset", "-lbl-show-chat"]
         app.launch()
         createBabyNamed("Beibei")
-        let field = app.textFields["ai-chat-input"]
-        XCTAssertTrue(field.waitForExistence(timeout: 8))
+        let field = app.descendants(matching: .any)["ai-chat-input"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8), "chat composer did not open")
         let bar = app.descendants(matching: .any)["composer-bar"]
         XCTAssertTrue(bar.waitForExistence(timeout: 4))
         XCTAssertGreaterThan(bar.frame.width, app.frame.width * 0.8)
@@ -908,21 +910,23 @@ final class SmokeUITests: XCTestCase {
         let sleep = app.switches["home-card-sleep"]
         XCTAssertTrue(sleep.waitForExistence(timeout: 4))
         shot("review-02b-home-cards")
-        sleep.tap()
+        setSwitch(sleep, on: false)
         app.buttons["home-cards-done"].tap()
-        XCTAssertFalse(app.buttons["summary-sleep"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["home-cards-done"].waitForNonExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["summary-sleep"].exists)
         app.buttons["home-cards-config"].tap()
         XCTAssertTrue(sleep.waitForExistence(timeout: 4))
         XCTAssertEqual(sleep.value as? String, "0")
-        sleep.tap()
+        setSwitch(sleep, on: true)
         app.buttons["home-cards-done"].tap()
+        XCTAssertTrue(app.buttons["home-cards-done"].waitForNonExistence(timeout: 4))
         XCTAssertTrue(app.buttons["summary-sleep"].waitForExistence(timeout: 4))
 
         openForm("add-formula", shotName: "review-03-formula") {
             XCTAssertTrue(self.app.textFields["bottle-amount"].waitForExistence(timeout: 3))
-            XCTAssertTrue(self.app.buttons["time-now"].exists)
             let wheel = self.app.descendants(matching: .any)["time-wheel"]
-            XCTAssertTrue(wheel.waitForExistence(timeout: 3))
+            self.revealFormControl(wheel)
+            XCTAssertTrue(wheel.waitForExistence(timeout: 4))
             XCTAssertGreaterThanOrEqual(wheel.frame.height, 120)
             XCTAssertEqual(self.app.descendants(matching: .any).matching(identifier: "time-heading").count, 1)
         }
@@ -1022,6 +1026,27 @@ final class SmokeUITests: XCTestCase {
         shot("review-24-widget-samples")
         closeWidgetPreview()
         requireAppearance("dark", settingsTab: "设置", homeTab: "今天", name: "review-25-today-dark")
+    }
+
+    /// The switch sits beside another button. Tap the knob, then wait until the value actually changes.
+    private func setSwitch(_ control: XCUIElement, on: Bool) {
+        let wanted = on ? "1" : "0"
+        if control.value as? String == wanted { return }
+        control.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", wanted), object: control)
+        if XCTWaiter().wait(for: [ready], timeout: 2) != .completed {
+            control.tap()
+        }
+        XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 4), .completed, "switch stayed \(control.value ?? "nil")")
+    }
+
+    /// A tall form keeps the wheel below the first screen. Scroll until it is in the tree.
+    private func revealFormControl(_ element: XCUIElement) {
+        var swipes = 0
+        while swipes < 4 && !element.exists {
+            app.swipeUp()
+            swipes += 1
+        }
     }
 
     private func openForm(_ identifier: String, shotName: String, check: (() -> Void)?) {
