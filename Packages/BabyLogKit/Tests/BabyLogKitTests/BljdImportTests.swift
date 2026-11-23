@@ -154,7 +154,11 @@ struct BljdImportTests {
         _ = try ImportCommit.apply(file: file, plan: plan, babies: [ada.uuid!: ada, bo.uuid!: bo], in: context)
         let events = try context.fetch(LogEvent.fetchRequest())
         #expect(events.contains { $0.externalID == "bljd:urines:u1" && $0.diaperKind == .wet })
-        #expect(!events.contains { $0.externalID?.hasPrefix(WetDiaperLink.prefix) == true })
+        let linked = events.contains { event in
+            guard let id = event.externalID else { return false }
+            return id.hasPrefix(WetDiaperLink.prefix)
+        }
+        #expect(linked == false)
         #expect(events.filter { $0.baby?.uuid == bo.uuid }.isEmpty)
         let again = StandardImporter.plan(file: file, babies: known, events: events.map {
             KnownEvent(babyID: $0.baby!.uuid!, externalID: $0.externalID, kind: $0.kind, start: $0.startDate!, diaper: $0.diaperKind)
