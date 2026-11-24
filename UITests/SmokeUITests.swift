@@ -8,7 +8,6 @@ final class SmokeUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        XCUIDevice.shared.appearance = .light
         app = XCUIApplication()
     }
 
@@ -719,6 +718,9 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 8))
         if (field.value as? String) != babyName {
             field.tap()
+            if !app.keyboards.firstMatch.waitForExistence(timeout: 2) {
+                field.tap()
+            }
             field.typeText(babyName)
         }
         let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", babyName), object: field)
@@ -942,6 +944,7 @@ final class SmokeUITests: XCTestCase {
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
     /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
     func testAppearanceRelationDetailAndOrder() {
+        defer { XCUIDevice.shared.appearance = .light }
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
         createBabyNamed("Beibei")

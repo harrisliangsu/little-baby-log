@@ -60,6 +60,16 @@ struct SettingsView: View {
                     Form { babiesSection }
                         .themedList()
                         .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
+                        .sheet(item: $babySheet) { sheet in
+                            switch sheet {
+                            case .add:
+                                BabyFormView(baby: nil) { saved in
+                                    selectedBabyID = saved.uuid?.uuidString ?? selectedBabyID
+                                }
+                            case .edit(let baby):
+                                BabyFormView(baby: baby) { _ in }
+                            }
+                        }
                 }
                 settingsLink(language == .zh ? "记录设置" : "Records", "list.bullet.rectangle", "settings-module-records") {
                     Form {
@@ -117,16 +127,6 @@ struct SettingsView: View {
         .systemBarChrome()
         .sheet(isPresented: $showWidgetPreview) {
             WidgetPreviewSheet()
-        }
-        .sheet(item: $babySheet) { sheet in
-            switch sheet {
-            case .add:
-                BabyFormView(baby: nil) { saved in
-                    selectedBabyID = saved.uuid?.uuidString ?? selectedBabyID
-                }
-            case .edit(let baby):
-                BabyFormView(baby: baby) { _ in }
-            }
         }
         .sheet(item: $shareItem) { item in
             ActivityView(items: [item.url])
