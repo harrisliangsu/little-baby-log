@@ -172,6 +172,7 @@ final class SmokeUITests: XCTestCase {
         let probe = app.descendants(matching: .any)["appearance-scheme"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
         XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
+        assertRendered(expected, name: "\(name)-page")
         XCTAssertEqual(app.descendants(matching: .any)["appearance-\(expected)"].value as? String, "selected")
         XCTAssertEqual(app.descendants(matching: .any)["style-classic"].value as? String, "selected")
         XCTAssertEqual(app.descendants(matching: .any)["style-liquidGlass"].value as? String, "unselected")
@@ -203,6 +204,20 @@ final class SmokeUITests: XCTestCase {
             label = chinese ? "浅色" : "Light"
         }
         return app.buttons[label]
+    }
+
+    private func assertRendered(_ expected: String, name: String) {
+        let screenshot = XCUIScreen.main.screenshot()
+        let luma = averageLuminance(screenshot.image)
+        if expected == "dark" {
+            XCTAssertLessThan(luma, 0.45, "\(name) luminance \(luma) is still light")
+        } else {
+            XCTAssertGreaterThan(luma, 0.55, "\(name) luminance \(luma) is still dark")
+        }
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func captureCheckedAppearance(_ expected: String, name: String) {
@@ -925,6 +940,80 @@ final class SmokeUITests: XCTestCase {
 
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
     /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
+    func testAppearanceRelationDetailAndOrder() {
+        app.launchArguments += ["-lbl-ui-reset"]
+        app.launch()
+        createBabyNamed("Beibei")
+        tab("设置").tap()
+        let appearance = app.descendants(matching: .any)["settings-module-appearance"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 6))
+        appearance.tap()
+        chooseAppearance("light")
+        assertRendered("light", name: "cycle-light")
+        chooseAppearance("dark")
+        assertRendered("dark", name: "cycle-dark")
+        chooseAppearance("light")
+        assertRendered("light", name: "cycle-light-again")
+        XCTAssertEqual(app.descendants(matching: .any)["style-classic"].value as? String, "selected")
+        app.descendants(matching: .any)["style-liquidGlass"].tap()
+        let glass = app.descendants(matching: .any)["style-applied"]
+        let glassReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "liquidGlass"), object: glass)
+        XCTAssertEqual(XCTWaiter().wait(for: [glassReady], timeout: 8), .completed)
+        XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
+        app.descendants(matching: .any)["style-classic"].tap()
+        chooseAppearance("system")
+        XCUIDevice.shared.appearance = .dark
+        let dark = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "dark"), object: app.descendants(matching: .any)["appearance-scheme"])
+        XCTAssertEqual(XCTWaiter().wait(for: [dark], timeout: 8), .completed, "follow system stayed \(app.descendants(matching: .any)["appearance-scheme"].label)")
+        assertRendered("dark", name: "cycle-system-dark")
+        popNavigation()
+
+        app.descendants(matching: .any)["settings-module-baby"].tap()
+        app.buttons["caregiver-relation"].tap()
+        app.buttons["caregiver-relation-father"].tap()
+        app.buttons["caregiver-relation-save"].tap()
+        let value = app.descendants(matching: .any)["caregiver-relation-value"]
+        let named = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "爸爸"), object: value)
+        XCTAssertEqual(XCTWaiter().wait(for: [named], timeout: 4), .completed, "relation stayed \(value.label)")
+        popNavigation()
+        app.descendants(matching: .any)["settings-module-records"].tap()
+        app.descendants(matching: .any)["settings-home-cards"].tap()
+        let details = app.switches["record-details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["detail-formula"].exists)
+        setSwitch(details, on: true)
+        popNavigation()
+        popNavigation()
+        tab("今天").tap()
+        let order = app.descendants(matching: .any)["home-card-order"]
+        XCTAssertTrue(order.waitForExistence(timeout: 4))
+        let before = order.label
+        app.buttons["summary-sleep"].press(forDuration: 0.8, thenDragTo: app.buttons["summary-breast"])
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
+        XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 4), .completed, "order stayed \(order.label)")
+        let saved = order.label
+        XCTAssertTrue(saved.hasPrefix("sleep,"))
+        relaunchFromHomeScreen()
+        XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "dark")
+        XCTAssertEqual(app.descendants(matching: .any)["home-card-order"].label, saved)
+        tab("设置").tap()
+        app.descendants(matching: .any)["settings-module-baby"].tap()
+        XCTAssertEqual(app.descendants(matching: .any)["caregiver-relation-value"].label, "爸爸")
+        XCUIDevice.shared.appearance = .light
+    }
+
+    private func chooseAppearance(_ raw: String) {
+        let option = app.descendants(matching: .any)["appearance-\(raw)"]
+        XCTAssertTrue(option.waitForExistence(timeout: 4))
+        option.tap()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        let expected = raw == "system" ? "dark" : raw
+        if raw != "system" {
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
+            XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "scheme stayed \(probe.label)")
+        }
+    }
+
     func testReviewSurfacesLeaveScreenshots() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
@@ -1006,15 +1095,18 @@ final class SmokeUITests: XCTestCase {
         tab("设置").tap()
         for _ in 0..<4 { app.swipeDown() }
         shot("review-18-settings")
-        let records = app.descendants(matching: .any)["settings-module-records"]
-        if records.waitForExistence(timeout: 4) { records.tap() }
+        let babyModule = app.descendants(matching: .any)["settings-module-baby"]
+        XCTAssertTrue(babyModule.waitForExistence(timeout: 4))
+        babyModule.tap()
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
         XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 4))
         shot("review-19-baby-form")
         app.navigationBars.buttons["取消"].tap()
+        popNavigation()
 
+        openLabeled("settings-module-records")
         openLabeled("settings-home-cards")
         shot("review-21-home-cards")
         app.navigationBars.buttons.element(boundBy: 0).tap()

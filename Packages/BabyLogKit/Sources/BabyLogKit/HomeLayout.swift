@@ -83,6 +83,34 @@ public struct BabyHomeLayout: Codable, Equatable, Sendable {
         detailCards.contains(card)
     }
 
+    /// One switch for every record card. History is not touched.
+    public var showsDetail: Bool {
+        !recordCards.isEmpty && recordCards.allSatisfy { detailCards.contains($0) }
+    }
+
+    public func settingDetails(_ enabled: Bool) -> BabyHomeLayout {
+        var copy = self
+        if enabled {
+            for card in recordCards where !copy.detailCards.contains(card) {
+                copy.detailCards.append(card)
+            }
+        } else {
+            let visible = Set(recordCards)
+            copy.detailCards.removeAll { visible.contains($0) }
+        }
+        return copy
+    }
+
+    /// Moves `card` to the slot currently held by `target`. Other cards keep their relative order.
+    public func placing(_ card: HomeCard, before target: HomeCard) -> BabyHomeLayout {
+        guard card != target, let from = cards.firstIndex(of: card) else { return self }
+        var copy = self
+        copy.cards.remove(at: from)
+        let index = copy.cards.firstIndex(of: target) ?? copy.cards.endIndex
+        copy.cards.insert(card, at: index)
+        return copy
+    }
+
     public func settingDetail(_ card: HomeCard, detailed: Bool) -> BabyHomeLayout {
         var copy = self
         if detailed {

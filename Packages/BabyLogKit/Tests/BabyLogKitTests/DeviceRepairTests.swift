@@ -32,6 +32,29 @@ struct DeviceRepairTests {
         #expect(loaded == ChromeSelection(mode: .dark, style: .liquidGlass))
     }
 
+    @Test func oneDetailSwitchCoversEveryVisibleCard() {
+        var layout = BabyHomeLayout(cards: [.formula, .sleep])
+        #expect(!layout.showsDetail)
+        layout = layout.settingDetails(true)
+        #expect(layout.showsDetail)
+        #expect(layout.isDetailed(.formula))
+        #expect(layout.isDetailed(.sleep))
+        #expect(!layout.isDetailed(.breast))
+        layout = layout.settingDetails(false)
+        #expect(layout.detailCards.isEmpty)
+        #expect(layout.cards == [.formula, .sleep])
+    }
+
+    @Test func draggingACardReordersOnlyThatBaby() {
+        var layout = BabyHomeLayout(cards: [.breast, .formula, .sleep])
+        layout = layout.placing(.sleep, before: .formula)
+        #expect(layout.cards == [.breast, .sleep, .formula])
+        let id = UUID(uuidString: "00000000-0000-0000-0000-0000000000aa")!
+        let stored = HomeLayoutStore.save(layout, babyID: id, into: nil)
+        let loaded = HomeLayoutStore.load(babyID: id, from: stored)
+        #expect(loaded.cards == [.breast, .sleep, .formula])
+    }
+
     @Test func homeCardsMoveWithoutCopyingOrDeleting() {
         var layout = BabyHomeLayout(cards: HomeCard.defaultOrder)
         layout = layout.setting(.formula, visible: false)

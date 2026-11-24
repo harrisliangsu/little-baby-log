@@ -90,10 +90,17 @@ struct TodayView: View {
                             onAdd: { add(card) }
                         )
                         .id("\(card.id)-\(savedRecords)")
+                        .draggable(card.rawValue)
+                        .dropDestination(for: String.self) { items, _ in
+                            guard let raw = items.first, let source = HomeCard(rawValue: raw) else { return false }
+                            saveLayout(layout.placing(source, before: card))
+                            return true
+                        }
                         .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                         .listRowBackground(Color.clear)
                     }
                 } header: {
+                    VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         Text(UICopy.t(.newPrefix, language))
                         Spacer(minLength: 8)
@@ -110,6 +117,10 @@ struct TodayView: View {
                         .accessibilityLabel(language == .zh ? "配置记录" : "Choose records")
                     }
                     .textCase(nil)
+                    Text(layout.recordCards.map(\.rawValue).joined(separator: ","))
+                        .frame(width: 1, height: 1)
+                        .accessibilityIdentifier("home-card-order")
+                    }
                 }
                 .themedSection()
 
@@ -260,6 +271,12 @@ struct TodayView: View {
         } else {
             present()
         }
+    }
+
+    private func saveLayout(_ next: BabyHomeLayout) {
+        guard let id = baby.uuid else { return }
+        let data = HomeLayoutStore.save(next, babyID: id, into: layoutJSON.isEmpty ? nil : Data(layoutJSON.utf8))
+        layoutJSON = String(decoding: data, as: UTF8.self)
     }
 
     private func add(_ card: HomeCard) {

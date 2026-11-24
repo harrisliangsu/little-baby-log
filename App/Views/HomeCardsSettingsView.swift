@@ -42,17 +42,11 @@ struct HomeCardsSettingsView: View {
                 .themedSection()
 
                 Section {
+                    Toggle(language == .zh ? "详细" : "Detail", isOn: details(id, layout))
+                        .accessibilityIdentifier("record-details")
                     ForEach(HomeCard.allCases) { card in
-                        HStack(spacing: 12) {
-                            Toggle(Copy.card(card, language), isOn: visible(id, layout, card))
-                                .accessibilityIdentifier("home-card-\(card.rawValue)")
-                            Button(layout.isDetailed(card) ? (language == .zh ? "详细" : "Detail") : (language == .zh ? "基础" : "Basic")) {
-                                write(layout.settingDetail(card, detailed: !layout.isDetailed(card)), id)
-                            }
-                            .buttonStyle(.bordered)
-                            .frame(minHeight: 44)
-                            .accessibilityIdentifier("detail-\(card.rawValue)")
-                        }
+                        Toggle(Copy.card(card, language), isOn: visible(id, layout, card))
+                            .accessibilityIdentifier("home-card-\(card.rawValue)")
                     }
                 } header: {
                     Text(Copy.homeCards(language))
@@ -101,6 +95,13 @@ struct HomeCardsSettingsView: View {
                 next.cards = newValue.suggestedCards
                 write(next, id)
             }
+        )
+    }
+
+    private func details(_ id: UUID, _ layout: BabyHomeLayout) -> Binding<Bool> {
+        Binding(
+            get: { layout.showsDetail },
+            set: { write(layout.settingDetails($0), id) }
         )
     }
 
