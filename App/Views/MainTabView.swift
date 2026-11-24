@@ -23,6 +23,7 @@ struct MainTabView: View {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
     }
     @State private var tab: MainTab = .today
+    @ObservedObject private var babyForms = BabyFormPresenter.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,6 +49,9 @@ struct MainTabView: View {
                         .navigationDestination(for: SettingsRoute.self) { _ in
                             AISettingsView(notice: assistantNotice)
                         }
+                }
+                .sheet(item: $babyForms.sheet) { sheet in
+                    BabyFormSheet(sheet: sheet)
                 }
                 .modifier(DockPage(active: tab == .settings))
             }

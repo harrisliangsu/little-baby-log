@@ -4,7 +4,7 @@ import CoreData
 import UniformTypeIdentifiers
 import BabyLogKit
 
-private enum BabySheet: Identifiable {
+enum BabySheet: Identifiable {
     case add
     case edit(Baby)
 
@@ -14,6 +14,30 @@ private enum BabySheet: Identifiable {
             return "add"
         case .edit(let baby):
             return "edit-" + baby.objectID.uriRepresentation().absoluteString
+        }
+    }
+}
+
+/// The baby form is presented by the settings navigation stack, not by a pushed page.
+/// A sheet on the pushed page shows the form without its cancel button.
+@MainActor
+final class BabyFormPresenter: ObservableObject {
+    static let shared = BabyFormPresenter()
+    @Published var sheet: BabySheet?
+}
+
+struct BabyFormSheet: View {
+    let sheet: BabySheet
+    @AppStorage(Prefs.selectedBabyID) private var selectedBabyID = ""
+
+    var body: some View {
+        switch sheet {
+        case .add:
+            BabyFormView(baby: nil) { saved in
+                selectedBabyID = saved.uuid?.uuidString ?? selectedBabyID
+            }
+        case .edit(let baby):
+            BabyFormView(baby: baby) { _ in }
         }
     }
 }
@@ -34,7 +58,7 @@ struct SettingsView: View {
     @Environment(\.appTheme) private var theme
     @EnvironmentObject private var activity: BabyActivity
 
-    @State private var babySheet: BabySheet?
+    @ObservedObject private var babyForms = BabyFormPresenter.shared
     @State private var pendingSwitch: UUID?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
@@ -60,16 +84,6 @@ struct SettingsView: View {
                     Form { babiesSection }
                         .themedList()
                         .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
-                        .sheet(item: $babySheet) { sheet in
-                            switch sheet {
-                            case .add:
-                                BabyFormView(baby: nil) { saved in
-                                    selectedBabyID = saved.uuid?.uuidString ?? selectedBabyID
-                                }
-                            case .edit(let baby):
-                                BabyFormView(baby: baby) { _ in }
-                            }
-                        }
                 }
                 settingsLink(language == .zh ? "记录设置" : "Records", "list.bullet.rectangle", "settings-module-records") {
                     Form {
@@ -211,7 +225,7 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("settings-baby-switch")
                         Button(language == .zh ? "编辑" : "Edit") {
-                            babySheet = .edit(baby)
+                            babyForms.sheet = .edit(baby)
                         }
                         .accessibilityIdentifier("settings-baby")
                     }
@@ -221,7 +235,7 @@ struct SettingsView: View {
                 }
             }
             Button {
-                babySheet = .add
+                babyForms.sheet = .add
             } label: {
                 Label(UICopy.t(.addBaby, language), systemImage: "plus.circle.fill")
             }

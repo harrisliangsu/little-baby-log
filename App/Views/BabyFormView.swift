@@ -122,6 +122,7 @@ struct BabyFormView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(UICopy.t(.cancel, language)) { dismiss() }
+                        .accessibilityIdentifier("baby-form-cancel")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(UICopy.t(.save, language)) { save() }

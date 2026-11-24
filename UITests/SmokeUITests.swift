@@ -8,6 +8,7 @@ final class SmokeUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.appearance = .light
         app = XCUIApplication()
     }
 
@@ -1107,7 +1108,12 @@ final class SmokeUITests: XCTestCase {
         baby.tap()
         XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 8))
         shot("review-19-baby-form")
-        app.navigationBars.buttons["取消"].tap()
+        let cancel = app.descendants(matching: .any)["baby-form-cancel"]
+        if cancel.waitForExistence(timeout: 2) {
+            cancel.tap()
+        } else {
+            app.navigationBars.buttons["取消"].tap()
+        }
         popNavigation()
 
         openLabeled("settings-module-records")
