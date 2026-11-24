@@ -17,7 +17,7 @@ jobs:
   simulator:
     name: iOS Simulator tests
     runs-on: macos-26-intel
-    timeout-minutes: 50
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -153,7 +153,7 @@ jobs:
     needs: simulator
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-26-intel
-    timeout-minutes: 50
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
 
