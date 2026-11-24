@@ -287,6 +287,11 @@ jobs:
           cp "$KEY_DIR/AuthKey_${KEY_ID}.p8" "$HOME/private_keys/AuthKey_${KEY_ID}.p8"
           xcrun altool --upload-app --file "$IPA" --type ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
           echo "Upload finished. This job does not submit App Review or external TestFlight."
+          KEY_PATH="$KEY_DIR/AuthKey_${KEY_ID}.p8" \
+          GROUP_ID="fad28ab2-c1ca-49f8-9f79-e712e34a5410" \
+          MARKETING_VERSION="$(awk -F'"' '/MARKETING_VERSION:/ {print $2; exit}' project.yml)" \
+          BUILD="$(awk -F'"' '/CURRENT_PROJECT_VERSION:/ {print $2; exit}' project.yml)" \
+          python3 scripts/assign-internal-group.py
           rm -f "$KEY_DIR/AuthKey_${KEY_ID}.p8" "$HOME/private_keys/AuthKey_${KEY_ID}.p8"
       - name: Keep exported entitlement check
         if: always()
