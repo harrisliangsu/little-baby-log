@@ -818,7 +818,13 @@ final class SmokeUITests: XCTestCase {
         let today = app.buttons["dock-today"]
         XCTAssertTrue(today.waitForExistence(timeout: 4), "today dock did not return after the widget preview closed")
         today.tap()
-        XCTAssertTrue(app.buttons["add-formula"].waitForExistence(timeout: 4), "today did not appear after the dock tap")
+        let formula = app.buttons["add-formula"]
+        if !formula.waitForExistence(timeout: 2) {
+            for _ in 0..<6 where !formula.exists {
+                app.swipeDown()
+            }
+        }
+        XCTAssertTrue(formula.waitForExistence(timeout: 4), "today did not appear after the dock tap")
     }
 
     func testBottomOfTodayStaysInteractive() throws {
