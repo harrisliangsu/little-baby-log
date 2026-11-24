@@ -249,7 +249,7 @@ public enum VoiceDrafts {
         guard !spoken.isEmpty else { return nil }
         let redacted = redact(transcript: spoken, currentBaby: currentBaby, otherBabies: otherBabies)
         let instruction = """
-        锚点 \(anchor.iso8601) \(anchor.timeZone.identifier)。用中文直接回答，不要介绍自己，不要提数据格式。如果是在问好或提问，只写回答，不要下医疗结论，不要编造没有的数据。如果是在记护理，先写一句人话，再附上 <records>{"items":[{"kind":null,"baby":null,"minutesAgo":null,"start":null,"amountML":null,"durationMinutes":null,"diaper":null,"bottle":null,"side":null,"food":null,"medicine":null,"uncertain":[]}]}</records>。kind 只能是 sleep, breastfeed, bottle, solids, diaper, pump, growth, medicine。相对时间用 minutesAgo，从锚点往前数。不确定就放进 uncertain，不要猜。宝宝只用 Current、Baby2 这类代号。
+        锚点 \(anchor.iso8601) \(anchor.timeZone.identifier)。只返回一个 json 对象。问好或提问时只写 {"text":"回答"}，不要下医疗结论，不要编造没有的数据。记护理时写 {"text":"一句人话","items":[{"kind":null,"baby":null,"minutesAgo":null,"start":null,"amountML":null,"durationMinutes":null,"diaper":null,"bottle":null,"side":null,"food":null,"medicine":null,"uncertain":[]}]}。kind 只能是 sleep, breastfeed, bottle, solids, diaper, pump, growth, medicine。相对时间用 minutesAgo，从锚点往前数。不确定就放进 uncertain，不要猜。宝宝只用 Current、Baby2 这类代号。
         \(redacted.text)
         """
         let preview = AISendPreview(

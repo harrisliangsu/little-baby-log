@@ -60,6 +60,7 @@ struct AIChatView: View {
                     }
                 }
                 .accessibilityIdentifier("ai-chat")
+                .scrollDismissesKeyboard(.interactively)
                 .safeAreaInset(edge: .bottom) { composerBar }
                 .overlay(alignment: .bottom) {
                     if voice.isPresented {
@@ -121,6 +122,7 @@ struct AIChatView: View {
 
     @ViewBuilder
     private func deliveryControls(_ message: AIChatMessage) -> some View {
+        let mine = message.role == .user
         switch message.delivery {
             case .draft:
                 Button(language == .zh ? "发送" : "Send") { prepareSend(message) }
@@ -134,8 +136,15 @@ struct AIChatView: View {
                     }
                 }
             case .failed:
-                Button(language == .zh ? "重试" : "Try again") { prepareSend(message) }
-                    .frame(minHeight: 44)
+                VStack(alignment: mine ? .trailing : .leading, spacing: 4) {
+                    Text((message.failure ?? .unread).text(chinese: language == .zh))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("ai-chat-error")
+                    Button(language == .zh ? "重试" : "Try again") { prepareSend(message) }
+                        .frame(minHeight: 44)
+                }
             case .cancelled:
                 Text(language == .zh ? "已取消" : "Cancelled")
                     .font(.footnote)
@@ -170,9 +179,12 @@ struct AIChatView: View {
     }
 
     private var composerBar: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .bottom, spacing: 4) {
             TextField(language == .zh ? "记一条" : "Note", text: $composer, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...6)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(minHeight: 52, alignment: .leading)
                 .accessibilityIdentifier("ai-chat-input")
             Image(systemName: "mic.fill")
                 .frame(width: 44, height: 44)
@@ -192,21 +204,34 @@ struct AIChatView: View {
                         }
                 )
                 .accessibilityIdentifier("ai-chat-mic")
-            Button(language == .zh ? "发送" : "Send") {
-                let text = composer.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { return }
-                let id = desk.addDraft(baby: babyID, text: text)
-                composer = ""
-                if let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
-                    prepareSend(message)
-                }
+            Button(action: sendComposer) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
+                    .frame(width: 44, height: 44)
             }
-            .frame(minHeight: 44)
             .disabled(composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityIdentifier("ai-chat-send")
+            .accessibilityLabel(language == .zh ? "发送" : "Send")
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .background(.bar)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer-bar")
+    }
+
+    private func sendComposer() {
+        let text = composer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let id = desk.addDraft(baby: babyID, text: text)
+        composer = ""
+        if let message = desk.thread(for: babyID).messages.first(where: { $0.id == id }) {
+            prepareSend(message)
+        }
     }
 
     private func textBinding(_ message: AIChatMessage) -> Binding<String> {
@@ -238,21 +263,35 @@ struct AIChatView: View {
     }
 
     private func prepareSend(_ message: AIChatMessage) {
-        guard AIRuntime.access().maySend else { return }
         guard message.delivery == .draft || message.delivery == .failed else { return }
+        let catalog = AIConfigurationCatalog.load()
+        guard let active = catalog.active else {
+            desk.setDelivery(baby: babyID, id: message.id, delivery: .failed, failure: .noProvider)
+            return
+        }
+        let access = AIRuntime.access()
+        guard access.maySend else {
+            desk.setDelivery(baby: babyID, id: message.id, delivery: .failed, failure: AIChatFailure.from(access: access))
+            return
+        }
         let preview: AISendPreview
         if let mapping {
-            preview = mapping
+            preview = AISendPreview(
+                provider: active.provider,
+                task: mapping.task,
+                userText: mapping.userText,
+                removedBabyNames: mapping.removedBabyNames
+            )
         } else if summaryTotal != nil {
             preview = AISendPreview(
-                provider: AIPreferences.provider,
+                provider: active.provider,
                 task: .rangeSummary,
                 userText: HistorySummaryText.userText(total: message.text, facts: summaryFacts),
                 removedBabyNames: false
             )
         } else if reminder {
             preview = AISendPreview(
-                provider: AIPreferences.provider,
+                provider: active.provider,
                 task: .reminderDraft,
                 userText: "Return json with text, minutes, anchor. anchor is start or end.\n" + message.text,
                 removedBabyNames: false
@@ -264,7 +303,7 @@ struct AIChatView: View {
                 anchor: VoiceAnchor(startedAt: anchor, timeZone: .current),
                 currentBaby: baby.displayName,
                 otherBabies: others,
-                provider: AIPreferences.provider
+                provider: active.provider
             ) else { return }
             preview = outbound.preview
         }
@@ -296,7 +335,7 @@ struct AIChatView: View {
                 let draft = try AIProposalDecoder.reminder(from: data)
                 let text = draft.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 guard !text.isEmpty, let minutes = draft.minutes else {
-                    desk.setDelivery(baby: babyID, id: id, delivery: .failed)
+                    desk.setDelivery(baby: babyID, id: id, delivery: .failed, failure: .unread)
                     return
                 }
                 let anchor: FeedIntervalAnchor = draft.anchor == "end" ? .end : .start
@@ -329,7 +368,7 @@ struct AIChatView: View {
         } catch AIClientError.cancelled, is CancellationError {
             desk.cancel(baby: babyID, id: id)
         } catch {
-            desk.setDelivery(baby: babyID, id: id, delivery: .failed)
+            desk.setDelivery(baby: babyID, id: id, delivery: .failed, failure: AIChatFailure.from(error))
         }
     }
 

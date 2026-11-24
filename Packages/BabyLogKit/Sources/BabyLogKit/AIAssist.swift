@@ -255,8 +255,21 @@ public enum AIProposalDecoder {
     }
 
     /// A real model reply is either a normal answer or record cards. The chat shows that, not the request schema.
+    /// An event-stream body is assembled first. Plain prose is an answer, not a failed parse.
     public static func chatOutcome(from data: Data) throws -> AIChatOutcome {
-        let object = try payload(from: data)
+        let data = AIStreamDecoder.normalizedChatBody(from: data)
+        if let prose = AIStreamDecoder.plainReply(from: data) {
+            return .reply(prose)
+        }
+        let object: [String: Any]
+        do {
+            object = try payload(from: data)
+        } catch {
+            if let inner = try? modelJSON(from: data), let prose = AIStreamDecoder.plainReply(from: inner) {
+                return .reply(prose)
+            }
+            throw error
+        }
         if let rows = object["items"] as? [[String: Any]], !rows.isEmpty {
             return .records(try VoiceDrafts.items(from: data))
         }
@@ -304,6 +317,59 @@ public enum AIClientError: Error, Equatable {
     case wrongHost
     case http(Int)
     case cancelled
+    /// No selected configuration, or the request names a different provider than the selected card.
+    case noActiveProvider
+}
+
+/// A short reason the chat can show. It never includes a key, a prompt, or a response body.
+public enum AIChatFailure: String, Equatable, Sendable {
+    case unread
+    case unauthorized
+    case rejectedRequest
+    case offline
+    case noProvider
+    case unavailable
+
+    public static func from(_ error: Error) -> AIChatFailure {
+        if let error = error as? AIClientError {
+            switch error {
+            case .unreadable: return .unread
+            case .http(401), .http(403): return .unauthorized
+            case .http(400), .http(422): return .rejectedRequest
+            case .http: return .unavailable
+            case .noActiveProvider: return .noProvider
+            case .wrongHost: return .unavailable
+            case .cancelled: return .unavailable
+            }
+        }
+        if error is URLError { return .offline }
+        return .unavailable
+    }
+
+    public static func from(access: AIAccess) -> AIChatFailure {
+        switch access {
+        case .off, .missingCredential: return .noProvider
+        case .offline: return .offline
+        case .ready: return .unavailable
+        }
+    }
+
+    public func text(chinese: Bool) -> String {
+        switch self {
+        case .unread:
+            return chinese ? "没有得到可用的回答。可以重试。" : "No usable reply. You can try again."
+        case .unauthorized:
+            return chinese ? "这张 Key 被拒绝了。请到设置里检查当前供应商。" : "This key was rejected. Check the current provider in Settings."
+        case .rejectedRequest:
+            return chinese ? "这次请求没有被接受。可以重试。" : "The request was not accepted. You can try again."
+        case .offline:
+            return chinese ? "没有网络。连上后再重试。" : "No network. Try again when you are back online."
+        case .noProvider:
+            return chinese ? "还没有选中可用的供应商。请到设置里选一张并保存 Key。" : "No provider is selected. Choose one in Settings and save its key."
+        case .unavailable:
+            return chinese ? "现在连不上。可以稍后重试。" : "The assistant is unavailable. Try again later."
+        }
+    }
 }
 
 public enum AIRequestBuilder {

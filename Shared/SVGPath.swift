@@ -1,13 +1,17 @@
 import SwiftUI
+import BabyLogKit
 
 /// Draws one bundled Phosphor regular SVG. The file stays in the app; nothing is downloaded at runtime.
+/// The path is fitted into the view. The source coordinates are a 256-point box, so drawing them raw
+/// paints far outside a small icon.
 struct BundledIcon: View {
     var name: String
     var color: Color
 
     var body: some View {
         if let path = BundledIcon.path(named: name) {
-            path.fill(color)
+            FittedIcon(source: path)
+                .fill(color)
         } else {
             Circle().stroke(color, lineWidth: 1.5)
         }
@@ -111,8 +115,24 @@ struct SVGPath {
         }
         return path
     }
+}
 
-    private static func tokens(_ source: String) -> [String] {
+/// Scales a 256-point icon path into whatever rectangle SwiftUI proposes.
+private struct FittedIcon: Shape {
+    var source: Path
+
+    func path(in rect: CGRect) -> Path {
+        let placement = IconPlacement.fitting(into: rect.width, height: rect.height)
+        let transform = CGAffineTransform(
+            a: placement.scale, b: 0, c: 0, d: placement.scale,
+            tx: placement.originX, ty: placement.originY
+        )
+        return source.applying(transform)
+    }
+}
+
+private extension SVGPath {
+    static func tokens(_ source: String) -> [String] {
         var tokens: [String] = []
         var number = ""
         func flush() {

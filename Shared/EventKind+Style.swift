@@ -38,7 +38,8 @@ struct KindIcon: View {
     var body: some View {
         let color = theme.color(for: kind)
         RecordGlyph(name: RecordIcons.name(kind: kind, diaper: diaper), color: theme.onColor)
-            .frame(width: size * 0.62, height: size * 0.62)
+            .frame(width: size * 0.56, height: size * 0.56)
+            .clipped()
             .frame(width: size, height: size)
             .background(Circle().fill(color))
             .accessibilityHidden(true)

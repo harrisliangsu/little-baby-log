@@ -28,6 +28,7 @@ struct TodayView: View {
     @State private var kindHistory: EventKind?
     @AppStorage(AIPreferences.enabledKey) private var aiEnabled = false
     @State private var showAIDraft = false
+    @State private var showHomeCards = false
     /// Relative labels refresh on a timer. The list itself is not a TimelineView:
     /// wrapping it rebuilt the whole scroll view, and the bottom section only appeared
     /// once that rebuild was already under way.
@@ -93,7 +94,22 @@ struct TodayView: View {
                         .listRowBackground(Color.clear)
                     }
                 } header: {
-                    Text(UICopy.t(.newPrefix, language)).textCase(nil)
+                    HStack(spacing: 8) {
+                        Text(UICopy.t(.newPrefix, language))
+                        Spacer(minLength: 8)
+                        Button {
+                            showHomeCards = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.body.weight(.semibold))
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("home-cards-config")
+                        .accessibilityLabel(language == .zh ? "配置记录" : "Choose records")
+                    }
+                    .textCase(nil)
                 }
                 .themedSection()
 
@@ -141,6 +157,17 @@ struct TodayView: View {
         }
         .sheet(isPresented: $showAIDraft) {
             AIChatView(baby: baby)
+        }
+        .sheet(isPresented: $showHomeCards) {
+            NavigationStack {
+                HomeCardsSettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(language == .zh ? "完成" : "Done") { showHomeCards = false }
+                                .accessibilityIdentifier("home-cards-done")
+                        }
+                    }
+            }
         }
         .sensoryFeedback(.success, trigger: feedback)
         .onChange(of: link, initial: true) { _, newLink in

@@ -266,13 +266,8 @@ struct EventEditorView: View {
                 draft.solids.items.append(SolidsFood(name: ""))
             }
             .accessibilityIdentifier("solids-add")
-            TextField(language == .zh ? "水（毫升）" : "Water (ml)", value: $draft.solids.waterML, format: .number)
+            TextField(language == .zh ? "水 ml" : "Water ml", value: $draft.solids.waterML, format: .number)
                 .accessibilityIdentifier("solids-water")
-            Text(language == .zh
-                 ? "勺数和毫升是这次的记录。水是这一顿共用的，不按每种食物再计一次，也不是冲调建议。"
-                 : "Spoons and millilitres are a record of this meal. The water is shared, not counted again for each food, and it is not a mixing recommendation.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
             saveError
         }
     }
@@ -598,7 +593,37 @@ struct EventEditorView: View {
         .previewEnvironment()
 }
 
-/// Time shortcuts and the date control sit on the form. Nothing opens a second sheet.
+/// A wheel that stays on the form. `DatePicker` inside a `Form` collapses into a control that opens another panel.
+private struct InlineTimeWheel: UIViewRepresentable {
+    @Binding var date: Date
+
+    func makeUIView(context: Context) -> UIDatePicker {
+        let picker = UIDatePicker()
+        picker.preferredDatePickerStyle = .wheels
+        picker.datePickerMode = .dateAndTime
+        picker.accessibilityIdentifier = "time-wheel"
+        picker.date = date
+        picker.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
+        return picker
+    }
+
+    func updateUIView(_ picker: UIDatePicker, context: Context) {
+        context.coordinator.date = $date
+        if abs(picker.date.timeIntervalSince(date)) > 0.5 {
+            picker.date = date
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(date: $date) }
+
+    final class Coordinator: NSObject {
+        var date: Binding<Date>
+        init(date: Binding<Date>) { self.date = date }
+        @objc func changed(_ picker: UIDatePicker) { date.wrappedValue = picker.date }
+    }
+}
+
+/// Time shortcuts and the wheel sit on the form. Nothing opens a second sheet.
 private struct TimeValueRow: View {
     let title: String
     @Binding var date: Date
@@ -608,17 +633,19 @@ private struct TimeValueRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
+                .accessibilityIdentifier("time-heading")
             HStack(spacing: 8) {
                 shortcut(.now, UICopy.t(.now, language), "time-now")
                 shortcut(.tenMinutes, language == .zh ? "10分钟前" : "10 min ago", "time-10")
                 shortcut(.twentyMinutes, language == .zh ? "20分钟前" : "20 min ago", "time-20")
             }
-            DatePicker(title, selection: $date)
-                .datePickerStyle(.compact)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .accessibilityIdentifier("time-value")
+            InlineTimeWheel(date: $date)
+                .frame(maxWidth: .infinity)
+                .frame(height: 196)
+                .accessibilityIdentifier("time-wheel")
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
     }
 
     private func shortcut(_ choice: LogTimeShortcut, _ title: String, _ identifier: String) -> some View {
@@ -648,14 +675,9 @@ private struct FormulaAmountShortcuts: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             numberField
-            Text(language == .zh ? "冲好总奶量" : "Prepared total")
+            Text(language == .zh ? "成品奶量" : "Prepared amount")
                 .font(.subheadline.weight(.semibold))
-            Text(language == .zh
-                 ? "罐上的成品量，用来快捷填写，不是喂养建议。"
-                 : "Prepared amounts from the tin. A shortcut, not feeding advice.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("formula-amount-label")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
                 ForEach(Array(FormulaPreparedTable.milliliters.enumerated()), id: \.offset) { index, amount in
                     Button(label(amount, scoops: FormulaPreparedTable.scoops[index])) {
@@ -667,12 +689,6 @@ private struct FormulaAmountShortcuts: View {
                 }
             }
             if let last, last > 0, !FormulaPreparedTable.matches(last), pinned == nil {
-                Text(language == .zh
-                     ? "上次记下 \(shown(last))。它不在冲好总奶量里，所以没有当成默认。历史还在，少量也可以手改保存。"
-                     : "Last saved \(shown(last)). It is not a prepared total, so it is not the default. History stays, and a small amount can still be typed.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button(language == .zh ? "填入上次" : "Use last") { apply(last) }
                         .frame(minHeight: 44)
@@ -680,8 +696,7 @@ private struct FormulaAmountShortcuts: View {
                         .frame(minHeight: 44)
                 }
             } else if pinned != nil {
-                Button(language == .zh ? "不再沿用指定用量" : "Stop using the pinned amount") { onClearPin() }
-                    .font(.footnote)
+                Button(language == .zh ? "不再沿用" : "Stop using it") { onClearPin() }
                     .frame(minHeight: 44)
             }
         }
@@ -718,10 +733,6 @@ private struct FormulaAmountShortcuts: View {
 
     private func label(_ amount: Double, scoops: Int) -> String {
         language == .zh ? "\(Int(amount)) ml · \(scoops)勺" : "\(Int(amount)) ml · \(scoops)"
-    }
-
-    private func shown(_ amount: Double) -> String {
-        "\(Int(amount.rounded())) ml"
     }
 
     private func apply(_ amount: Double) {

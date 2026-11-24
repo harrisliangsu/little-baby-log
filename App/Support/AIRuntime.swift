@@ -27,10 +27,10 @@ enum AIRuntime {
         let access = access()
         let catalog = AIConfigurationCatalog.load()
         guard let active = catalog.active, active.provider == preview.provider else {
-            throw AIClientError.cancelled
+            throw AIClientError.noActiveProvider
         }
-        guard access.maySend, let token = AIKeyStore.token(account: active.id.uuidString) else {
-            throw AIClientError.cancelled
+        guard access.maySend, let token = AIKeyStore.token(account: active.id.uuidString), !token.isEmpty else {
+            throw AIClientError.noActiveProvider
         }
         do {
             return try await AIClient(transport: LockedHostTransport()).send(

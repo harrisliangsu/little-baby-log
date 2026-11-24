@@ -92,10 +92,11 @@ final class AIDesk: ObservableObject {
 
     @Published private var seeded: Set<String> = []
 
-    func setDelivery(baby: UUID, id: UUID, delivery: AIChatMessage.Delivery) {
+    func setDelivery(baby: UUID, id: UUID, delivery: AIChatMessage.Delivery, failure: AIChatFailure? = nil) {
         var thread = thread(for: baby)
         guard let index = thread.messages.firstIndex(where: { $0.id == id }) else { return }
         thread.messages[index].delivery = delivery
+        thread.messages[index].failure = delivery == .failed ? failure : nil
         if delivery != .sent { thread.messages[index].records = [] }
         threads[baby] = thread
     }

@@ -29,9 +29,11 @@ struct CareCardRow: View {
         let plusSide: CGFloat = prominent ? 56 : 44
         HStack(alignment: .center, spacing: prominent ? 12 : 8) {
             RecordGlyph(name: RecordIcons.name(kind: symbolKind, diaper: symbolDiaper), color: .white)
-                .frame(width: iconSide * 0.62, height: iconSide * 0.62)
+                .frame(width: iconSide * 0.56, height: iconSide * 0.56)
+                .clipped()
                 .frame(width: iconSide, height: iconSide)
                 .background(Circle().fill(tint))
+                .accessibilityIdentifier("icon-\(card.rawValue)")
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: prominent ? 4 : 2) {
                     Text(title)
@@ -180,9 +182,11 @@ struct OtherLogStrip: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 RecordGlyph(name: icon, color: .white)
-                    .frame(width: 26, height: 26)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(width: 22, height: 22)
+                    .clipped()
+                    .frame(width: 36, height: 36)
                     .background(Circle().fill(tint))
+                    .frame(minWidth: 44, minHeight: 44)
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(2)

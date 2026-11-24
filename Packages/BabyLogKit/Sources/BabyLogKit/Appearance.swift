@@ -64,6 +64,37 @@ public enum InterfaceStyle: String, CaseIterable, Identifiable, Sendable {
     public static let `default` = InterfaceStyle.classic
 }
 
+/// Appearance and style are stored separately. Choosing one does not replace the other.
+public struct ChromeSelection: Equatable, Sendable {
+    public static let modeKey = "appearanceMode"
+    public var mode: AppearanceMode
+    public var style: InterfaceStyle
+
+    public init(mode: AppearanceMode = .system, style: InterfaceStyle = .classic) {
+        self.mode = mode
+        self.style = style
+    }
+
+    public func choosingMode(_ mode: AppearanceMode) -> ChromeSelection {
+        ChromeSelection(mode: mode, style: style)
+    }
+
+    public func choosingStyle(_ style: InterfaceStyle) -> ChromeSelection {
+        ChromeSelection(mode: mode, style: style)
+    }
+
+    public static func load(from defaults: UserDefaults, modeKey: String = modeKey) -> ChromeSelection {
+        let mode = AppearanceMode(rawValue: AppearanceMigration.storedMode(from: defaults.string(forKey: modeKey))) ?? .system
+        let style = InterfaceStyle(rawValue: defaults.string(forKey: InterfaceStyle.storageKey) ?? "") ?? .classic
+        return ChromeSelection(mode: mode, style: style)
+    }
+
+    public func save(to defaults: UserDefaults, modeKey: String = modeKey) {
+        defaults.set(mode.rawValue, forKey: modeKey)
+        defaults.set(style.rawValue, forKey: InterfaceStyle.storageKey)
+    }
+}
+
 /// A daily window, in minutes since midnight, that may wrap past midnight (7:00 PM to 7:00 AM).
 ///
 /// Night is active from `startMinutes` (inclusive) up to `endMinutes` (exclusive). When both are equal the

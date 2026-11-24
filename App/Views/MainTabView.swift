@@ -91,6 +91,11 @@ struct MainTabView: View {
             .padding(20)
             .presentationDetents([.height(220)])
         }
+        .task {
+            if ProcessInfo.processInfo.arguments.contains("-lbl-show-chat") {
+                showChat = true
+            }
+        }
         .onChange(of: link, initial: true) { _, newLink in
             if newLink != nil { tab = .today }
         }
