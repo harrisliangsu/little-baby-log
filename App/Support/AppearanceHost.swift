@@ -3,7 +3,7 @@ import UIKit
 import BabyLogKit
 
 /// Applies the stored appearance to the window immediately.
-/// Light and dark stay as chosen. Follow-system is the only mode that tracks the device.
+/// Light and dark stay as chosen. Follow-system clears that force so the open page tracks the device.
 /// The one in-memory copy of appearance and style. Settings and the window read this object,
 /// so a tap updates the page that is already open instead of only the stored checkmark.
 @MainActor
@@ -11,63 +11,19 @@ final class ChromeBox: ObservableObject {
     static let shared = ChromeBox()
 
     @Published private(set) var selection: ChromeSelection
-    /// The system appearance, kept even while the user has chosen light or dark.
-    @Published private(set) var systemStyle: UIUserInterfaceStyle
-
-    private var systemWatch: Timer?
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
-        systemStyle = Self.screenStyle()
-        WindowChrome.apply(mode: selection.mode, system: systemStyle)
+        WindowChrome.apply(mode: selection.mode)
     }
 
     var mode: AppearanceMode { selection.mode }
     var style: InterfaceStyle { selection.style }
 
-    /// Always a concrete scheme. `preferredColorScheme(nil)` leaves the previous light or dark page in place.
-    var colorScheme: ColorScheme {
-        switch selection.mode {
-        case .light: return .light
-        case .dark: return .dark
-        case .system: return systemStyle == .dark ? .dark : .light
-        }
-    }
-
-    func noteSystem(_ style: UIUserInterfaceStyle) {
-        guard style == .light || style == .dark else { return }
-        guard style != systemStyle else { return }
-        systemStyle = style
-    }
-
-    static func screenStyle() -> UIUserInterfaceStyle {
-        let style = UIScreen.main.traitCollection.userInterfaceStyle
-        return style == .dark ? .dark : .light
-    }
-
-    /// Follow-system reads the screen style on a short interval.
-    /// The scene trait follows our own window override, so it is not a usable source.
-    /// A chosen light or dark mode stops this and is left alone.
-    func watchSystem() {
-        systemWatch?.invalidate()
-        guard selection.mode == .system else {
-            systemWatch = nil
-            return
-        }
-        let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
-            DispatchQueue.main.async {
-                ChromeBox.shared.noteSystem(ChromeBox.screenStyle())
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        systemWatch = timer
-    }
-
     func setMode(_ mode: AppearanceMode) {
         selection = selection.choosingMode(mode)
         selection.save(to: .standard)
-        WindowChrome.apply(mode: selection.mode, system: systemStyle)
-        watchSystem()
+        WindowChrome.apply(mode: selection.mode)
     }
 
     func setStyle(_ style: InterfaceStyle) {
@@ -86,7 +42,6 @@ struct AppearanceHost: ViewModifier {
         content
             .environment(\.appTheme, .standard)
             .environment(\.interfaceStyle, interfaceStyle)
-            .preferredColorScheme(chrome.colorScheme)
             .background {
                 if interfaceStyle == .liquidGlass, !reduceTransparency {
                     LinearGradient(
@@ -104,37 +59,45 @@ struct AppearanceHost: ViewModifier {
                     .accessibilityLabel(interfaceStyle.rawValue)
                     .allowsHitTesting(false)
             }
-            .onAppear {
-                chrome.watchSystem()
-                WindowChrome.apply(mode: chrome.mode, system: chrome.systemStyle)
-            }
-            .onChange(of: chrome.mode) { _, mode in
-                WindowChrome.apply(mode: mode, system: chrome.systemStyle)
-            }
-            .onChange(of: chrome.systemStyle) { _, style in
-                guard chrome.mode == .system else { return }
-                WindowChrome.apply(mode: .system, system: style)
-            }
+            .onAppear { WindowChrome.apply(mode: chrome.mode) }
+            .onChange(of: chrome.mode) { _, mode in WindowChrome.apply(mode: mode) }
     }
 }
 
 enum WindowChrome {
-    static func apply(mode: AppearanceMode, system: UIUserInterfaceStyle) {
-        let painted: UIUserInterfaceStyle
+    static func apply(mode: AppearanceMode) {
         switch mode {
-        case .light: painted = .light
-        case .dark: painted = .dark
-        case .system: painted = system == .dark ? .dark : .light
+        case .light: paint(.light)
+        case .dark: paint(.dark)
+        case .system:
+            // `unspecified` alone leaves the previous light or dark force in place.
+            // Paint the other one first, then inherit, so the open page can follow the device.
+            let forced = painted()
+            if forced == .light || forced == .dark {
+                paint(forced == .dark ? .light : .dark)
+                DispatchQueue.main.async {
+                    guard ChromeBox.shared.mode == .system else { return }
+                    paint(.unspecified)
+                }
+            } else {
+                paint(.unspecified)
+            }
         }
-        // Follow-system leaves the scene itself unset so a later system change is still visible.
-        let sceneStyle: UIUserInterfaceStyle = mode == .system ? .unspecified : painted
+    }
+
+    private static func painted() -> UIUserInterfaceStyle {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.windows.first?.overrideUserInterfaceStyle ?? .unspecified
+    }
+
+    private static func paint(_ style: UIUserInterfaceStyle) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         for scene in scenes {
-            scene.traitOverrides.userInterfaceStyle = sceneStyle
+            scene.traitOverrides.userInterfaceStyle = style
             for window in scene.windows {
-                window.overrideUserInterfaceStyle = painted
+                window.overrideUserInterfaceStyle = style
                 if let root = window.rootViewController {
-                    stamp(painted, on: root)
+                    stamp(style, on: root)
                 }
             }
         }
