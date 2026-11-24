@@ -14,19 +14,12 @@ final class ChromeBox: ObservableObject {
     /// The system appearance, kept even while the user has chosen light or dark.
     @Published private(set) var systemStyle: UIUserInterfaceStyle
 
-    private var traitToken: (any UITraitChangeRegistration)?
     private var systemWatch: Timer?
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
         systemStyle = UIScreen.main.traitCollection.userInterfaceStyle
         WindowChrome.apply(mode: selection.mode, system: systemStyle)
-        traitToken = UIScreen.main.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (screen: UIScreen, _: UITraitCollection) in
-            let style = screen.traitCollection.userInterfaceStyle
-            DispatchQueue.main.async {
-                ChromeBox.shared.noteSystem(style)
-            }
-        }
         watchSystem()
     }
 
@@ -61,7 +54,7 @@ final class ChromeBox: ObservableObject {
         }
         let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
             DispatchQueue.main.async {
-                ChromeBox.shared.noteSystem(UIScreen.main.traitCollection.userInterfaceStyle)
+                ChromeBox.shared.noteSystem(WindowChrome.deviceStyle())
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -121,6 +114,17 @@ struct AppearanceHost: ViewModifier {
 }
 
 enum WindowChrome {
+    /// The device appearance. A window override is ignored so follow-system can still see a change.
+    static func deviceStyle() -> UIUserInterfaceStyle {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes where scene.traitOverrides.userInterfaceStyle == .unspecified {
+            let style = scene.traitCollection.userInterfaceStyle
+            if style == .light || style == .dark { return style }
+        }
+        let screen = UIScreen.main.traitCollection.userInterfaceStyle
+        return screen == .dark ? .dark : .light
+    }
+
     static func apply(mode: AppearanceMode, system: UIUserInterfaceStyle) {
         let painted: UIUserInterfaceStyle
         switch mode {
