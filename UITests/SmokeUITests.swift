@@ -52,7 +52,6 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(loggedAge(element("summary-wet").label), "wet card stayed \(element("summary-wet").label) \(saveTrace)")
         XCTAssertTrue(loggedAge(element("summary-dirty").label), "dirty card stayed \(element("summary-dirty").label) \(saveTrace)")
         XCTAssertTrue(loggedAge(element("summary-change").label), "change card stayed \(element("summary-change").label) \(saveTrace)")
-        XCTAssertTrue(loggedAge(element("summary-sleep").label), "sleep card stayed \(element("summary-sleep").label) \(saveTrace)")
         let breast = element("summary-breast")
         let showedDuration = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label CONTAINS %@", "1分钟"),
@@ -63,6 +62,9 @@ final class SmokeUITests: XCTestCase {
             .completed,
             "breast card stayed \(breast.label) \(saveTrace)"
         )
+        let sleep = requireSleepCard()
+        XCTAssertTrue(loggedAge(sleep.label), "sleep card stayed \(sleep.label) \(saveTrace)")
+        XCTAssertFalse(sleep.label.contains("还没有"), "sleep card stayed \(sleep.label)")
         shot("04-after-logging")
 
         openWidgetPreview()
@@ -95,7 +97,9 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(kept.waitForExistence(timeout: 8))
         XCTAssertTrue(kept.label.contains("120"))
         XCTAssertTrue(loggedAge(element("summary-wet").label))
-        XCTAssertFalse(element("summary-sleep").label.contains("还没有"))
+        let sleepKept = requireSleepCard()
+        XCTAssertFalse(sleepKept.label.contains("还没有"), "sleep card stayed \(sleepKept.label)")
+        XCTAssertTrue(loggedAge(sleepKept.label), "sleep card stayed \(sleepKept.label)")
         shot("06-after-relaunch")
 
         openWidgetPreview()
@@ -733,6 +737,15 @@ final class SmokeUITests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    /// Sleep is the last home card. A list drops that row from the accessibility tree while it is off screen.
+    /// Scroll it back, then the caller checks the saved text. The card stays in the layout.
+    private func requireSleepCard() -> XCUIElement {
+        XCTAssertTrue(reveal("summary-sleep", swiping: .up), "summary-sleep was not in the Today list")
+        let sleep = element("summary-sleep")
+        XCTAssertTrue(sleep.waitForExistence(timeout: 4))
+        return sleep
     }
 
     /// The dock draws the four tabs. A hidden system tab bar is only a fallback.
