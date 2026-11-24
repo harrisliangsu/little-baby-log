@@ -18,9 +18,8 @@ final class ChromeBox: ObservableObject {
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
-        systemStyle = UIScreen.main.traitCollection.userInterfaceStyle
+        systemStyle = Self.screenStyle()
         WindowChrome.apply(mode: selection.mode, system: systemStyle)
-        watchSystem()
     }
 
     var mode: AppearanceMode { selection.mode }
@@ -39,14 +38,17 @@ final class ChromeBox: ObservableObject {
         guard style == .light || style == .dark else { return }
         guard style != systemStyle else { return }
         systemStyle = style
-        if selection.mode == .system {
-            WindowChrome.apply(mode: .system, system: style)
-        }
     }
 
-    /// Follow-system reads the device style on a short interval.
-    /// A window override can hide the trait callback, and this does not change a chosen light or dark mode.
-    private func watchSystem() {
+    static func screenStyle() -> UIUserInterfaceStyle {
+        let style = UIScreen.main.traitCollection.userInterfaceStyle
+        return style == .dark ? .dark : .light
+    }
+
+    /// Follow-system reads the screen style on a short interval.
+    /// The scene trait follows our own window override, so it is not a usable source.
+    /// A chosen light or dark mode stops this and is left alone.
+    func watchSystem() {
         systemWatch?.invalidate()
         guard selection.mode == .system else {
             systemWatch = nil
@@ -54,7 +56,7 @@ final class ChromeBox: ObservableObject {
         }
         let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
             DispatchQueue.main.async {
-                ChromeBox.shared.noteSystem(WindowChrome.deviceStyle())
+                ChromeBox.shared.noteSystem(ChromeBox.screenStyle())
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -102,7 +104,10 @@ struct AppearanceHost: ViewModifier {
                     .accessibilityLabel(interfaceStyle.rawValue)
                     .allowsHitTesting(false)
             }
-            .onAppear { WindowChrome.apply(mode: chrome.mode, system: chrome.systemStyle) }
+            .onAppear {
+                chrome.watchSystem()
+                WindowChrome.apply(mode: chrome.mode, system: chrome.systemStyle)
+            }
             .onChange(of: chrome.mode) { _, mode in
                 WindowChrome.apply(mode: mode, system: chrome.systemStyle)
             }
@@ -114,17 +119,6 @@ struct AppearanceHost: ViewModifier {
 }
 
 enum WindowChrome {
-    /// The device appearance. A window override is ignored so follow-system can still see a change.
-    static func deviceStyle() -> UIUserInterfaceStyle {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        for scene in scenes where scene.traitOverrides.userInterfaceStyle == .unspecified {
-            let style = scene.traitCollection.userInterfaceStyle
-            if style == .light || style == .dark { return style }
-        }
-        let screen = UIScreen.main.traitCollection.userInterfaceStyle
-        return screen == .dark ? .dark : .light
-    }
-
     static func apply(mode: AppearanceMode, system: UIUserInterfaceStyle) {
         let painted: UIUserInterfaceStyle
         switch mode {
