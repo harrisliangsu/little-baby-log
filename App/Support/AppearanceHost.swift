@@ -47,10 +47,25 @@ struct AppearanceHost: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content
+        let base = content
             .environment(\.appTheme, .standard)
             .environment(\.interfaceStyle, interfaceStyle)
-            .preferredColorScheme(colorScheme)
+        return applied(base)
+    }
+
+    /// Setting `preferredColorScheme(nil)` leaves the previous light or dark scheme in place.
+    /// Follow-system removes the modifier so the open page tracks the system again.
+    @ViewBuilder
+    private func applied<V: View>(_ content: V) -> some View {
+        if let colorScheme {
+            painted(content.preferredColorScheme(colorScheme))
+        } else {
+            painted(content)
+        }
+    }
+
+    private func painted<V: View>(_ content: V) -> some View {
+        content
             .background {
                 if interfaceStyle == .liquidGlass, !reduceTransparency {
                     LinearGradient(

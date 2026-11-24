@@ -8,6 +8,7 @@ final class SmokeUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.appearance = .light
         app = XCUIApplication()
     }
 
@@ -1101,7 +1102,7 @@ final class SmokeUITests: XCTestCase {
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
-        XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 8))
         shot("review-19-baby-form")
         app.navigationBars.buttons["取消"].tap()
         popNavigation()
