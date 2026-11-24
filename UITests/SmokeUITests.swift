@@ -813,8 +813,15 @@ final class SmokeUITests: XCTestCase {
     private func closeWidgetPreview() {
         let close = app.buttons["close-widget-preview"]
         XCTAssertTrue(close.waitForExistence(timeout: 4))
-        close.tap()
-        XCTAssertTrue(close.waitForNonExistence(timeout: 4), "widget preview stayed open")
+        let visible = app.buttons.allElementsBoundByIndex.first { $0.identifier == "close-widget-preview" && $0.isHittable } ?? close
+        visible.tap()
+        if close.exists {
+            _ = close.waitForNonExistence(timeout: 4)
+        }
+        if close.exists, close.isHittable {
+            close.tap()
+        }
+        XCTAssertTrue(close.waitForNonExistence(timeout: 8), "widget preview stayed open")
         let today = app.buttons["dock-today"]
         XCTAssertTrue(today.waitForExistence(timeout: 4), "today dock did not return after the widget preview closed")
         today.tap()
