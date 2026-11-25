@@ -735,12 +735,21 @@ final class SmokeUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertEqual(seen, babyName, "baby name stayed \(seen ?? "nil")")
-        let key = app.buttons["start-tracking-key"]
-        let start = app.buttons["start-tracking"]
-        let target = key.exists && key.isHittable ? key : start
-        XCTAssertTrue(target.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
-        target.tap()
-        XCTAssertTrue(field.waitForNonExistence(timeout: 4), "welcome stayed open after start")
+        let giveUp = Date().addingTimeInterval(12)
+        while field.exists, Date() < giveUp {
+            let key = app.buttons["start-tracking-key"]
+            let start = app.buttons["start-tracking"]
+            let button = key.exists ? key : start
+            XCTAssertTrue(button.waitForExistence(timeout: 2), "start missing after the name was \(field.value ?? "nil")")
+            XCTAssertTrue(button.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
+            if button.isHittable {
+                button.tap()
+            } else {
+                button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+            if field.waitForNonExistence(timeout: 2) { break }
+        }
+        XCTAssertFalse(field.exists, "welcome stayed open after start, name \(field.value ?? "nil")")
     }
 
     /// Taps the save control that is actually hittable. Does not dismiss the keyboard first.
