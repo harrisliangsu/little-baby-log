@@ -723,12 +723,13 @@ final class SmokeUITests: XCTestCase {
             }
             field.typeText(babyName)
         }
-        let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", babyName), object: field)
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [committed], timeout: 8),
-            .completed,
-            "baby name stayed \(field.value ?? "nil")"
-        )
+        let deadline = Date().addingTimeInterval(8)
+        var seen = field.value as? String
+        while seen != babyName, Date() < deadline {
+            seen = field.value as? String
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual(seen, babyName, "baby name stayed \(seen ?? "nil")")
         let key = app.buttons["start-tracking-key"]
         let start = app.buttons["start-tracking"]
         let target = key.exists && key.isHittable ? key : start
