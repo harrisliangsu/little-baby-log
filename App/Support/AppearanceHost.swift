@@ -86,6 +86,7 @@ struct AppearanceHost: ViewModifier {
     }
 }
 
+@MainActor
 enum WindowChrome {
     private static var listeners: [ObjectIdentifier: any UITraitChangeRegistration] = [:]
 
