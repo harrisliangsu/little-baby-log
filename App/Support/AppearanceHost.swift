@@ -3,7 +3,8 @@ import UIKit
 import BabyLogKit
 
 /// Applies the stored appearance to the window immediately.
-/// Light and dark set the window and a concrete color scheme. Follow-system clears both.
+/// Light and dark set the window and a concrete color scheme.
+/// Follow-system reads the device style when the app becomes active again.
 /// The one in-memory copy of appearance and style. Settings and the window read this object,
 /// so a tap updates the page that is already open instead of only the stored checkmark.
 @MainActor
@@ -11,23 +12,32 @@ final class ChromeBox: ObservableObject {
     static let shared = ChromeBox()
 
     @Published private(set) var selection: ChromeSelection
+    /// Device appearance, refreshed when the app becomes active.
+    @Published private(set) var systemStyle: UIUserInterfaceStyle
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
+        let style = UIScreen.main.traitCollection.userInterfaceStyle
+        systemStyle = style == .dark ? .dark : .light
         WindowChrome.apply(mode: selection.mode)
     }
 
     var mode: AppearanceMode { selection.mode }
     var style: InterfaceStyle { selection.style }
 
-    /// Follow-system passes nil so the page is not pinned to the last concrete scheme.
-    /// The modifier itself stays, so the open page is not rebuilt.
-    var colorScheme: ColorScheme? {
+    /// The modifier stays in place. Follow-system uses the device style read on the next activation.
+    var colorScheme: ColorScheme {
         switch selection.mode {
         case .light: return .light
         case .dark: return .dark
-        case .system: return nil
+        case .system: return systemStyle == .dark ? .dark : .light
         }
+    }
+
+    func noteSystem(_ style: UIUserInterfaceStyle) {
+        guard mode == .system else { return }
+        guard style == .light || style == .dark, style != systemStyle else { return }
+        systemStyle = style
     }
 
     func setMode(_ mode: AppearanceMode) {
@@ -45,6 +55,7 @@ final class ChromeBox: ObservableObject {
 struct AppearanceHost: ViewModifier {
     @ObservedObject private var chrome = ChromeBox.shared
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.scenePhase) private var scenePhase
 
     private var interfaceStyle: InterfaceStyle { chrome.style }
 
@@ -72,6 +83,10 @@ struct AppearanceHost: ViewModifier {
             }
             .onAppear { WindowChrome.apply(mode: chrome.mode) }
             .onChange(of: chrome.mode) { _, mode in WindowChrome.apply(mode: mode) }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                chrome.noteSystem(UIScreen.main.traitCollection.userInterfaceStyle)
+            }
     }
 }
 

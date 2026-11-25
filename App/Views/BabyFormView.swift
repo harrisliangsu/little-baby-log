@@ -61,18 +61,15 @@ struct BabyFormView: View {
         NavigationStack {
             Form {
                 Section {
+                    TextField(UICopy.t(.babyName, language), text: $name)
+                        .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("baby-name")
                     Button(UICopy.t(.cancel, language)) { dismiss() }
                         .accessibilityIdentifier("baby-form-cancel")
                     Button(UICopy.t(.save, language)) { save() }
                         .fontWeight(.semibold)
                         .disabled(trimmedName.isEmpty)
                         .accessibilityIdentifier("baby-form-save")
-                }
-                .themedSection()
-                Section {
-                    TextField(UICopy.t(.babyName, language), text: $name)
-                        .textInputAutocapitalization(.words)
-                        .accessibilityIdentifier("baby-name")
                     DatePicker(
                         UICopy.t(.birthday, language),
                         selection: $birthDate,
