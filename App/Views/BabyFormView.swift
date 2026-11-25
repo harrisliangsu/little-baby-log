@@ -61,6 +61,15 @@ struct BabyFormView: View {
         NavigationStack {
             Form {
                 Section {
+                    Button(UICopy.t(.cancel, language)) { dismiss() }
+                        .accessibilityIdentifier("baby-form-cancel")
+                    Button(UICopy.t(.save, language)) { save() }
+                        .fontWeight(.semibold)
+                        .disabled(trimmedName.isEmpty)
+                        .accessibilityIdentifier("baby-form-save")
+                }
+                .themedSection()
+                Section {
                     TextField(UICopy.t(.babyName, language), text: $name)
                         .textInputAutocapitalization(.words)
                         .accessibilityIdentifier("baby-name")
@@ -119,19 +128,6 @@ struct BabyFormView: View {
                 ? (language == .zh ? "添加宝宝" : "Add a baby")
                 : (language == .zh ? "编辑宝宝" : "Edit baby"))
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                HStack {
-                    Button(UICopy.t(.cancel, language)) { dismiss() }
-                        .accessibilityIdentifier("baby-form-cancel")
-                    Spacer()
-                    Button(UICopy.t(.save, language)) { save() }
-                        .fontWeight(.semibold)
-                        .disabled(trimmedName.isEmpty)
-                        .accessibilityIdentifier("baby-form-save")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
             .confirmationDialog(
                 language == .zh
                     ? "删除\(baby?.displayName ?? "这个宝宝")？"

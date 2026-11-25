@@ -697,8 +697,13 @@ final class SmokeUITests: XCTestCase {
         let save = tapSave("formula")
         XCTAssertTrue(save.waitForNonExistence(timeout: 4), "formula form stayed open")
         let card = element("summary-formula")
-        let showed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", millilitres), object: card)
-        XCTAssertEqual(XCTWaiter().wait(for: [showed], timeout: 4), .completed, "formula card stayed \(card.label) \(saveTrace)")
+        let deadline = Date().addingTimeInterval(4)
+        var label = card.label
+        while !label.contains(millilitres), Date() < deadline {
+            label = card.label
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertTrue(label.contains(millilitres), "formula card stayed \(label) \(saveTrace)")
     }
 
     private func saveCurrentForm(_ addIdentifier: String) {
@@ -971,8 +976,18 @@ final class SmokeUITests: XCTestCase {
         app.descendants(matching: .any)["style-classic"].tap()
         chooseAppearance("system")
         XCUIDevice.shared.appearance = .dark
-        let dark = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "dark"), object: app.descendants(matching: .any)["appearance-scheme"])
-        XCTAssertEqual(XCTWaiter().wait(for: [dark], timeout: 8), .completed, "follow system stayed \(app.descendants(matching: .any)["appearance-scheme"].label)")
+        // The simulator delivers the new style when the app becomes active again.
+        XCUIDevice.shared.press(.home)
+        _ = app.wait(for: .runningBackground, timeout: 5)
+        app.activate()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        let darkDeadline = Date().addingTimeInterval(8)
+        var scheme = probe.label
+        while scheme != "dark", Date() < darkDeadline {
+            scheme = probe.label
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme)")
         assertRendered("dark", name: "cycle-system-dark")
         popNavigation()
 
