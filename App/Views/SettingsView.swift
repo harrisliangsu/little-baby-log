@@ -219,8 +219,10 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("settings-baby-switch")
-                        Button(language == .zh ? "编辑" : "Edit") {
-                            babySheet = .edit(baby)
+                        NavigationLink {
+                            BabyFormView(baby: baby) { _ in }
+                        } label: {
+                            Text(language == .zh ? "编辑" : "Edit")
                         }
                         .accessibilityIdentifier("settings-baby")
                     }

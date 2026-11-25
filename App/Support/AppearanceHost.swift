@@ -25,12 +25,12 @@ final class ChromeBox: ObservableObject {
     var mode: AppearanceMode { selection.mode }
     var style: InterfaceStyle { selection.style }
 
-    /// The modifier stays in place. Follow-system uses the device style read on the next activation.
-    var colorScheme: ColorScheme {
+    /// Follow-system passes nil so a saved choice does not pin the page to an early light reading.
+    var colorScheme: ColorScheme? {
         switch selection.mode {
         case .light: return .light
         case .dark: return .dark
-        case .system: return systemStyle == .dark ? .dark : .light
+        case .system: return nil
         }
     }
 

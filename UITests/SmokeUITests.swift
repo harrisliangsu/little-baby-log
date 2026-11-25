@@ -989,7 +989,7 @@ final class SmokeUITests: XCTestCase {
             scheme = probe.label
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme) read \(read.label)")
+        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme)")
         assertRendered("dark", name: "cycle-system-dark")
         tab("设置").tap()
         app.descendants(matching: .any)["settings-module-baby"].tap()
