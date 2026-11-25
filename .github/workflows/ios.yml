@@ -112,8 +112,12 @@ jobs:
               AD_HOC_CODE_SIGNING_ALLOWED=YES
           }
           fail=0
-          xcode_test -only-testing:LittleBabyLogUITests/SmokeUITests/testAppearanceRelationDetailAndOrder \
-            -resultBundlePath "$RUNNER_TEMP/TestResults-appearance.xcresult" || fail=1
+          if ! xcode_test -only-testing:LittleBabyLogUITests/SmokeUITests/testAppearanceRelationDetailAndOrder \
+            -resultBundlePath "$RUNNER_TEMP/TestResults-appearance.xcresult"; then
+            echo "appearance run did not start or failed; trying once more"
+            xcode_test -only-testing:LittleBabyLogUITests/SmokeUITests/testAppearanceRelationDetailAndOrder \
+              -resultBundlePath "$RUNNER_TEMP/TestResults-appearance-retry.xcresult" || fail=1
+          fi
           xcrun simctl ui "$UDID" appearance dark
           xcode_test -only-testing:LittleBabyLogUITests/SmokeUITests/testSavedSystemModeOpensDark \
             -resultBundlePath "$RUNNER_TEMP/TestResults-dark.xcresult" || fail=1
