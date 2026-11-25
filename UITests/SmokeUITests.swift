@@ -974,7 +974,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         app.descendants(matching: .any)["style-classic"].tap()
         chooseAppearance("system")
-        tab("设置").tap()
+        popNavigation()
         app.descendants(matching: .any)["settings-module-baby"].tap()
         app.buttons["caregiver-relation"].tap()
         app.buttons["caregiver-relation-father"].tap()
