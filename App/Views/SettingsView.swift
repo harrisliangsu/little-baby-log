@@ -18,14 +18,6 @@ enum BabySheet: Identifiable {
     }
 }
 
-/// The baby form is presented by the settings navigation stack, not by a pushed page.
-/// A sheet on the pushed page shows the form without its cancel button.
-@MainActor
-final class BabyFormPresenter: ObservableObject {
-    static let shared = BabyFormPresenter()
-    @Published var sheet: BabySheet?
-}
-
 struct BabyFormSheet: View {
     let sheet: BabySheet
     @AppStorage(Prefs.selectedBabyID) private var selectedBabyID = ""
@@ -58,7 +50,7 @@ struct SettingsView: View {
     @Environment(\.appTheme) private var theme
     @EnvironmentObject private var activity: BabyActivity
 
-    @ObservedObject private var babyForms = BabyFormPresenter.shared
+    @State private var babySheet: BabySheet?
     @State private var pendingSwitch: UUID?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
@@ -141,6 +133,9 @@ struct SettingsView: View {
         .systemBarChrome()
         .sheet(isPresented: $showWidgetPreview) {
             WidgetPreviewSheet()
+        }
+        .sheet(item: $babySheet) { sheet in
+            BabyFormSheet(sheet: sheet)
         }
         .sheet(item: $shareItem) { item in
             ActivityView(items: [item.url])
@@ -225,7 +220,7 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("settings-baby-switch")
                         Button(language == .zh ? "编辑" : "Edit") {
-                            babyForms.sheet = .edit(baby)
+                            babySheet = .edit(baby)
                         }
                         .accessibilityIdentifier("settings-baby")
                     }
@@ -235,7 +230,7 @@ struct SettingsView: View {
                 }
             }
             Button {
-                babyForms.sheet = .add
+                babySheet = .add
             } label: {
                 Label(UICopy.t(.addBaby, language), systemImage: "plus.circle.fill")
             }

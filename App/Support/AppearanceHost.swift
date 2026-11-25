@@ -80,6 +80,7 @@ enum WindowChrome {
         for scene in scenes {
             for window in scene.windows {
                 window.overrideUserInterfaceStyle = style
+                window.traitOverrides.userInterfaceStyle = style
                 if let root = window.rootViewController {
                     stamp(style, on: root)
                 }
@@ -88,9 +89,10 @@ enum WindowChrome {
     }
 
     /// The open settings page and any sheet keep their own controller.
-    /// The window value alone does not repaint those.
+    /// `overrideUserInterfaceStyle = .unspecified` does not clear a trait override SwiftUI already applied.
     private static func stamp(_ style: UIUserInterfaceStyle, on controller: UIViewController) {
         controller.overrideUserInterfaceStyle = style
+        controller.traitOverrides.userInterfaceStyle = style
         controller.children.forEach { stamp(style, on: $0) }
         if let presented = controller.presentedViewController {
             stamp(style, on: presented)

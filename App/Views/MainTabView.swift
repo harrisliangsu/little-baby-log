@@ -23,7 +23,6 @@ struct MainTabView: View {
         (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
     }
     @State private var tab: MainTab = .today
-    @ObservedObject private var babyForms = BabyFormPresenter.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,9 +71,6 @@ struct MainTabView: View {
                 }
                 .padding(.bottom, 88)
             }
-        }
-        .sheet(item: $babyForms.sheet) { sheet in
-            BabyFormSheet(sheet: sheet)
         }
         .sheet(isPresented: $showChat) {
             AIChatView(baby: baby)
