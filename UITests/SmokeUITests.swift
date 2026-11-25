@@ -953,7 +953,6 @@ final class SmokeUITests: XCTestCase {
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
     /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
     func testAppearanceRelationDetailAndOrder() {
-        defer { setSimulatorAppearance("light") }
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
         createBabyNamed("Beibei")
@@ -975,19 +974,6 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         app.descendants(matching: .any)["style-classic"].tap()
         chooseAppearance("system")
-        app.terminate()
-        setSimulatorAppearance("dark")
-        app.launchArguments.removeAll { $0 == "-lbl-ui-reset" }
-        app.launch()
-        let probe = app.descendants(matching: .any)["appearance-scheme"]
-        let darkDeadline = Date().addingTimeInterval(8)
-        var scheme = probe.label
-        while scheme != "dark", Date() < darkDeadline {
-            scheme = probe.label
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme)")
-        assertRendered("dark", name: "cycle-system-dark")
         tab("设置").tap()
         app.descendants(matching: .any)["settings-module-baby"].tap()
         app.buttons["caregiver-relation"].tap()
@@ -1015,50 +1001,27 @@ final class SmokeUITests: XCTestCase {
         let saved = order.label
         XCTAssertTrue(saved.hasPrefix("sleep,"))
         relaunchFromHomeScreen()
-        XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "dark")
+        XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         XCTAssertEqual(app.descendants(matching: .any)["home-card-order"].label, saved)
         tab("设置").tap()
         app.descendants(matching: .any)["settings-module-baby"].tap()
         XCTAssertEqual(app.descendants(matching: .any)["caregiver-relation-value"].label, "爸爸")
     }
 
-    /// XCUIDevice.appearance does not change UIScreen in this simulator. simctl does.
-    private func setSimulatorAppearance(_ appearance: String) {
-        let udid = bootedSimulatorUDID()
-        XCTAssertFalse(udid.isEmpty, "no booted simulator for appearance \(appearance)")
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        task.arguments = ["simctl", "ui", udid, "appearance", appearance]
-        let err = Pipe()
-        task.standardError = err
-        do {
-            try task.run()
-        } catch {
-            XCTFail("simctl \(error)")
-            return
+    /// CI runs this only after `simctl ui appearance dark`, and only after follow-system was saved.
+    /// The test bundle is an iOS target, so it cannot call simctl itself.
+    func testSavedSystemModeOpensDark() {
+        app.launch()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 8))
+        let deadline = Date().addingTimeInterval(8)
+        var scheme = probe.label
+        while scheme != "dark", Date() < deadline {
+            scheme = probe.label
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-        task.waitUntilExit()
-        let message = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        XCTAssertEqual(task.terminationStatus, 0, "simctl appearance \(appearance) failed \(message)")
-    }
-
-    private func bootedSimulatorUDID() -> String {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        task.arguments = ["simctl", "list", "devices", "booted", "-j"]
-        let out = Pipe()
-        task.standardOutput = out
-        try? task.run()
-        task.waitUntilExit()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let devices = json["devices"] as? [String: [[String: Any]]] else { return "" }
-        for list in devices.values {
-            for device in list where (device["state"] as? String) == "Booted" {
-                if let udid = device["udid"] as? String { return udid }
-            }
-        }
-        return ""
+        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme)")
+        assertRendered("dark", name: "cycle-system-dark")
     }
 
     private func chooseAppearance(_ raw: String) {

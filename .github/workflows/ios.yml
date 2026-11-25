@@ -99,16 +99,30 @@ jobs:
           # system/com.apple.chronod is the wrong domain. The simulator says to use the user one.
           xcrun simctl spawn "$UDID" launchctl kickstart -k user/foreground/com.apple.chronod || true
           sleep 3
-          xcodebuild test-without-building \
-            -project LittleBabyLog.xcodeproj \
-            -scheme LittleBabyLog \
-            -destination "platform=iOS Simulator,id=$UDID" \
-            -derivedDataPath "$DERIVED" \
-            -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" \
-            CODE_SIGN_IDENTITY=- \
-            CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          xcode_test() {
+            xcodebuild test-without-building \
+              -project LittleBabyLog.xcodeproj \
+              -scheme LittleBabyLog \
+              -destination "platform=iOS Simulator,id=$UDID" \
+              -derivedDataPath "$DERIVED" \
+              "$@" \
+              CODE_SIGN_IDENTITY=- \
+              CODE_SIGNING_ALLOWED=YES \
+              CODE_SIGNING_REQUIRED=NO \
+              AD_HOC_CODE_SIGNING_ALLOWED=YES
+          }
+          fail=0
+          xcode_test -only-testing:LittleBabyLogUITests/SmokeUITests/testAppearanceRelationDetailAndOrder \
+            -resultBundlePath "$RUNNER_TEMP/TestResults-appearance.xcresult" || fail=1
+          xcrun simctl ui "$UDID" appearance dark
+          xcode_test -only-testing:LittleBabyLogUITests/SmokeUITests/testSavedSystemModeOpensDark \
+            -resultBundlePath "$RUNNER_TEMP/TestResults-dark.xcresult" || fail=1
+          xcrun simctl ui "$UDID" appearance light
+          xcode_test \
+            -skip-testing:LittleBabyLogUITests/SmokeUITests/testAppearanceRelationDetailAndOrder \
+            -skip-testing:LittleBabyLogUITests/SmokeUITests/testSavedSystemModeOpensDark \
+            -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" || fail=1
+          exit "$fail"
 
       - name: Reset simulator appearance
         if: always()
