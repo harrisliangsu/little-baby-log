@@ -3,8 +3,8 @@ import UIKit
 import BabyLogKit
 
 /// Applies the stored appearance to the window immediately.
-/// Light and dark set the window. Follow-system clears that override.
-/// A second window, a timer, or a flip counter is not used: writing the trait we just read spins the main thread.
+/// Light and dark set the window. Follow-system clears that override and copies later device changes into the color scheme.
+/// The listener does not write the window again. Writing the trait just read spins the main thread.
 /// The one in-memory copy of appearance and style. Settings and the window read this object,
 /// so a tap updates the page that is already open instead of only the stored checkmark.
 @MainActor
@@ -12,14 +12,34 @@ final class ChromeBox: ObservableObject {
     static let shared = ChromeBox()
 
     @Published private(set) var selection: ChromeSelection
+    /// The device appearance. Explicit light and dark do not change it.
+    @Published private(set) var systemStyle: UIUserInterfaceStyle
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
+        let style = UIScreen.main.traitCollection.userInterfaceStyle
+        systemStyle = style == .dark ? .dark : .light
         WindowChrome.apply(mode: selection.mode)
     }
 
     var mode: AppearanceMode { selection.mode }
     var style: InterfaceStyle { selection.style }
+
+    /// Always a concrete scheme, so the modifier stays put and the open page is not rebuilt.
+    /// Follow-system uses the device style the window reports after its override is cleared.
+    var colorScheme: ColorScheme {
+        switch selection.mode {
+        case .light: return .light
+        case .dark: return .dark
+        case .system: return systemStyle == .dark ? .dark : .light
+        }
+    }
+
+    func noteSystem(_ style: UIUserInterfaceStyle) {
+        guard selection.mode == .system else { return }
+        guard style == .light || style == .dark, style != systemStyle else { return }
+        systemStyle = style
+    }
 
     func setMode(_ mode: AppearanceMode) {
         selection = selection.choosingMode(mode)
@@ -43,6 +63,7 @@ struct AppearanceHost: ViewModifier {
         content
             .environment(\.appTheme, .standard)
             .environment(\.interfaceStyle, interfaceStyle)
+            .preferredColorScheme(chrome.colorScheme)
             .background {
                 if interfaceStyle == .liquidGlass, !reduceTransparency {
                     LinearGradient(
@@ -66,9 +87,8 @@ struct AppearanceHost: ViewModifier {
 }
 
 enum WindowChrome {
-    /// `preferredColorScheme` is not used.
-    /// A concrete value stays after Follow system is chosen, and `nil` does not remove it.
-    /// The window override does: `.unspecified` follows the device again.
+    private static var listeners: [ObjectIdentifier: any UITraitChangeRegistration] = [:]
+
     static func apply(mode: AppearanceMode) {
         let style: UIUserInterfaceStyle
         switch mode {
@@ -80,7 +100,7 @@ enum WindowChrome {
         for scene in scenes {
             for window in scene.windows {
                 window.overrideUserInterfaceStyle = style
-                window.traitOverrides.userInterfaceStyle = style
+                listen(window)
                 if let root = window.rootViewController {
                     stamp(style, on: root)
                 }
@@ -89,13 +109,26 @@ enum WindowChrome {
     }
 
     /// The open settings page and any sheet keep their own controller.
-    /// `overrideUserInterfaceStyle = .unspecified` does not clear a trait override SwiftUI already applied.
+    /// The window value alone does not repaint those.
     private static func stamp(_ style: UIUserInterfaceStyle, on controller: UIViewController) {
         controller.overrideUserInterfaceStyle = style
-        controller.traitOverrides.userInterfaceStyle = style
         controller.children.forEach { stamp(style, on: $0) }
         if let presented = controller.presentedViewController {
             stamp(style, on: presented)
+        }
+    }
+
+    /// Hears a later device change only while the window is not forced.
+    /// Does not write the window. That write is what turned the last trait update into a loop.
+    private static func listen(_ window: UIWindow) {
+        let id = ObjectIdentifier(window)
+        guard listeners[id] == nil else { return }
+        listeners[id] = window.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (window: UIWindow, _: UITraitCollection) in
+            guard window.overrideUserInterfaceStyle == .unspecified else { return }
+            let style = window.traitCollection.userInterfaceStyle
+            DispatchQueue.main.async {
+                ChromeBox.shared.noteSystem(style)
+            }
         }
     }
 }
