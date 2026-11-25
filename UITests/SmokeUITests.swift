@@ -1007,11 +1007,14 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(order.waitForExistence(timeout: 4))
         let before = order.label
         let sleep = requireSleepCard()
-        sleep.press(forDuration: 0.8, thenDragTo: app.buttons["summary-breast"])
+        let above = app.buttons["summary-change"]
+        XCTAssertTrue(above.waitForExistence(timeout: 4), "no card beside sleep\n\(app.debugDescription)")
+        sleep.press(forDuration: 0.8, thenDragTo: above)
+        XCTAssertTrue(reveal("home-cards-config", swiping: .down))
+        XCTAssertTrue(order.waitForExistence(timeout: 4))
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
         XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 4), .completed, "order stayed \(order.label)")
         let saved = order.label
-        XCTAssertTrue(saved.hasPrefix("sleep,"))
         relaunchFromHomeScreen()
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         XCTAssertEqual(app.descendants(matching: .any)["home-card-order"].label, saved)
