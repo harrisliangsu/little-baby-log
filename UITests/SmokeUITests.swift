@@ -1123,8 +1123,8 @@ final class SmokeUITests: XCTestCase {
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
-        let name = app.textFields["baby-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 8), "edit form did not open\n\(app.debugDescription)")
+        let babyName = app.textFields["baby-name"]
+        XCTAssertTrue(babyName.waitForExistence(timeout: 8), "edit form did not open\n\(app.debugDescription)")
         let title = app.navigationBars["编辑宝宝"]
         XCTAssertTrue(title.waitForExistence(timeout: 4), "edit title missing\n\(app.debugDescription)")
         let cancel = app.navigationBars.buttons["取消"]
