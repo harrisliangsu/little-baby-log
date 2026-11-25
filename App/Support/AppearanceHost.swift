@@ -3,7 +3,8 @@ import UIKit
 import BabyLogKit
 
 /// Applies the stored appearance to the window immediately.
-/// Light and dark stay as chosen. Follow-system keeps a window that is not forced, so a device change still arrives.
+/// Light and dark stay as chosen. Follow-system copies the screen style into the color scheme
+/// and does not paint the window again, so the two cannot chase each other.
 /// The one in-memory copy of appearance and style. Settings and the window read this object,
 /// so a tap updates the page that is already open instead of only the stored checkmark.
 @MainActor
@@ -11,20 +12,21 @@ final class ChromeBox: ObservableObject {
     static let shared = ChromeBox()
 
     @Published private(set) var selection: ChromeSelection
-    /// The device appearance. Light and dark choices do not overwrite it.
     @Published private(set) var systemStyle: UIUserInterfaceStyle
+
+    private var systemWatch: Timer?
+    private var flips = 0
+    private var flipWindow = Date()
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
-        let style = UIScreen.main.traitCollection.userInterfaceStyle
-        systemStyle = style == .dark ? .dark : .light
-        WindowChrome.apply(mode: selection.mode, system: systemStyle)
+        systemStyle = Self.screenStyle()
+        WindowChrome.apply(mode: selection.mode)
     }
 
     var mode: AppearanceMode { selection.mode }
     var style: InterfaceStyle { selection.style }
 
-    /// Always a concrete scheme, so the modifier stays in place and the open page is not rebuilt.
     var colorScheme: ColorScheme {
         switch selection.mode {
         case .light: return .light
@@ -34,14 +36,47 @@ final class ChromeBox: ObservableObject {
     }
 
     func noteSystem(_ style: UIUserInterfaceStyle) {
+        guard selection.mode == .system else { return }
         guard style == .light || style == .dark, style != systemStyle else { return }
+        let now = Date()
+        if now.timeIntervalSince(flipWindow) > 2 {
+            flips = 0
+            flipWindow = now
+        }
+        flips += 1
+        // A window paint that changes the screen reading would spin the main thread.
+        guard flips <= 3 else {
+            systemWatch?.invalidate()
+            systemWatch = nil
+            return
+        }
         systemStyle = style
+    }
+
+    static func screenStyle() -> UIUserInterfaceStyle {
+        UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+    }
+
+    func watchSystem() {
+        systemWatch?.invalidate()
+        guard selection.mode == .system else {
+            systemWatch = nil
+            return
+        }
+        let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
+            DispatchQueue.main.async {
+                ChromeBox.shared.noteSystem(ChromeBox.screenStyle())
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        systemWatch = timer
     }
 
     func setMode(_ mode: AppearanceMode) {
         selection = selection.choosingMode(mode)
         selection.save(to: .standard)
-        WindowChrome.apply(mode: selection.mode, system: systemStyle)
+        WindowChrome.apply(mode: selection.mode)
+        watchSystem()
     }
 
     func setStyle(_ style: InterfaceStyle) {
@@ -79,90 +114,51 @@ struct AppearanceHost: ViewModifier {
                     .allowsHitTesting(false)
             }
             .onAppear {
-                SystemStyleRelay.install()
-                WindowChrome.apply(mode: chrome.mode, system: chrome.systemStyle)
+                chrome.watchSystem()
+                WindowChrome.apply(mode: chrome.mode)
             }
             .onChange(of: chrome.mode) { _, mode in
-                WindowChrome.apply(mode: mode, system: chrome.systemStyle)
+                WindowChrome.apply(mode: mode)
             }
-            .onChange(of: chrome.systemStyle) { _, style in
-                guard chrome.mode == .system else { return }
-                WindowChrome.apply(mode: .system, system: style)
-            }
-    }
-}
-
-/// A one-point window that is never forced to light or dark.
-/// The app window is forced, so it cannot hear a later system change.
-enum SystemStyleRelay {
-    private static var window: UIWindow?
-
-    static func install() {
-        guard window == nil,
-              let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
-        let relay = RelayWindow(windowScene: scene)
-        relay.frame = CGRect(x: -2, y: -2, width: 1, height: 1)
-        relay.windowLevel = .normal - 1
-        relay.overrideUserInterfaceStyle = .unspecified
-        relay.rootViewController = StyleRelayController()
-        relay.isHidden = false
-        window = relay
-    }
-
-    static func owns(_ window: UIWindow) -> Bool {
-        window === self.window
-    }
-
-    /// The app window is forced. This one must stay unset or it only echoes that force.
-    static func release() {
-        window?.overrideUserInterfaceStyle = .unspecified
-    }
-}
-
-private final class RelayWindow: UIWindow {
-    override var canBecomeKey: Bool { false }
-}
-
-private final class StyleRelayController: UIViewController {
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: StyleRelayController, _: UITraitCollection) in
-            let style = controller.traitCollection.userInterfaceStyle
-            DispatchQueue.main.async {
-                ChromeBox.shared.noteSystem(style)
-            }
-        }
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        ChromeBox.shared.noteSystem(traitCollection.userInterfaceStyle)
     }
 }
 
 enum WindowChrome {
-    static func apply(mode: AppearanceMode, system: UIUserInterfaceStyle) {
-        let painted: UIUserInterfaceStyle
+    static func apply(mode: AppearanceMode) {
         switch mode {
-        case .light: painted = .light
-        case .dark: painted = .dark
-        case .system: painted = system == .dark ? .dark : .light
+        case .light: paint(.light)
+        case .dark: paint(.dark)
+        case .system:
+            // Unspecified alone leaves the previous light or dark force in place.
+            let forced = painted()
+            if forced == .light || forced == .dark {
+                paint(forced == .dark ? .light : .dark)
+                DispatchQueue.main.async {
+                    guard ChromeBox.shared.mode == .system else { return }
+                    paint(.unspecified)
+                }
+            } else {
+                paint(.unspecified)
+            }
         }
-        // Follow-system leaves the scene unset so the relay window still hears the device.
-        let sceneStyle: UIUserInterfaceStyle = mode == .system ? .unspecified : painted
+    }
+
+    private static func painted() -> UIUserInterfaceStyle {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.windows.first?.overrideUserInterfaceStyle ?? .unspecified
+    }
+
+    private static func paint(_ style: UIUserInterfaceStyle) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         for scene in scenes {
-            scene.traitOverrides.userInterfaceStyle = sceneStyle
-            for window in scene.windows where !SystemStyleRelay.owns(window) {
-                window.overrideUserInterfaceStyle = painted
+            scene.traitOverrides.userInterfaceStyle = style
+            for window in scene.windows {
+                window.overrideUserInterfaceStyle = style
                 if let root = window.rootViewController {
-                    stamp(painted, on: root)
+                    stamp(style, on: root)
                 }
             }
         }
-        SystemStyleRelay.release()
     }
 
     /// The open settings page and any sheet keep their own controller.
