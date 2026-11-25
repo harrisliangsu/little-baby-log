@@ -737,9 +737,13 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(seen, babyName, "baby name stayed \(seen ?? "nil")")
         let giveUp = Date().addingTimeInterval(12)
         while field.exists, Date() < giveUp {
-            let key = app.buttons["start-tracking-key"]
+            if app.keyboards.firstMatch.exists {
+                app.swipeDown()
+            }
+            XCTAssertEqual(field.value as? String, babyName, "name changed before start")
             let start = app.buttons["start-tracking"]
-            let button = key.exists ? key : start
+            let key = app.buttons["start-tracking-key"]
+            let button = start.exists && start.isHittable ? start : key
             XCTAssertTrue(button.waitForExistence(timeout: 2), "start missing after the name was \(field.value ?? "nil")")
             XCTAssertTrue(button.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
             if button.isHittable {
@@ -1006,12 +1010,22 @@ final class SmokeUITests: XCTestCase {
         let order = app.descendants(matching: .any)["home-card-order"]
         XCTAssertTrue(order.waitForExistence(timeout: 4))
         let before = order.label
-        let sleep = requireSleepCard()
-        let above = app.buttons["summary-change"]
-        XCTAssertTrue(above.waitForExistence(timeout: 4), "no card beside sleep\n\(app.debugDescription)")
-        sleep.press(forDuration: 0.8, thenDragTo: above)
+        let dropTargets = ["summary-wet", "summary-dirty", "summary-change"]
+        func dragSleep(skipping used: String?) {
+            let sleep = requireSleepCard()
+            let identifier = dropTargets.first { $0 != used && app.buttons[$0].exists }
+            XCTAssertNotNil(identifier, "no card beside sleep\n\(app.debugDescription)")
+            let target = app.buttons[identifier!]
+            sleep.press(forDuration: 1.5, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.8)
+        }
+        dragSleep(skipping: nil)
         XCTAssertTrue(reveal("home-cards-config", swiping: .down))
         XCTAssertTrue(order.waitForExistence(timeout: 4))
+        if order.label == before {
+            dragSleep(skipping: dropTargets.first { app.buttons[$0].exists })
+            XCTAssertTrue(reveal("home-cards-config", swiping: .down))
+            XCTAssertTrue(order.waitForExistence(timeout: 4))
+        }
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
         XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 4), .completed, "order stayed \(order.label)")
         let saved = order.label
