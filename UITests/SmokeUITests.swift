@@ -8,7 +8,6 @@ final class SmokeUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        XCUIDevice.shared.appearance = .light
         app = XCUIApplication()
     }
 

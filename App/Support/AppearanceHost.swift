@@ -100,7 +100,7 @@ enum SystemStyleRelay {
     static func install() {
         guard window == nil,
               let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
-        let relay = UIWindow(windowScene: scene)
+        let relay = RelayWindow(windowScene: scene)
         relay.frame = CGRect(x: -2, y: -2, width: 1, height: 1)
         relay.windowLevel = .normal - 1
         relay.overrideUserInterfaceStyle = .unspecified
@@ -117,6 +117,10 @@ enum SystemStyleRelay {
     static func release() {
         window?.overrideUserInterfaceStyle = .unspecified
     }
+}
+
+private final class RelayWindow: UIWindow {
+    override var canBecomeKey: Bool { false }
 }
 
 private final class StyleRelayController: UIViewController {
