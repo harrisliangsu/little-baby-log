@@ -152,7 +152,6 @@ struct BabyFormView: View {
             } message: {
                 Text(UICopy.t(.deleteBabyBody, language))
             }
-        }
     }
 
     private func save() {
