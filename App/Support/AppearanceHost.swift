@@ -85,13 +85,29 @@ struct AppearanceHost: ViewModifier {
             .onChange(of: chrome.mode) { _, mode in WindowChrome.apply(mode: mode) }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
-                chrome.noteSystem(UIScreen.main.traitCollection.userInterfaceStyle)
+                chrome.noteSystem(WindowChrome.deviceStyle())
+            }
+            .background(alignment: .topLeading) {
+                Text(chrome.systemStyle == .dark ? "dark" : "light")
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier("appearance-read")
+                    .accessibilityLabel(chrome.systemStyle == .dark ? "dark" : "light")
+                    .allowsHitTesting(false)
             }
     }
 }
 
 @MainActor
 enum WindowChrome {
+    static func deviceStyle() -> UIUserInterfaceStyle {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            let style = scene.screen.traitCollection.userInterfaceStyle
+            if style == .dark || style == .light { return style }
+        }
+        return UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+    }
+
     static func apply(mode: AppearanceMode) {
         let style: UIUserInterfaceStyle
         switch mode {

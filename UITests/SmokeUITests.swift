@@ -975,19 +975,19 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         app.descendants(matching: .any)["style-classic"].tap()
         chooseAppearance("system")
-        XCUIDevice.shared.appearance = .dark
-        // The simulator delivers the new style when the app becomes active again.
         XCUIDevice.shared.press(.home)
         _ = app.wait(for: .runningBackground, timeout: 5)
+        XCUIDevice.shared.appearance = .dark
         app.activate()
         let probe = app.descendants(matching: .any)["appearance-scheme"]
+        let read = app.descendants(matching: .any)["appearance-read"]
         let darkDeadline = Date().addingTimeInterval(8)
         var scheme = probe.label
         while scheme != "dark", Date() < darkDeadline {
             scheme = probe.label
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
-        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme)")
+        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme) read \(read.label)")
         assertRendered("dark", name: "cycle-system-dark")
         popNavigation()
 
