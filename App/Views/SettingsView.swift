@@ -51,6 +51,7 @@ struct SettingsView: View {
     @EnvironmentObject private var activity: BabyActivity
 
     @State private var babySheet: BabySheet?
+    @State private var editingBabyID: UUID?
     @State private var pendingSwitch: UUID?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
@@ -76,6 +77,11 @@ struct SettingsView: View {
                     Form { babiesSection }
                         .themedList()
                         .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
+                        .navigationDestination(item: $editingBabyID) { id in
+                            if let baby = babies.first(where: { $0.uuid == id }) {
+                                BabyFormView(baby: baby, embedsNavigation: false) { _ in }
+                            }
+                        }
                         .sheet(item: $babySheet) { sheet in
                             BabyFormSheet(sheet: sheet)
                         }
@@ -205,30 +211,25 @@ struct SettingsView: View {
     private var babiesSection: some View {
         Section {
             ForEach(babies, id: \.objectID) { baby in
-                VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    switchBaby(baby)
+                } label: {
                     HStack {
-                        Button {
-                            switchBaby(baby)
-                        } label: {
-                            HStack {
-                                BabyRow(baby: baby)
-                                if baby.uuid?.uuidString == selectedBabyID {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
+                        BabyRow(baby: baby)
+                        if baby.uuid?.uuidString == selectedBabyID {
+                            Image(systemName: "checkmark")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("settings-baby-switch")
-                        NavigationLink {
-                            BabyFormView(baby: baby) { _ in }
-                        } label: {
-                            Text(language == .zh ? "编辑" : "Edit")
-                        }
-                        .accessibilityIdentifier("settings-baby")
                     }
-                    if let id = baby.uuid {
-                        BabyRelationLink(babyID: id, babyName: baby.displayName)
-                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-baby-switch")
+                Button(language == .zh ? "编辑" : "Edit") {
+                    editingBabyID = baby.uuid
+                }
+                .disabled(baby.uuid == nil)
+                .accessibilityIdentifier("settings-baby")
+                if let id = baby.uuid {
+                    BabyRelationLink(babyID: id, babyName: baby.displayName)
                 }
             }
             Button {

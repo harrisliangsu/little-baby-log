@@ -88,6 +88,7 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl ui "$UDID" appearance light
           APP=$(find "$DERIVED/Build/Products" -type d -name 'LittleBabyLog.app' | head -1)
           test -d "$APP"
           xcrun simctl install "$UDID" "$APP"
@@ -108,6 +109,13 @@ jobs:
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Reset simulator appearance
+        if: always()
+        run: |
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl ui "$UDID" appearance light || true
 
       - name: Installed widget extension
         if: always()

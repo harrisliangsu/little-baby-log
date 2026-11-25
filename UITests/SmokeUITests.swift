@@ -953,7 +953,7 @@ final class SmokeUITests: XCTestCase {
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
     /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
     func testAppearanceRelationDetailAndOrder() {
-        defer { XCUIDevice.shared.appearance = .light }
+        defer { setSimulatorAppearance("light") }
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
         createBabyNamed("Beibei")
@@ -975,10 +975,8 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         app.descendants(matching: .any)["style-classic"].tap()
         chooseAppearance("system")
-        // UIScreen inside the running app stays light after XCUIDevice.appearance.
-        // A new process started while the device is dark must open dark.
         app.terminate()
-        XCUIDevice.shared.appearance = .dark
+        setSimulatorAppearance("dark")
         app.launchArguments.removeAll { $0 == "-lbl-ui-reset" }
         app.launch()
         let probe = app.descendants(matching: .any)["appearance-scheme"]
@@ -1022,7 +1020,45 @@ final class SmokeUITests: XCTestCase {
         tab("设置").tap()
         app.descendants(matching: .any)["settings-module-baby"].tap()
         XCTAssertEqual(app.descendants(matching: .any)["caregiver-relation-value"].label, "爸爸")
-        XCUIDevice.shared.appearance = .light
+    }
+
+    /// XCUIDevice.appearance does not change UIScreen in this simulator. simctl does.
+    private func setSimulatorAppearance(_ appearance: String) {
+        let udid = bootedSimulatorUDID()
+        XCTAssertFalse(udid.isEmpty, "no booted simulator for appearance \(appearance)")
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        task.arguments = ["simctl", "ui", udid, "appearance", appearance]
+        let err = Pipe()
+        task.standardError = err
+        do {
+            try task.run()
+        } catch {
+            XCTFail("simctl \(error)")
+            return
+        }
+        task.waitUntilExit()
+        let message = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        XCTAssertEqual(task.terminationStatus, 0, "simctl appearance \(appearance) failed \(message)")
+    }
+
+    private func bootedSimulatorUDID() -> String {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        task.arguments = ["simctl", "list", "devices", "booted", "-j"]
+        let out = Pipe()
+        task.standardOutput = out
+        try? task.run()
+        task.waitUntilExit()
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let devices = json["devices"] as? [String: [[String: Any]]] else { return "" }
+        for list in devices.values {
+            for device in list where (device["state"] as? String) == "Booted" {
+                if let udid = device["udid"] as? String { return udid }
+            }
+        }
+        return ""
     }
 
     private func chooseAppearance(_ raw: String) {
@@ -1124,14 +1160,15 @@ final class SmokeUITests: XCTestCase {
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
-        XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 8))
+        let name = app.textFields["baby-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 8), "edit form did not open\n\(app.debugDescription)")
+        let title = app.navigationBars["编辑宝宝"]
+        XCTAssertTrue(title.waitForExistence(timeout: 4), "edit title missing\n\(app.debugDescription)")
+        let cancel = app.navigationBars.buttons["取消"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 4), "cancel missing\n\(app.debugDescription)")
+        XCTAssertTrue(cancel.isHittable, "cancel not hittable\n\(app.debugDescription)")
         shot("review-19-baby-form")
-        let cancel = app.descendants(matching: .any)["baby-form-cancel"]
-        if cancel.waitForExistence(timeout: 2) {
-            cancel.tap()
-        } else {
-            app.navigationBars.buttons["取消"].tap()
-        }
+        cancel.tap()
         popNavigation()
 
         openLabeled("settings-module-records")

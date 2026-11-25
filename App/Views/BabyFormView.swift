@@ -8,6 +8,8 @@ import BabyLogKit
 struct BabyFormView: View {
     let baby: Baby?
     let onSave: (Baby) -> Void
+    /// A sheet needs its own stack. A page already pushed on 宝宝设置 must not add a second one.
+    var embedsNavigation = true
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
@@ -58,19 +60,20 @@ struct BabyFormView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField(UICopy.t(.babyName, language), text: $name)
-                        .textInputAutocapitalization(.words)
-                        .accessibilityIdentifier("baby-name")
-                    Button(UICopy.t(.cancel, language)) { dismiss() }
-                        .accessibilityIdentifier("baby-form-cancel")
-                    Button(UICopy.t(.save, language)) { save() }
-                        .fontWeight(.semibold)
-                        .disabled(trimmedName.isEmpty)
-                        .accessibilityIdentifier("baby-form-save")
-                    DatePicker(
+        if embedsNavigation {
+            NavigationStack { editor }
+        } else {
+            editor
+        }
+    }
+
+    private var editor: some View {
+        Form {
+            Section {
+                TextField(UICopy.t(.babyName, language), text: $name)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("baby-name")
+                DatePicker(
                         UICopy.t(.birthday, language),
                         selection: $birthDate,
                         in: ...latestBirthDate,
@@ -125,6 +128,18 @@ struct BabyFormView: View {
                 ? (language == .zh ? "添加宝宝" : "Add a baby")
                 : (language == .zh ? "编辑宝宝" : "Edit baby"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(UICopy.t(.cancel, language)) { dismiss() }
+                        .accessibilityIdentifier("baby-form-cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(UICopy.t(.save, language)) { save() }
+                        .fontWeight(.semibold)
+                        .disabled(trimmedName.isEmpty)
+                        .accessibilityIdentifier("baby-form-save")
+                }
+            }
             .confirmationDialog(
                 language == .zh
                     ? "删除\(baby?.displayName ?? "这个宝宝")？"

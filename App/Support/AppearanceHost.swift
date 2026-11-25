@@ -4,7 +4,7 @@ import BabyLogKit
 
 /// Applies the stored appearance to the window immediately.
 /// Light and dark set the window and a concrete color scheme.
-/// Follow-system reads the device style when the app becomes active again.
+/// Follow-system leaves the color scheme unset and clears the window override.
 /// The one in-memory copy of appearance and style. Settings and the window read this object,
 /// so a tap updates the page that is already open instead of only the stored checkmark.
 @MainActor
