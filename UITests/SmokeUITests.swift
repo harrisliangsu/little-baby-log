@@ -975,10 +975,12 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         app.descendants(matching: .any)["style-classic"].tap()
         chooseAppearance("system")
-        XCUIDevice.shared.press(.home)
-        _ = app.wait(for: .runningBackground, timeout: 5)
+        // UIScreen inside the running app stays light after XCUIDevice.appearance.
+        // A new process started while the device is dark must open dark.
+        app.terminate()
         XCUIDevice.shared.appearance = .dark
-        app.activate()
+        app.launchArguments.removeAll { $0 == "-lbl-ui-reset" }
+        app.launch()
         let probe = app.descendants(matching: .any)["appearance-scheme"]
         let read = app.descendants(matching: .any)["appearance-read"]
         let darkDeadline = Date().addingTimeInterval(8)
@@ -989,8 +991,7 @@ final class SmokeUITests: XCTestCase {
         }
         XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme) read \(read.label)")
         assertRendered("dark", name: "cycle-system-dark")
-        popNavigation()
-
+        tab("设置").tap()
         app.descendants(matching: .any)["settings-module-baby"].tap()
         app.buttons["caregiver-relation"].tap()
         app.buttons["caregiver-relation-father"].tap()

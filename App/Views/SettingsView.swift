@@ -76,6 +76,9 @@ struct SettingsView: View {
                     Form { babiesSection }
                         .themedList()
                         .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
+                        .sheet(item: $babySheet) { sheet in
+                            BabyFormSheet(sheet: sheet)
+                        }
                 }
                 settingsLink(language == .zh ? "记录设置" : "Records", "list.bullet.rectangle", "settings-module-records") {
                     Form {
@@ -133,9 +136,6 @@ struct SettingsView: View {
         .systemBarChrome()
         .sheet(isPresented: $showWidgetPreview) {
             WidgetPreviewSheet()
-        }
-        .sheet(item: $babySheet) { sheet in
-            BabyFormSheet(sheet: sheet)
         }
         .sheet(item: $shareItem) { item in
             ActivityView(items: [item.url])
