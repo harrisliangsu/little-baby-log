@@ -982,7 +982,6 @@ final class SmokeUITests: XCTestCase {
         app.launchArguments.removeAll { $0 == "-lbl-ui-reset" }
         app.launch()
         let probe = app.descendants(matching: .any)["appearance-scheme"]
-        let read = app.descendants(matching: .any)["appearance-read"]
         let darkDeadline = Date().addingTimeInterval(8)
         var scheme = probe.label
         while scheme != "dark", Date() < darkDeadline {
