@@ -3,8 +3,8 @@ import UIKit
 import BabyLogKit
 
 /// Applies the stored appearance to the window immediately.
-/// Light and dark stay as chosen. Follow-system copies the screen style into the color scheme
-/// and does not paint the window again, so the two cannot chase each other.
+/// Light and dark set the window. Follow-system clears that override.
+/// A second window, a timer, or a flip counter is not used: writing the trait we just read spins the main thread.
 /// The one in-memory copy of appearance and style. Settings and the window read this object,
 /// so a tap updates the page that is already open instead of only the stored checkmark.
 @MainActor
@@ -12,71 +12,19 @@ final class ChromeBox: ObservableObject {
     static let shared = ChromeBox()
 
     @Published private(set) var selection: ChromeSelection
-    @Published private(set) var systemStyle: UIUserInterfaceStyle
-
-    private var systemWatch: Timer?
-    private var flips = 0
-    private var flipWindow = Date()
 
     private init() {
         selection = ChromeSelection.load(from: .standard)
-        systemStyle = Self.screenStyle()
         WindowChrome.apply(mode: selection.mode)
     }
 
     var mode: AppearanceMode { selection.mode }
     var style: InterfaceStyle { selection.style }
 
-    var colorScheme: ColorScheme {
-        switch selection.mode {
-        case .light: return .light
-        case .dark: return .dark
-        case .system: return systemStyle == .dark ? .dark : .light
-        }
-    }
-
-    func noteSystem(_ style: UIUserInterfaceStyle) {
-        guard selection.mode == .system else { return }
-        guard style == .light || style == .dark, style != systemStyle else { return }
-        let now = Date()
-        if now.timeIntervalSince(flipWindow) > 2 {
-            flips = 0
-            flipWindow = now
-        }
-        flips += 1
-        // A window paint that changes the screen reading would spin the main thread.
-        guard flips <= 3 else {
-            systemWatch?.invalidate()
-            systemWatch = nil
-            return
-        }
-        systemStyle = style
-    }
-
-    static func screenStyle() -> UIUserInterfaceStyle {
-        UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
-    }
-
-    func watchSystem() {
-        systemWatch?.invalidate()
-        guard selection.mode == .system else {
-            systemWatch = nil
-            return
-        }
-        let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
-            DispatchQueue.main.async {
-                ChromeBox.shared.noteSystem(ChromeBox.screenStyle())
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        systemWatch = timer
-    }
-
     func setMode(_ mode: AppearanceMode) {
         selection = selection.choosingMode(mode)
         selection.save(to: .standard)
         WindowChrome.apply(mode: selection.mode)
-        watchSystem()
     }
 
     func setStyle(_ style: InterfaceStyle) {
@@ -95,7 +43,6 @@ struct AppearanceHost: ViewModifier {
         content
             .environment(\.appTheme, .standard)
             .environment(\.interfaceStyle, interfaceStyle)
-            .preferredColorScheme(chrome.colorScheme)
             .background {
                 if interfaceStyle == .liquidGlass, !reduceTransparency {
                     LinearGradient(
@@ -113,45 +60,24 @@ struct AppearanceHost: ViewModifier {
                     .accessibilityLabel(interfaceStyle.rawValue)
                     .allowsHitTesting(false)
             }
-            .onAppear {
-                chrome.watchSystem()
-                WindowChrome.apply(mode: chrome.mode)
-            }
-            .onChange(of: chrome.mode) { _, mode in
-                WindowChrome.apply(mode: mode)
-            }
+            .onAppear { WindowChrome.apply(mode: chrome.mode) }
+            .onChange(of: chrome.mode) { _, mode in WindowChrome.apply(mode: mode) }
     }
 }
 
 enum WindowChrome {
+    /// `preferredColorScheme` is not used.
+    /// A concrete value stays after Follow system is chosen, and `nil` does not remove it.
+    /// The window override does: `.unspecified` follows the device again.
     static func apply(mode: AppearanceMode) {
+        let style: UIUserInterfaceStyle
         switch mode {
-        case .light: paint(.light)
-        case .dark: paint(.dark)
-        case .system:
-            // Unspecified alone leaves the previous light or dark force in place.
-            let forced = painted()
-            if forced == .light || forced == .dark {
-                paint(forced == .dark ? .light : .dark)
-                DispatchQueue.main.async {
-                    guard ChromeBox.shared.mode == .system else { return }
-                    paint(.unspecified)
-                }
-            } else {
-                paint(.unspecified)
-            }
+        case .light: style = .light
+        case .dark: style = .dark
+        case .system: style = .unspecified
         }
-    }
-
-    private static func painted() -> UIUserInterfaceStyle {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        return scenes.first?.windows.first?.overrideUserInterfaceStyle ?? .unspecified
-    }
-
-    private static func paint(_ style: UIUserInterfaceStyle) {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         for scene in scenes {
-            scene.traitOverrides.userInterfaceStyle = style
             for window in scene.windows {
                 window.overrideUserInterfaceStyle = style
                 if let root = window.rootViewController {

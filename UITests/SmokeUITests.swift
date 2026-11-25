@@ -936,6 +936,9 @@ final class SmokeUITests: XCTestCase {
         shot("review-chat-composer")
         field.tap()
         let keyboard = app.keyboards.firstMatch
+        if !keyboard.waitForExistence(timeout: 2) {
+            field.tap()
+        }
         XCTAssertTrue(keyboard.waitForExistence(timeout: 6))
         XCTAssertLessThanOrEqual(bar.frame.maxY, keyboard.frame.minY + 8)
         shot("review-chat-keyboard")

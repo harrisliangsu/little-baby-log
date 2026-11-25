@@ -50,9 +50,6 @@ struct MainTabView: View {
                             AISettingsView(notice: assistantNotice)
                         }
                 }
-                .sheet(item: $babyForms.sheet) { sheet in
-                    BabyFormSheet(sheet: sheet)
-                }
                 .modifier(DockPage(active: tab == .settings))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -75,6 +72,9 @@ struct MainTabView: View {
                 }
                 .padding(.bottom, 88)
             }
+        }
+        .sheet(item: $babyForms.sheet) { sheet in
+            BabyFormSheet(sheet: sheet)
         }
         .sheet(isPresented: $showChat) {
             AIChatView(baby: baby)
