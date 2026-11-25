@@ -992,10 +992,13 @@ final class SmokeUITests: XCTestCase {
         popNavigation()
         popNavigation()
         tab("今天").tap()
+        let breast = app.buttons["summary-breast"]
+        XCTAssertTrue(breast.waitForExistence(timeout: 6), "today did not settle\n\(app.debugDescription)")
         let order = app.descendants(matching: .any)["home-card-order"]
         XCTAssertTrue(order.waitForExistence(timeout: 4))
+        let sleep = requireSleepCard()
         let before = order.label
-        app.buttons["summary-sleep"].press(forDuration: 0.8, thenDragTo: app.buttons["summary-breast"])
+        sleep.press(forDuration: 0.8, thenDragTo: app.buttons["summary-breast"])
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
         XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 4), .completed, "order stayed \(order.label)")
         let saved = order.label
