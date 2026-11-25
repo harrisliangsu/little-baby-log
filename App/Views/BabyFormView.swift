@@ -27,8 +27,9 @@ struct BabyFormView: View {
     @State private var removePhoto = false
     @State private var confirmDelete = false
 
-    init(baby: Baby?, onSave: @escaping (Baby) -> Void) {
+    init(baby: Baby?, embedsNavigation: Bool = true, onSave: @escaping (Baby) -> Void) {
         self.baby = baby
+        self.embedsNavigation = embedsNavigation
         self.onSave = onSave
         _name = State(initialValue: baby?.name ?? "")
         _birthDate = State(initialValue: baby?.birthDate ?? Date.now)
