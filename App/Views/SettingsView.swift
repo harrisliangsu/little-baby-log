@@ -76,7 +76,7 @@ struct SettingsView: View {
                     Form { babiesSection }
                         .themedList()
                         .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
-                        .fullScreenCover(item: $babySheet) { sheet in
+                        .sheet(item: $babySheet) { sheet in
                             BabyFormSheet(sheet: sheet)
                         }
                 }

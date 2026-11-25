@@ -99,9 +99,9 @@ enum WindowChrome {
         }
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         for scene in scenes {
+            listen(scene)
             for window in scene.windows {
                 window.overrideUserInterfaceStyle = style
-                listen(window)
                 if let root = window.rootViewController {
                     stamp(style, on: root)
                 }
@@ -119,14 +119,13 @@ enum WindowChrome {
         }
     }
 
-    /// Hears a later device change only while the window is not forced.
-    /// Does not write the window. That write is what turned the last trait update into a loop.
-    private static func listen(_ window: UIWindow) {
-        let id = ObjectIdentifier(window)
+    /// The scene stays unforced, so a later device change still arrives here.
+    /// The callback only stores the style. It does not write the window.
+    private static func listen(_ scene: UIWindowScene) {
+        let id = ObjectIdentifier(scene)
         guard listeners[id] == nil else { return }
-        listeners[id] = window.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (window: UIWindow, _: UITraitCollection) in
-            guard window.overrideUserInterfaceStyle == .unspecified else { return }
-            let style = window.traitCollection.userInterfaceStyle
+        listeners[id] = scene.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (scene: UIWindowScene, _: UITraitCollection) in
+            let style = scene.traitCollection.userInterfaceStyle
             DispatchQueue.main.async {
                 ChromeBox.shared.noteSystem(style)
             }

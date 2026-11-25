@@ -119,16 +119,18 @@ struct BabyFormView: View {
                 ? (language == .zh ? "添加宝宝" : "Add a baby")
                 : (language == .zh ? "编辑宝宝" : "Edit baby"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack {
                     Button(UICopy.t(.cancel, language)) { dismiss() }
                         .accessibilityIdentifier("baby-form-cancel")
-                }
-                ToolbarItem(placement: .confirmationAction) {
+                    Spacer()
                     Button(UICopy.t(.save, language)) { save() }
                         .fontWeight(.semibold)
                         .disabled(trimmedName.isEmpty)
+                        .accessibilityIdentifier("baby-form-save")
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
             }
             .confirmationDialog(
                 language == .zh
