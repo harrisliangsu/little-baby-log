@@ -18,6 +18,17 @@ enum BabySheet: Identifiable {
     }
 }
 
+private struct BabyEditPage: View {
+    let id: UUID
+    @FetchRequest(fetchRequest: Baby.lblAllByCreation()) private var babies: FetchedResults<Baby>
+
+    var body: some View {
+        if let baby = babies.first(where: { $0.uuid == id }) {
+            BabyFormView(baby: baby, embedsNavigation: false) { _ in }
+        }
+    }
+}
+
 struct BabyFormSheet: View {
     let sheet: BabySheet
     @AppStorage(Prefs.selectedBabyID) private var selectedBabyID = ""
@@ -78,9 +89,7 @@ struct SettingsView: View {
                         .themedList()
                         .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
                         .navigationDestination(item: $editingBabyID) { id in
-                            if let baby = babies.first(where: { $0.uuid == id }) {
-                                BabyFormView(baby: baby, embedsNavigation: false) { _ in }
-                            }
+                            BabyEditPage(id: id)
                         }
                         .sheet(item: $babySheet) { sheet in
                             BabyFormSheet(sheet: sheet)
