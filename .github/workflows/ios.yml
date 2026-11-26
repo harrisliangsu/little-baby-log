@@ -231,6 +231,8 @@ jobs:
           printf '%s\n' "$KEY" > "$KEY_DIR/AuthKey_${KEY_ID}.p8"
           cat > Config/Local.xcconfig <<EOF
           DEVELOPMENT_TEAM = ${TEAM}
+          CODE_SIGN_IDENTITY = Apple Distribution
+          CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
           EOF
           xcodegen generate
           ARCHIVE="$RUNNER_TEMP/LittleBabyLog.xcarchive"
@@ -245,14 +247,23 @@ jobs:
             <key>destination</key><string>export</string>
             <key>teamID</key><string>${TEAM}</string>
             <key>signingStyle</key><string>automatic</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict>
           </plist>
           EOF
+          # Automatic signing with no identity archives as Apple Development. That
+          # creates a "Created via API" development certificate whose private key
+          # stays on this runner. The next archive then refuses to continue until
+          # that certificate is revoked. Distribution is cloud-managed for the API
+          # key, so the archive does not touch the development certificate.
           xcodebuild -project LittleBabyLog.xcodeproj -scheme LittleBabyLog -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates \
             APS_ENVIRONMENT=production \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="${TEAM}" \
             -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER" \
