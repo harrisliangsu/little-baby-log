@@ -371,6 +371,12 @@ private final class WindowReorder: NSObject, UIGestureRecognizerDelegate {
         true
     }
 
+    /// Other buttons must not see this recognizer. A window-wide press made XCTest wait out the job.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let window = gestureRecognizer.view as? UIWindow else { return false }
+        return card(at: touch.location(in: window), in: window) != nil
+    }
+
     @objc private func handle(_ gesture: UILongPressGestureRecognizer) {
         let point = gesture.location(in: nil)
         if point != .zero { last = point }
@@ -438,37 +444,20 @@ private final class WindowReorder: NSObject, UIGestureRecognizerDelegate {
             return nearest.key
         }
         guard let window else { return nil }
-        var found: (HomeCard, CGFloat)?
-        func walk(_ view: UIView) {
-            if let card = HomeCard.card(forSummaryID: view.accessibilityIdentifier) {
-                let frame = view.convert(view.bounds, to: nil)
-                if frame.width > 8, frame.height > 8, frame.contains(point) {
-                    let area = frame.width * frame.height
-                    if found == nil || area < found!.1 {
-                        found = (card, area)
-                    }
-                }
+        var view = window.hitTest(point, with: nil)
+        while let current = view {
+            switch current.accessibilityIdentifier {
+            case "summary-breast": return .breast
+            case "summary-formula": return .formula
+            case "summary-wet": return .wet
+            case "summary-dirty": return .dirty
+            case "summary-change": return .diaperChange
+            case "summary-sleep": return .sleep
+            default: break
             }
-            for child in view.subviews {
-                walk(child)
-            }
+            view = current.superview
         }
-        walk(window)
-        return found?.0
-    }
-}
-
-private extension HomeCard {
-    static func card(forSummaryID identifier: String?) -> HomeCard? {
-        switch identifier {
-        case "summary-breast": return .breast
-        case "summary-formula": return .formula
-        case "summary-wet": return .wet
-        case "summary-dirty": return .dirty
-        case "summary-change": return .diaperChange
-        case "summary-sleep": return .sleep
-        default: return nil
-        }
+        return nil
     }
 }
 
