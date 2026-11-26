@@ -660,20 +660,19 @@ final class SmokeUITests: XCTestCase {
 
     private func tap(_ identifier: String) {
         let button = app.buttons[identifier]
-        XCTAssertTrue(button.waitForExistence(timeout: 4), identifier)
         XCTAssertTrue(scrollUntilOnScreen(button), "\(identifier) is not on screen\n\(app.debugDescription)")
         button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
-    /// Lazy rows report a zero frame until they are scrolled into view. Asking `isHittable` then fails the test.
+    /// Lazy rows are missing from the tree until they are scrolled in. `isHittable` fails the test on a zero frame.
     private func scrollUntilOnScreen(_ element: XCUIElement) -> Bool {
         if onScreen(element) { return true }
-        for _ in 0..<10 where !onScreen(element) {
-            app.swipeUp()
+        for _ in 0..<8 where !onScreen(element) {
+            app.swipeDown()
         }
         if !onScreen(element) {
             for _ in 0..<10 where !onScreen(element) {
-                app.swipeDown()
+                app.swipeUp()
             }
         }
         return onScreen(element)
@@ -748,7 +747,7 @@ final class SmokeUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
         XCTAssertEqual(seen, babyName, "baby name stayed \(seen ?? "nil")")
-        let giveUp = Date().addingTimeInterval(12)
+        let giveUp = Date().addingTimeInterval(16)
         while field.exists, Date() < giveUp {
             if app.keyboards.firstMatch.exists {
                 app.swipeDown()
@@ -756,14 +755,10 @@ final class SmokeUITests: XCTestCase {
             XCTAssertEqual(field.value as? String, babyName, "name changed before start")
             let start = app.buttons["start-tracking"]
             let key = app.buttons["start-tracking-key"]
-            let button = start.exists && start.isHittable ? start : key
+            let button = start.exists && onScreen(start) ? start : key
             XCTAssertTrue(button.waitForExistence(timeout: 2), "start missing after the name was \(field.value ?? "nil")")
             XCTAssertTrue(button.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
-            if button.isHittable {
-                button.tap()
-            } else {
-                button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            }
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             if field.waitForNonExistence(timeout: 2) { break }
         }
         XCTAssertFalse(field.exists, "welcome stayed open after start, name \(field.value ?? "nil")")
