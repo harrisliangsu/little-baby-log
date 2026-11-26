@@ -1013,7 +1013,9 @@ final class SmokeUITests: XCTestCase {
         let dropTargets = ["summary-wet", "summary-dirty", "summary-change"]
         func dragSleep(skipping used: String?) {
             let sleep = requireSleepCard()
-            let identifier = dropTargets.first { $0 != used && app.buttons[$0].exists }
+            let identifier = dropTargets.first { id in
+                id != used && app.buttons[id].exists && app.buttons[id].isHittable
+            }
             XCTAssertNotNil(identifier, "no card beside sleep\n\(app.debugDescription)")
             let target = app.buttons[identifier!]
             sleep.press(forDuration: 1.5, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.8)
