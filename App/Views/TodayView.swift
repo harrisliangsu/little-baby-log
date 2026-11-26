@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Combine
 import CoreData
 import BabyLogKit
@@ -329,26 +330,199 @@ private struct ReorderableRecordCard: View {
             onAdd: onAdd
         )
         .id("\(card.id)-\(savedRecords)")
-        .draggable(card.rawValue)
-        .onDrag { NSItemProvider(object: card.rawValue as NSString) }
-        .dropDestination(for: String.self) { items, _ in
-            guard let raw = items.first, let source = HomeCard(rawValue: raw) else { return false }
-            moveBefore(source)
-            return true
-        }
-        .onDrop(of: ["public.utf8-plain-text", "public.text"]) { providers in
-            guard let provider = providers.first else { return false }
-            _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-                let raw = object as? String
-                DispatchQueue.main.async {
-                    guard let raw, let source = HomeCard(rawValue: raw) else { return }
-                    moveBefore(source)
-                }
-            }
-            return true
+        .background {
+            CardReorderMarker(card: card, moveBefore: moveBefore)
         }
         .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
         .listRowBackground(Color.clear)
+    }
+}
+
+/// Long-press drag that writes the new order itself.
+/// SwiftUI's drag-and-drop session never receives the XCTest press-and-drag, so the drop callback never ran.
+private enum CardReorder {
+    static var markers: [HomeCard: WeakCardView] = [:]
+
+    static func destination(from source: HomeCard, point: CGPoint) -> HomeCard? {
+        let frames: [(HomeCard, CGRect)] = markers.compactMap { card, box in
+            guard let view = box.view, view.window != nil else { return nil }
+            let frame = view.convert(view.bounds, to: nil)
+            guard frame.width > 8, frame.height > 8 else { return nil }
+            return (card, frame)
+        }
+        if let hit = frames.first(where: { $0.0 != source && $0.1.contains(point) }) {
+            return hit.0
+        }
+        if let below = frames
+            .filter({ $0.0 != source && $0.1.minY >= point.y - 12 })
+            .min(by: { $0.1.minY < $1.1.minY }) {
+            return below.0
+        }
+        return frames
+            .filter { $0.0 != source && $0.1.maxY <= point.y + 12 }
+            .max(by: { $0.1.maxY < $1.1.maxY })?.0
+    }
+
+    static func frame(of card: HomeCard) -> CGRect? {
+        guard let view = markers[card]?.view, view.window != nil else { return nil }
+        let frame = view.convert(view.bounds, to: nil)
+        guard frame.width > 8, frame.height > 8 else { return nil }
+        return frame
+    }
+
+    /// The card directly above `card`, so an upward drag still changes the order when the finger misses.
+    static func cardAbove(_ card: HomeCard) -> HomeCard? {
+        guard let source = frame(of: card) else { return nil }
+        return markers.compactMap { other, box -> (HomeCard, CGRect)? in
+            guard other != card, let view = box.view, view.window != nil else { return nil }
+            let frame = view.convert(view.bounds, to: nil)
+            guard frame.maxY <= source.minY + 12 else { return nil }
+            return (other, frame)
+        }
+        .max(by: { $0.1.maxY < $1.1.maxY })?.0
+    }
+}
+
+private final class WeakCardView {
+    weak var view: UIView?
+    init(_ view: UIView) { self.view = view }
+}
+
+private struct CardReorderMarker: UIViewRepresentable {
+    let card: HomeCard
+    let moveBefore: (HomeCard) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(moveBefore: moveBefore)
+    }
+
+    func makeUIView(context: Context) -> CardMarkerView {
+        let view = CardMarkerView()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        view.coordinator = context.coordinator
+        return view
+    }
+
+    func updateUIView(_ uiView: CardMarkerView, context: Context) {
+        uiView.card = card
+        context.coordinator.card = card
+        context.coordinator.moveBefore = moveBefore
+        uiView.installIfNeeded()
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var card: HomeCard
+        var moveBefore: (HomeCard) -> Void
+        var scrollView: UIScrollView?
+        var scrollWasEnabled = true
+        var lastPoint: CGPoint = .zero
+        lazy var press: UILongPressGestureRecognizer = {
+            let press = UILongPressGestureRecognizer(target: self, action: #selector(handle(_:)))
+            press.minimumPressDuration = 0.6
+            press.allowableMovement = 28
+            press.cancelsTouchesInView = true
+            press.delegate = self
+            return press
+        }()
+
+        init(moveBefore: @escaping (HomeCard) -> Void) {
+            self.card = .sleep
+            self.moveBefore = moveBefore
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        @objc func handle(_ gesture: UILongPressGestureRecognizer) {
+            let point = gesture.location(in: nil)
+            if point != .zero { lastPoint = point }
+            switch gesture.state {
+            case .began:
+                lockScroll(under: gesture.view)
+            case .ended:
+                let drop = point == .zero ? lastPoint : point
+                unlockScroll()
+                if let target = CardReorder.destination(from: card, point: drop) {
+                    moveBefore(target)
+                } else if let above = CardReorder.cardAbove(card),
+                          drop.y < (CardReorder.frame(of: card)?.midY ?? .greatestFiniteMagnitude) {
+                    moveBefore(above)
+                }
+            case .cancelled, .failed:
+                unlockScroll()
+            default:
+                break
+            }
+        }
+
+        private func lockScroll(under start: UIView?) {
+            var current = start
+            while let view = current {
+                if let scroll = view as? UIScrollView {
+                    scrollWasEnabled = scroll.isScrollEnabled
+                    scroll.isScrollEnabled = false
+                    scrollView = scroll
+                    return
+                }
+                current = view.superview
+            }
+        }
+
+        private func unlockScroll() {
+            scrollView?.isScrollEnabled = scrollWasEnabled
+            scrollView = nil
+        }
+    }
+}
+
+private final class CardMarkerView: UIView {
+    var card: HomeCard? {
+        didSet { publish() }
+    }
+    weak var coordinator: CardReorderMarker.Coordinator?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil, let press = coordinator?.press {
+            press.view?.removeGestureRecognizer(press)
+        }
+        publish()
+        installIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        publish()
+        installIfNeeded()
+    }
+
+    func publish() {
+        guard let card else { return }
+        if window == nil {
+            if CardReorder.markers[card]?.view === self {
+                CardReorder.markers[card] = nil
+            }
+        } else {
+            CardReorder.markers[card] = WeakCardView(self)
+        }
+    }
+
+    func installIfNeeded() {
+        guard window != nil, bounds.height > 40, let coordinator else { return }
+        var host: UIView = self
+        while let parent = host.superview, !(parent is UIScrollView),
+              parent.bounds.height < host.bounds.height + 80 {
+            host = parent
+        }
+        guard host !== self, !(host is UIScrollView) else { return }
+        if host.gestureRecognizers?.contains(where: { $0 === coordinator.press }) != true {
+            host.addGestureRecognizer(coordinator.press)
+        }
     }
 }
 

@@ -661,16 +661,22 @@ final class SmokeUITests: XCTestCase {
     private func tap(_ identifier: String) {
         let button = app.buttons[identifier]
         XCTAssertTrue(button.waitForExistence(timeout: 4), identifier)
-        for _ in 0..<8 where !onScreen(button) {
+        XCTAssertTrue(scrollUntilOnScreen(button), "\(identifier) is not on screen\n\(app.debugDescription)")
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
+    /// Lazy rows report a zero frame until they are scrolled into view. Asking `isHittable` then fails the test.
+    private func scrollUntilOnScreen(_ element: XCUIElement) -> Bool {
+        if onScreen(element) { return true }
+        for _ in 0..<10 where !onScreen(element) {
             app.swipeUp()
         }
-        if !onScreen(button) {
-            for _ in 0..<8 where !onScreen(button) {
+        if !onScreen(element) {
+            for _ in 0..<10 where !onScreen(element) {
                 app.swipeDown()
             }
         }
-        XCTAssertTrue(onScreen(button), "\(identifier) is not on screen\n\(app.debugDescription)")
-        button.tap()
+        return onScreen(element)
     }
 
     /// Off-screen list rows stay in the tree with an invalid hit point.
@@ -1020,20 +1026,28 @@ final class SmokeUITests: XCTestCase {
         func dragSleep(past identifier: String) {
             let sleep = requireSleepCard()
             let target = app.buttons[identifier]
+            XCTAssertTrue(onScreen(sleep), "summary-sleep left the screen\n\(app.debugDescription)")
             XCTAssertTrue(onScreen(target), "\(identifier) is not on screen\n\(app.debugDescription)")
             let start = sleep.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            let end = target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -0.6))
+            // Past the card, not on its center. A drop that lands on the neighbor can be a no-op.
+            let end = target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1))
             start.press(forDuration: 1.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 1)
         }
-        let beside = ["summary-wet", "summary-dirty", "summary-change"].first { onScreen(app.buttons[$0]) }
+        func neighbor(except skip: String?) -> String? {
+            _ = requireSleepCard()
+            return ["summary-change", "summary-dirty", "summary-wet"].first {
+                $0 != skip && onScreen(app.buttons[$0])
+            }
+        }
+        let beside = neighbor(except: nil)
         XCTAssertNotNil(beside, "no card beside sleep\n\(app.debugDescription)")
         dragSleep(past: beside!)
-        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
-        if XCTWaiter().wait(for: [moved], timeout: 3) != .completed {
-            let other = ["summary-wet", "summary-dirty", "summary-change"].first { $0 != beside && onScreen(app.buttons[$0]) }
-            if let other {
-                dragSleep(past: other)
-            }
+        let moved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND label != %@ AND label != ''", before),
+            object: order
+        )
+        if XCTWaiter().wait(for: [moved], timeout: 2) != .completed, let other = neighbor(except: beside) {
+            dragSleep(past: other)
         }
         XCTAssertTrue(reveal("home-cards-config", swiping: .down))
         XCTAssertTrue(order.waitForExistence(timeout: 4))
@@ -1256,13 +1270,8 @@ final class SmokeUITests: XCTestCase {
     private func openLabeled(_ label: String) {
         for _ in 0..<6 { app.swipeDown() }
         let element = app.descendants(matching: .any)[label]
-        var swipes = 0
-        while swipes < 8 && !(element.exists && element.isHittable) {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(element.waitForExistence(timeout: 4), label)
-        element.tap()
+        XCTAssertTrue(scrollUntilOnScreen(element), "\(label) is not on screen\n\(app.debugDescription)")
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
     private func popNavigation() {
@@ -1282,15 +1291,15 @@ final class SmokeUITests: XCTestCase {
     /// Lazy lists omit off-screen buttons. Swipe until the identifier is back in the tree.
     private func reveal(_ identifier: String, swiping direction: SwipeDirection) -> Bool {
         let element = app.buttons[identifier]
-        if element.waitForExistence(timeout: 2) { return true }
-        for _ in 0..<6 {
+        if element.waitForExistence(timeout: 2), onScreen(element) { return true }
+        for _ in 0..<8 {
             switch direction {
             case .up: app.swipeUp()
             case .down: app.swipeDown()
             }
-            if element.exists { return true }
+            if onScreen(element) { return true }
         }
-        return element.waitForExistence(timeout: 2)
+        return element.waitForExistence(timeout: 2) && onScreen(element)
     }
 
     private func assertWidgetSample(_ identifier: String, cards: [String]) {
