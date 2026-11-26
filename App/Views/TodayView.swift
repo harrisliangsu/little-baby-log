@@ -91,9 +91,21 @@ struct TodayView: View {
                         )
                         .id("\(card.id)-\(savedRecords)")
                         .draggable(card.rawValue)
+                        .onDrag { NSItemProvider(object: card.rawValue as NSString) }
                         .dropDestination(for: String.self) { items, _ in
                             guard let raw = items.first, let source = HomeCard(rawValue: raw) else { return false }
                             saveLayout(layout.placing(source, before: card))
+                            return true
+                        }
+                        .onDrop(of: ["public.utf8-plain-text", "public.text"]) { providers in
+                            guard let provider = providers.first else { return false }
+                            _ = provider.loadObject(ofClass: NSString.self) { object, _ in
+                                let raw = object as? String
+                                DispatchQueue.main.async {
+                                    guard let raw, let source = HomeCard(rawValue: raw) else { return }
+                                    saveLayout(layout.placing(source, before: card))
+                                }
+                            }
                             return true
                         }
                         .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))

@@ -660,19 +660,26 @@ final class SmokeUITests: XCTestCase {
 
     private func tap(_ identifier: String) {
         let button = app.buttons[identifier]
-        if !(button.exists && button.isHittable) {
-            for _ in 0..<6 {
+        XCTAssertTrue(button.waitForExistence(timeout: 4), identifier)
+        for _ in 0..<8 where !onScreen(button) {
+            app.swipeUp()
+        }
+        if !onScreen(button) {
+            for _ in 0..<8 where !onScreen(button) {
                 app.swipeDown()
-                if button.exists && button.isHittable { break }
             }
         }
-        var swipes = 0
-        while swipes < 6 && !(button.exists && button.isHittable) {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(button.waitForExistence(timeout: 4), identifier)
+        XCTAssertTrue(onScreen(button), "\(identifier) is not on screen\n\(app.debugDescription)")
         button.tap()
+    }
+
+    /// Off-screen list rows stay in the tree with an invalid hit point.
+    private func onScreen(_ element: XCUIElement) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        guard frame.width > 8, frame.height > 8 else { return false }
+        let visible = frame.intersection(app.frame)
+        return visible.width > 8 && visible.height > 8
     }
 
     private func logFormula(millilitres: String) {
@@ -1010,26 +1017,27 @@ final class SmokeUITests: XCTestCase {
         let order = app.descendants(matching: .any)["home-card-order"]
         XCTAssertTrue(order.waitForExistence(timeout: 4))
         let before = order.label
-        let dropTargets = ["summary-wet", "summary-dirty", "summary-change"]
-        func dragSleep(skipping used: String?) {
+        func dragSleep(past identifier: String) {
             let sleep = requireSleepCard()
-            let identifier = dropTargets.first { id in
-                id != used && app.buttons[id].exists && app.buttons[id].isHittable
-            }
-            XCTAssertNotNil(identifier, "no card beside sleep\n\(app.debugDescription)")
-            let target = app.buttons[identifier!]
-            sleep.press(forDuration: 1.5, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.8)
+            let target = app.buttons[identifier]
+            XCTAssertTrue(onScreen(target), "\(identifier) is not on screen\n\(app.debugDescription)")
+            let start = sleep.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let end = target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -0.6))
+            start.press(forDuration: 1.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 1)
         }
-        dragSleep(skipping: nil)
+        let beside = ["summary-wet", "summary-dirty", "summary-change"].first { onScreen(app.buttons[$0]) }
+        XCTAssertNotNil(beside, "no card beside sleep\n\(app.debugDescription)")
+        dragSleep(past: beside!)
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
+        if XCTWaiter().wait(for: [moved], timeout: 3) != .completed {
+            let other = ["summary-wet", "summary-dirty", "summary-change"].first { $0 != beside && onScreen(app.buttons[$0]) }
+            if let other {
+                dragSleep(past: other)
+            }
+        }
         XCTAssertTrue(reveal("home-cards-config", swiping: .down))
         XCTAssertTrue(order.waitForExistence(timeout: 4))
-        if order.label == before {
-            dragSleep(skipping: dropTargets.first { app.buttons[$0].exists })
-            XCTAssertTrue(reveal("home-cards-config", swiping: .down))
-            XCTAssertTrue(order.waitForExistence(timeout: 4))
-        }
-        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: order)
-        XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 4), .completed, "order stayed \(order.label)")
+        XCTAssertNotEqual(order.label, before, "order stayed \(order.label)")
         let saved = order.label
         relaunchFromHomeScreen()
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
