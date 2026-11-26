@@ -172,6 +172,7 @@ final class SmokeUITests: XCTestCase {
         let probe = app.descendants(matching: .any)["appearance-scheme"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
         XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "appearance stayed \(probe.label) after choosing \(expected)")
+        assertRendered(expected, name: "\(name)-page")
         XCTAssertEqual(app.descendants(matching: .any)["appearance-\(expected)"].value as? String, "selected")
         XCTAssertEqual(app.descendants(matching: .any)["style-classic"].value as? String, "selected")
         XCTAssertEqual(app.descendants(matching: .any)["style-liquidGlass"].value as? String, "unselected")
@@ -203,6 +204,20 @@ final class SmokeUITests: XCTestCase {
             label = chinese ? "浅色" : "Light"
         }
         return app.buttons[label]
+    }
+
+    private func assertRendered(_ expected: String, name: String) {
+        let screenshot = XCUIScreen.main.screenshot()
+        let luma = averageLuminance(screenshot.image)
+        if expected == "dark" {
+            XCTAssertLessThan(luma, 0.45, "\(name) luminance \(luma) is still light")
+        } else {
+            XCTAssertGreaterThan(luma, 0.55, "\(name) luminance \(luma) is still dark")
+        }
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func captureCheckedAppearance(_ expected: String, name: String) {
@@ -645,19 +660,31 @@ final class SmokeUITests: XCTestCase {
 
     private func tap(_ identifier: String) {
         let button = app.buttons[identifier]
-        if !(button.exists && button.isHittable) {
-            for _ in 0..<6 {
-                app.swipeDown()
-                if button.exists && button.isHittable { break }
+        XCTAssertTrue(scrollUntilOnScreen(button), "\(identifier) is not on screen\n\(app.debugDescription)")
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
+    /// Lazy rows are missing from the tree until they are scrolled in. `isHittable` fails the test on a zero frame.
+    private func scrollUntilOnScreen(_ element: XCUIElement) -> Bool {
+        if onScreen(element) { return true }
+        for _ in 0..<8 where !onScreen(element) {
+            app.swipeDown()
+        }
+        if !onScreen(element) {
+            for _ in 0..<10 where !onScreen(element) {
+                app.swipeUp()
             }
         }
-        var swipes = 0
-        while swipes < 6 && !(button.exists && button.isHittable) {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(button.waitForExistence(timeout: 4), identifier)
-        button.tap()
+        return onScreen(element)
+    }
+
+    /// Off-screen list rows stay in the tree with an invalid hit point.
+    private func onScreen(_ element: XCUIElement) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        guard frame.width > 8, frame.height > 8 else { return false }
+        let visible = frame.intersection(app.frame)
+        return visible.width > 8 && visible.height > 8
     }
 
     private func logFormula(millilitres: String) {
@@ -682,8 +709,13 @@ final class SmokeUITests: XCTestCase {
         let save = tapSave("formula")
         XCTAssertTrue(save.waitForNonExistence(timeout: 4), "formula form stayed open")
         let card = element("summary-formula")
-        let showed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", millilitres), object: card)
-        XCTAssertEqual(XCTWaiter().wait(for: [showed], timeout: 4), .completed, "formula card stayed \(card.label) \(saveTrace)")
+        let deadline = Date().addingTimeInterval(4)
+        var label = card.label
+        while !label.contains(millilitres), Date() < deadline {
+            label = card.label
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertTrue(label.contains(millilitres), "formula card stayed \(label) \(saveTrace)")
     }
 
     private func saveCurrentForm(_ addIdentifier: String) {
@@ -703,20 +735,33 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 8))
         if (field.value as? String) != babyName {
             field.tap()
+            if !app.keyboards.firstMatch.waitForExistence(timeout: 2) {
+                field.tap()
+            }
             field.typeText(babyName)
         }
-        let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", babyName), object: field)
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [committed], timeout: 8),
-            .completed,
-            "baby name stayed \(field.value ?? "nil")"
-        )
-        let key = app.buttons["start-tracking-key"]
-        let start = app.buttons["start-tracking"]
-        let target = key.exists && key.isHittable ? key : start
-        XCTAssertTrue(target.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
-        target.tap()
-        XCTAssertTrue(field.waitForNonExistence(timeout: 4), "welcome stayed open after start")
+        let deadline = Date().addingTimeInterval(8)
+        var seen = field.value as? String
+        while seen != babyName, Date() < deadline {
+            seen = field.value as? String
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual(seen, babyName, "baby name stayed \(seen ?? "nil")")
+        let giveUp = Date().addingTimeInterval(16)
+        while field.exists, Date() < giveUp {
+            if app.keyboards.firstMatch.exists {
+                app.swipeDown()
+            }
+            XCTAssertEqual(field.value as? String, babyName, "name changed before start")
+            let start = app.buttons["start-tracking"]
+            let key = app.buttons["start-tracking-key"]
+            let button = start.exists && onScreen(start) ? start : key
+            XCTAssertTrue(button.waitForExistence(timeout: 2), "start missing after the name was \(field.value ?? "nil")")
+            XCTAssertTrue(button.isEnabled, "start stayed disabled after the name was \(field.value ?? "nil")")
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            if field.waitForNonExistence(timeout: 2) { break }
+        }
+        XCTAssertFalse(field.exists, "welcome stayed open after start, name \(field.value ?? "nil")")
     }
 
     /// Taps the save control that is actually hittable. Does not dismiss the keyboard first.
@@ -918,6 +963,9 @@ final class SmokeUITests: XCTestCase {
         shot("review-chat-composer")
         field.tap()
         let keyboard = app.keyboards.firstMatch
+        if !keyboard.waitForExistence(timeout: 2) {
+            field.tap()
+        }
         XCTAssertTrue(keyboard.waitForExistence(timeout: 6))
         XCTAssertLessThanOrEqual(bar.frame.maxY, keyboard.frame.minY + 8)
         shot("review-chat-keyboard")
@@ -925,6 +973,117 @@ final class SmokeUITests: XCTestCase {
 
     /// Opens the screens this build can reach in the simulator and keeps a screenshot of each.
     /// A missing control fails the test. Screens that need a microphone, a real model, or SpringBoard are not opened.
+    func testAppearanceRelationDetailAndOrder() {
+        app.launchArguments += ["-lbl-ui-reset"]
+        app.launch()
+        createBabyNamed("Beibei")
+        tab("设置").tap()
+        let appearance = app.descendants(matching: .any)["settings-module-appearance"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 6))
+        appearance.tap()
+        chooseAppearance("light")
+        assertRendered("light", name: "cycle-light")
+        chooseAppearance("dark")
+        assertRendered("dark", name: "cycle-dark")
+        chooseAppearance("light")
+        assertRendered("light", name: "cycle-light-again")
+        XCTAssertEqual(app.descendants(matching: .any)["style-classic"].value as? String, "selected")
+        app.descendants(matching: .any)["style-liquidGlass"].tap()
+        let glass = app.descendants(matching: .any)["style-applied"]
+        let glassReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "liquidGlass"), object: glass)
+        XCTAssertEqual(XCTWaiter().wait(for: [glassReady], timeout: 8), .completed)
+        XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
+        app.descendants(matching: .any)["style-classic"].tap()
+        chooseAppearance("system")
+        popNavigation()
+        app.descendants(matching: .any)["settings-module-baby"].tap()
+        app.buttons["caregiver-relation"].tap()
+        app.buttons["caregiver-relation-father"].tap()
+        app.buttons["caregiver-relation-save"].tap()
+        let value = app.descendants(matching: .any)["caregiver-relation-value"]
+        let named = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "爸爸"), object: value)
+        XCTAssertEqual(XCTWaiter().wait(for: [named], timeout: 4), .completed, "relation stayed \(value.label)")
+        popNavigation()
+        app.descendants(matching: .any)["settings-module-records"].tap()
+        app.descendants(matching: .any)["settings-home-cards"].tap()
+        let details = app.switches["record-details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["detail-formula"].exists)
+        setSwitch(details, on: true)
+        popNavigation()
+        popNavigation()
+        tab("今天").tap()
+        XCTAssertTrue(reveal("summary-breast", swiping: .down), "today did not settle\n\(app.debugDescription)")
+        XCTAssertTrue(reveal("home-cards-config", swiping: .down), "today header did not settle\n\(app.debugDescription)")
+        let order = app.descendants(matching: .any)["home-card-order"]
+        XCTAssertTrue(order.waitForExistence(timeout: 4))
+        let before = order.label
+        func dragSleep(past identifier: String) {
+            let sleep = requireSleepCard()
+            let target = app.buttons[identifier]
+            XCTAssertTrue(onScreen(sleep), "summary-sleep left the screen\n\(app.debugDescription)")
+            XCTAssertTrue(onScreen(target), "\(identifier) is not on screen\n\(app.debugDescription)")
+            let start = sleep.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            // Past the card, not on its center. A drop that lands on the neighbor can be a no-op.
+            let end = target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1))
+            start.press(forDuration: 1.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 1)
+        }
+        func neighbor(except skip: String?) -> String? {
+            _ = requireSleepCard()
+            return ["summary-change", "summary-dirty", "summary-wet"].first {
+                $0 != skip && onScreen(app.buttons[$0])
+            }
+        }
+        let beside = neighbor(except: nil)
+        XCTAssertNotNil(beside, "no card beside sleep\n\(app.debugDescription)")
+        dragSleep(past: beside!)
+        let moved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND label != %@ AND label != ''", before),
+            object: order
+        )
+        if XCTWaiter().wait(for: [moved], timeout: 2) != .completed, let other = neighbor(except: beside) {
+            dragSleep(past: other)
+        }
+        XCTAssertTrue(reveal("home-cards-config", swiping: .down))
+        XCTAssertTrue(order.waitForExistence(timeout: 4))
+        XCTAssertNotEqual(order.label, before, "order stayed \(order.label)")
+        let saved = order.label
+        relaunchFromHomeScreen()
+        XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
+        XCTAssertEqual(app.descendants(matching: .any)["home-card-order"].label, saved)
+        tab("设置").tap()
+        app.descendants(matching: .any)["settings-module-baby"].tap()
+        XCTAssertEqual(app.descendants(matching: .any)["caregiver-relation-value"].label, "爸爸")
+    }
+
+    /// CI runs this only after `simctl ui appearance dark`, and only after follow-system was saved.
+    /// The test bundle is an iOS target, so it cannot call simctl itself.
+    func testSavedSystemModeOpensDark() {
+        app.launch()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 8))
+        let deadline = Date().addingTimeInterval(8)
+        var scheme = probe.label
+        while scheme != "dark", Date() < deadline {
+            scheme = probe.label
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertEqual(scheme, "dark", "follow system stayed \(scheme)")
+        assertRendered("dark", name: "cycle-system-dark")
+    }
+
+    private func chooseAppearance(_ raw: String) {
+        let option = app.descendants(matching: .any)["appearance-\(raw)"]
+        XCTAssertTrue(option.waitForExistence(timeout: 4))
+        option.tap()
+        let probe = app.descendants(matching: .any)["appearance-scheme"]
+        let expected = raw == "system" ? "dark" : raw
+        if raw != "system" {
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
+            XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: 8), .completed, "scheme stayed \(probe.label)")
+        }
+    }
+
     func testReviewSurfacesLeaveScreenshots() throws {
         app.launchArguments += ["-lbl-ui-reset"]
         app.launch()
@@ -1006,15 +1165,24 @@ final class SmokeUITests: XCTestCase {
         tab("设置").tap()
         for _ in 0..<4 { app.swipeDown() }
         shot("review-18-settings")
-        let records = app.descendants(matching: .any)["settings-module-records"]
-        if records.waitForExistence(timeout: 4) { records.tap() }
+        let babyModule = app.descendants(matching: .any)["settings-module-baby"]
+        XCTAssertTrue(babyModule.waitForExistence(timeout: 4))
+        babyModule.tap()
         let baby = app.buttons["settings-baby"]
         XCTAssertTrue(baby.waitForExistence(timeout: 4))
         baby.tap()
-        XCTAssertTrue(app.textFields["baby-name"].waitForExistence(timeout: 4))
+        let babyName = app.textFields["baby-name"]
+        XCTAssertTrue(babyName.waitForExistence(timeout: 8), "edit form did not open\n\(app.debugDescription)")
+        let title = app.navigationBars["编辑宝宝"]
+        XCTAssertTrue(title.waitForExistence(timeout: 4), "edit title missing\n\(app.debugDescription)")
+        let cancel = app.navigationBars.buttons["取消"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 4), "cancel missing\n\(app.debugDescription)")
+        XCTAssertTrue(cancel.isHittable, "cancel not hittable\n\(app.debugDescription)")
         shot("review-19-baby-form")
-        app.navigationBars.buttons["取消"].tap()
+        cancel.tap()
+        popNavigation()
 
+        openLabeled("settings-module-records")
         openLabeled("settings-home-cards")
         shot("review-21-home-cards")
         app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -1097,13 +1265,8 @@ final class SmokeUITests: XCTestCase {
     private func openLabeled(_ label: String) {
         for _ in 0..<6 { app.swipeDown() }
         let element = app.descendants(matching: .any)[label]
-        var swipes = 0
-        while swipes < 8 && !(element.exists && element.isHittable) {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(element.waitForExistence(timeout: 4), label)
-        element.tap()
+        XCTAssertTrue(scrollUntilOnScreen(element), "\(label) is not on screen\n\(app.debugDescription)")
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
     private func popNavigation() {
@@ -1123,15 +1286,15 @@ final class SmokeUITests: XCTestCase {
     /// Lazy lists omit off-screen buttons. Swipe until the identifier is back in the tree.
     private func reveal(_ identifier: String, swiping direction: SwipeDirection) -> Bool {
         let element = app.buttons[identifier]
-        if element.waitForExistence(timeout: 2) { return true }
-        for _ in 0..<6 {
+        if element.waitForExistence(timeout: 2), onScreen(element) { return true }
+        for _ in 0..<8 {
             switch direction {
             case .up: app.swipeUp()
             case .down: app.swipeDown()
             }
-            if element.exists { return true }
+            if onScreen(element) { return true }
         }
-        return element.waitForExistence(timeout: 2)
+        return element.waitForExistence(timeout: 2) && onScreen(element)
     }
 
     private func assertWidgetSample(_ identifier: String, cards: [String]) {

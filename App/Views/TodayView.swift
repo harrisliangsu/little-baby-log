@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Combine
 import CoreData
 import BabyLogKit
@@ -80,20 +81,22 @@ struct TodayView: View {
 
                 Section {
                     ForEach(layout.recordCards) { card in
-                        CareCardRow(
+                        ReorderableRecordCard(
                             card: card,
-                            prominent: true,
                             detailed: layout.isDetailed(card),
                             care: care,
                             now: now,
+                            savedRecords: savedRecords,
+                            siblings: layout.recordCards,
                             onOpen: { timelineCard = card },
-                            onAdd: { add(card) }
+                            onAdd: { add(card) },
+                            move: { source, target in
+                                saveLayout(layout.placing(source, before: target))
+                            }
                         )
-                        .id("\(card.id)-\(savedRecords)")
-                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                        .listRowBackground(Color.clear)
                     }
                 } header: {
+                    VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         Text(UICopy.t(.newPrefix, language))
                         Spacer(minLength: 8)
@@ -110,6 +113,10 @@ struct TodayView: View {
                         .accessibilityLabel(language == .zh ? "配置记录" : "Choose records")
                     }
                     .textCase(nil)
+                    Text(layout.recordCards.map(\.rawValue).joined(separator: ","))
+                        .frame(width: 1, height: 1)
+                        .accessibilityIdentifier("home-card-order")
+                    }
                 }
                 .themedSection()
 
@@ -262,6 +269,12 @@ struct TodayView: View {
         }
     }
 
+    private func saveLayout(_ next: BabyHomeLayout) {
+        guard let id = baby.uuid else { return }
+        let data = HomeLayoutStore.save(next, babyID: id, into: layoutJSON.isEmpty ? nil : Data(layoutJSON.utf8))
+        layoutJSON = String(decoding: data, as: UTF8.self)
+    }
+
     private func add(_ card: HomeCard) {
         editor = .card(card)
     }
@@ -295,6 +308,227 @@ struct TodayView: View {
         nursing = NursingSheetItem(event: event, suggestedSide: nextSide())
     }
 
+}
+
+private struct ReorderableRecordCard: View {
+    let card: HomeCard
+    let detailed: Bool
+    let care: CareRollup
+    let now: Date
+    let savedRecords: Int
+    let siblings: [HomeCard]
+    let onOpen: () -> Void
+    let onAdd: () -> Void
+    let move: (HomeCard, HomeCard) -> Void
+
+    var body: some View {
+        CareCardRow(
+            card: card,
+            prominent: true,
+            detailed: detailed,
+            care: care,
+            now: now,
+            onOpen: onOpen,
+            onAdd: onAdd
+        )
+        .id("\(card.id)-\(savedRecords)")
+        .background {
+            CardReorderInstaller(card: card, siblings: siblings, move: move)
+        }
+        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+        .listRowBackground(Color.clear)
+    }
+}
+
+/// Sees the long-press drag from the window, because a row-level drag never receives the XCTest touch.
+private final class WindowReorder: NSObject, UIGestureRecognizerDelegate {
+    static let shared = WindowReorder()
+    var siblings: [HomeCard] = []
+    var move: (HomeCard, HomeCard) -> Void = { _, _ in }
+    var frames: [HomeCard: CGRect] = [:]
+    private var installed: Set<ObjectIdentifier> = []
+    private var source: HomeCard?
+    private var start = CGPoint.zero
+    private var last = CGPoint.zero
+    private var scroll: UIScrollView?
+    private var scrollWasEnabled = true
+
+    func install(on window: UIWindow) {
+        let key = ObjectIdentifier(window)
+        guard installed.insert(key).inserted else { return }
+        let press = UILongPressGestureRecognizer(target: self, action: #selector(handle(_:)))
+        press.minimumPressDuration = 0.45
+        press.allowableMovement = 80
+        press.cancelsTouchesInView = false
+        press.delegate = self
+        window.addGestureRecognizer(press)
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+
+    /// Other buttons must not see this recognizer. A window-wide press made XCTest wait out the job.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let window = gestureRecognizer.view as? UIWindow else { return false }
+        return card(at: touch.location(in: window), in: window) != nil
+    }
+
+    @objc private func handle(_ gesture: UILongPressGestureRecognizer) {
+        let point = gesture.location(in: nil)
+        if point != .zero { last = point }
+        let window = gesture.view as? UIWindow
+        switch gesture.state {
+        case .began:
+            start = point == .zero ? last : point
+            source = card(at: start, in: window)
+            holdScroll(at: start, in: window)
+        case .ended, .cancelled:
+            let drop = point == .zero ? last : point
+            commit(drop: drop, in: window)
+            releaseScroll()
+        case .failed:
+            source = nil
+        default:
+            break
+        }
+    }
+
+    private func commit(drop: CGPoint, in window: UIWindow?) {
+        guard let source else { return }
+        let movedUp = drop.y < start.y - 24
+        let movedDown = drop.y > start.y + 24
+        let target = card(at: drop, in: window) ?? ((movedUp || movedDown) ? neighbor(of: source, movingUp: movedUp) : nil)
+        self.source = nil
+        if let target, target != source {
+            move(source, target)
+        }
+    }
+
+    private func holdScroll(at point: CGPoint, in window: UIWindow?) {
+        guard let window, scroll == nil else { return }
+        var view = window.hitTest(point, with: nil)
+        while let current = view {
+            if let scroller = current as? UIScrollView {
+                scrollWasEnabled = scroller.isScrollEnabled
+                scroller.isScrollEnabled = false
+                scroll = scroller
+                return
+            }
+            view = current.superview
+        }
+    }
+
+    private func releaseScroll() {
+        scroll?.isScrollEnabled = scrollWasEnabled
+        scroll = nil
+    }
+
+    private func neighbor(of card: HomeCard, movingUp: Bool) -> HomeCard? {
+        guard let index = siblings.firstIndex(of: card) else { return nil }
+        let next = movingUp ? index - 1 : index + 1
+        guard siblings.indices.contains(next) else { return nil }
+        return siblings[next]
+    }
+
+    /// The card under the finger: our row frame first, then a summary button in the window.
+    private func card(at point: CGPoint, in window: UIWindow?) -> HomeCard? {
+        let hits = frames.filter { item in
+            let frame = item.value
+            return frame.width > 8 && frame.height > 8 && frame.contains(point)
+        }
+        if let nearest = hits.min(by: { $0.value.width * $0.value.height < $1.value.width * $1.value.height }) {
+            return nearest.key
+        }
+        guard let window else { return nil }
+        var view = window.hitTest(point, with: nil)
+        while let current = view {
+            switch current.accessibilityIdentifier {
+            case "summary-breast": return .breast
+            case "summary-formula": return .formula
+            case "summary-wet": return .wet
+            case "summary-dirty": return .dirty
+            case "summary-change": return .diaperChange
+            case "summary-sleep": return .sleep
+            default: break
+            }
+            view = current.superview
+        }
+        return nil
+    }
+}
+
+private struct CardReorderInstaller: UIViewRepresentable {
+    let card: HomeCard
+    let siblings: [HomeCard]
+    let move: (HomeCard, HomeCard) -> Void
+
+    func makeUIView(context: Context) -> ReorderInstallView {
+        let view = ReorderInstallView()
+        view.card = card
+        return view
+    }
+
+    func updateUIView(_ uiView: ReorderInstallView, context: Context) {
+        uiView.card = card
+        uiView.siblings = siblings
+        uiView.move = move
+        uiView.publish()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: ReorderInstallView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
+    }
+}
+
+private final class ReorderInstallView: UIView {
+    var card: HomeCard = .sleep
+    var siblings: [HomeCard] = []
+    var move: (HomeCard, HomeCard) -> Void = { _, _ in }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        publish()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        publish()
+    }
+
+    func publish() {
+        WindowReorder.shared.siblings = siblings
+        WindowReorder.shared.move = move
+        if window == nil {
+            WindowReorder.shared.frames[card] = nil
+            return
+        }
+        let host: UIView?
+        if bounds.height > 8 {
+            host = self
+        } else if let parent = superview, parent.bounds.height > 40, parent.bounds.height < 240 {
+            host = parent
+        } else {
+            host = nil
+        }
+        if let host, host.bounds.width > 8 {
+            WindowReorder.shared.frames[card] = host.convert(host.bounds, to: nil)
+        }
+        guard let window else { return }
+        WindowReorder.shared.install(on: window)
+    }
 }
 
 /// Republishes the save chain so a failed UI assertion can show baby, context, draft, and who closed the sheet.

@@ -98,11 +98,44 @@ def main():
         {"data": [{"type": "builds", "id": build_id}]},
         auth=auth,
     )
-    _, group = request("GET", f"/v1/betaGroups/{GROUP}/builds?filter[version]={version}&limit=5", auth=auth)
-    found = any(item["id"] == build_id for item in group.get("data", []))
-    if not found:
-        raise SystemExit(f"Build {build_id} was not listed on the internal group.")
-    print(f"Build {marketing} ({version}) is in internal group {GROUP}.")
+    deadline = time.time() + 20 * 60
+    while time.time() < deadline:
+        auth = token()
+        listed = group_builds(auth)
+        match = next((item for item in listed if item["id"] == build_id), None)
+        if match is None:
+            print(f"Build {build_id} is not on the internal group yet.")
+            time.sleep(20)
+            continue
+        state = match["attributes"].get("processingState", "")
+        marketing_version = pre_release_version(build_id, auth)
+        if marketing_version != marketing:
+            raise SystemExit(f"Build {build_id} is {marketing_version}, not {marketing}.")
+        if state == "VALID" and match["attributes"].get("expired") is not True:
+            print(f"Build {marketing} ({version}) {build_id} is in internal group {GROUP} and available.")
+            return
+        print(f"Build {build_id} processingState={state}.")
+        time.sleep(20)
+    raise SystemExit(f"Build {build_id} was not available in the internal group.")
+
+
+def group_builds(auth: str) -> list:
+    path = f"/v1/betaGroups/{GROUP}/builds?limit=50"
+    rows = []
+    while path:
+        _, page = request("GET", path, auth=auth)
+        rows.extend(page.get("data", []))
+        nxt = page.get("links", {}).get("next")
+        if isinstance(nxt, str) and nxt.startswith(API):
+            path = nxt[len(API):]
+        else:
+            path = None
+    return rows
+
+
+def pre_release_version(build_id: str, auth: str) -> str:
+    _, payload = request("GET", f"/v1/builds/{build_id}/preReleaseVersion", auth=auth)
+    return payload.get("data", {}).get("attributes", {}).get("version", "")
 
 
 if __name__ == "__main__":

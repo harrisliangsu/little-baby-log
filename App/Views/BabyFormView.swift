@@ -8,6 +8,8 @@ import BabyLogKit
 struct BabyFormView: View {
     let baby: Baby?
     let onSave: (Baby) -> Void
+    /// A sheet needs its own stack. A page already pushed on 宝宝设置 must not add a second one.
+    var embedsNavigation = true
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
@@ -25,8 +27,9 @@ struct BabyFormView: View {
     @State private var removePhoto = false
     @State private var confirmDelete = false
 
-    init(baby: Baby?, onSave: @escaping (Baby) -> Void) {
+    init(baby: Baby?, embedsNavigation: Bool = true, onSave: @escaping (Baby) -> Void) {
         self.baby = baby
+        self.embedsNavigation = embedsNavigation
         self.onSave = onSave
         _name = State(initialValue: baby?.name ?? "")
         _birthDate = State(initialValue: baby?.birthDate ?? Date.now)
@@ -58,13 +61,20 @@ struct BabyFormView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField(UICopy.t(.babyName, language), text: $name)
-                        .textInputAutocapitalization(.words)
-                        .accessibilityIdentifier("baby-name")
-                    DatePicker(
+        if embedsNavigation {
+            NavigationStack { editor }
+        } else {
+            editor
+        }
+    }
+
+    private var editor: some View {
+        Form {
+            Section {
+                TextField(UICopy.t(.babyName, language), text: $name)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("baby-name")
+                DatePicker(
                         UICopy.t(.birthday, language),
                         selection: $birthDate,
                         in: ...latestBirthDate,
@@ -122,11 +132,13 @@ struct BabyFormView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(UICopy.t(.cancel, language)) { dismiss() }
+                        .accessibilityIdentifier("baby-form-cancel")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(UICopy.t(.save, language)) { save() }
                         .fontWeight(.semibold)
                         .disabled(trimmedName.isEmpty)
+                        .accessibilityIdentifier("baby-form-save")
                 }
             }
             .confirmationDialog(
@@ -141,7 +153,6 @@ struct BabyFormView: View {
             } message: {
                 Text(UICopy.t(.deleteBabyBody, language))
             }
-        }
     }
 
     private func save() {

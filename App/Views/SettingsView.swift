@@ -4,7 +4,7 @@ import CoreData
 import UniformTypeIdentifiers
 import BabyLogKit
 
-private enum BabySheet: Identifiable {
+enum BabySheet: Identifiable {
     case add
     case edit(Baby)
 
@@ -18,6 +18,33 @@ private enum BabySheet: Identifiable {
     }
 }
 
+private struct BabyEditPage: View {
+    let id: UUID
+    @FetchRequest(fetchRequest: Baby.lblAllByCreation()) private var babies: FetchedResults<Baby>
+
+    var body: some View {
+        if let baby = babies.first(where: { $0.uuid == id }) {
+            BabyFormView(baby: baby, embedsNavigation: false) { _ in }
+        }
+    }
+}
+
+struct BabyFormSheet: View {
+    let sheet: BabySheet
+    @AppStorage(Prefs.selectedBabyID) private var selectedBabyID = ""
+
+    var body: some View {
+        switch sheet {
+        case .add:
+            BabyFormView(baby: nil) { saved in
+                selectedBabyID = saved.uuid?.uuidString ?? selectedBabyID
+            }
+        case .edit(let baby):
+            BabyFormView(baby: baby) { _ in }
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(\.persistence) private var persistence
     @Environment(\.managedObjectContext) private var context
@@ -26,8 +53,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.selectedBabyID) private var selectedBabyID: String = ""
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
-    @AppStorage(Prefs.appearanceMode) private var appearanceMode: AppearanceMode = Prefs.defaultAppearanceMode
-    @AppStorage(InterfaceStyle.storageKey) private var interfaceStyleRaw = InterfaceStyle.classic.rawValue
+    @ObservedObject private var chrome = ChromeBox.shared
     @AppStorage(Prefs.nightStartMinutes) private var nightStartMinutes = NightSchedule.defaultStartMinutes
     @AppStorage(Prefs.nightEndMinutes) private var nightEndMinutes = NightSchedule.defaultEndMinutes
     @AppStorage(Prefs.dimScreenAtNight) private var dimScreenAtNight = false
@@ -36,6 +62,7 @@ struct SettingsView: View {
     @EnvironmentObject private var activity: BabyActivity
 
     @State private var babySheet: BabySheet?
+    @State private var editingBabyID: UUID?
     @State private var pendingSwitch: UUID?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
@@ -57,9 +84,19 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                settingsLink(language == .zh ? "宝宝与记录" : "Baby and records", "figure.and.child.holdinghands", "settings-module-records") {
+                settingsLink(language == .zh ? "宝宝设置" : "Baby", "figure.and.child.holdinghands", "settings-module-baby") {
+                    Form { babiesSection }
+                        .themedList()
+                        .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
+                        .navigationDestination(item: $editingBabyID) { id in
+                            BabyEditPage(id: id)
+                        }
+                        .sheet(item: $babySheet) { sheet in
+                            BabyFormSheet(sheet: sheet)
+                        }
+                }
+                settingsLink(language == .zh ? "记录设置" : "Records", "list.bullet.rectangle", "settings-module-records") {
                     Form {
-                        babiesSection
                         NavigationLink {
                             HomeCardsSettingsView()
                         } label: {
@@ -70,7 +107,7 @@ struct SettingsView: View {
                         nursingTimerSection
                     }
                     .themedList()
-                    .navigationTitle(language == .zh ? "宝宝与记录" : "Baby and records")
+                    .navigationTitle(language == .zh ? "记录设置" : "Records")
                 }
                 settingsLink(language == .zh ? "外观" : "Appearance", "circle.lefthalf.filled", "settings-module-appearance") {
                     Form { appearanceSection }
@@ -114,16 +151,6 @@ struct SettingsView: View {
         .systemBarChrome()
         .sheet(isPresented: $showWidgetPreview) {
             WidgetPreviewSheet()
-        }
-        .sheet(item: $babySheet) { sheet in
-            switch sheet {
-            case .add:
-                BabyFormView(baby: nil) { saved in
-                    selectedBabyID = saved.uuid?.uuidString ?? selectedBabyID
-                }
-            case .edit(let baby):
-                BabyFormView(baby: baby) { _ in }
-            }
         }
         .sheet(item: $shareItem) { item in
             ActivityView(items: [item.url])
@@ -193,23 +220,25 @@ struct SettingsView: View {
     private var babiesSection: some View {
         Section {
             ForEach(babies, id: \.objectID) { baby in
-                HStack {
-                    Button {
-                        switchBaby(baby)
-                    } label: {
-                        HStack {
-                            BabyRow(baby: baby)
-                            if baby.uuid?.uuidString == selectedBabyID {
-                                Image(systemName: "checkmark")
-                            }
+                Button {
+                    switchBaby(baby)
+                } label: {
+                    HStack {
+                        BabyRow(baby: baby)
+                        if baby.uuid?.uuidString == selectedBabyID {
+                            Image(systemName: "checkmark")
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("settings-baby-switch")
-                    Button(language == .zh ? "编辑" : "Edit") {
-                        babySheet = .edit(baby)
-                    }
-                    .accessibilityIdentifier("settings-baby")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-baby-switch")
+                Button(language == .zh ? "编辑" : "Edit") {
+                    editingBabyID = baby.uuid
+                }
+                .disabled(baby.uuid == nil)
+                .accessibilityIdentifier("settings-baby")
+                if let id = baby.uuid {
+                    BabyRelationLink(babyID: id, babyName: baby.displayName)
                 }
             }
             Button {
@@ -311,22 +340,22 @@ struct SettingsView: View {
         Group {
             Section {
                 ForEach(AppearanceMode.allCases) { mode in
-                    Button {
-                        chooseMode(mode)
-                    } label: {
-                        HStack {
-                            Text(appearanceTitle(mode))
-                                .foregroundStyle(theme.primaryText)
-                            Spacer()
-                            if appearanceMode == mode {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(theme.accent)
-                            }
+                Button {
+                    chrome.setMode(mode)
+                } label: {
+                    HStack {
+                        Text(appearanceTitle(mode))
+                            .foregroundStyle(theme.primaryText)
+                        Spacer()
+                        if chrome.mode == mode {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(theme.accent)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("appearance-\(mode.rawValue)")
-                    .accessibilityValue(appearanceMode == mode ? "selected" : "unselected")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("appearance-\(mode.rawValue)")
+                .accessibilityValue(chrome.mode == mode ? "selected" : "unselected")
                 }
             } header: {
                 Text(UICopy.t(.appearance, language))
@@ -335,47 +364,28 @@ struct SettingsView: View {
 
             Section {
                 ForEach(InterfaceStyle.allCases) { style in
-                    Button {
-                        chooseStyle(style)
-                    } label: {
-                        HStack {
-                            Text(style == .classic ? (language == .zh ? "经典" : "Classic") : (language == .zh ? "液态玻璃" : "Liquid Glass"))
-                                .foregroundStyle(theme.primaryText)
-                            Spacer()
-                            if interfaceStyleRaw == style.rawValue {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(theme.accent)
-                            }
+                Button {
+                    chrome.setStyle(style)
+                } label: {
+                    HStack {
+                        Text(style == .classic ? (language == .zh ? "经典" : "Classic") : (language == .zh ? "液态玻璃" : "Liquid Glass"))
+                            .foregroundStyle(theme.primaryText)
+                        Spacer()
+                        if chrome.style == style {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(theme.accent)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("style-\(style.rawValue)")
-                    .accessibilityValue(interfaceStyleRaw == style.rawValue ? "selected" : "unselected")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("style-\(style.rawValue)")
+                .accessibilityValue(chrome.style == style ? "selected" : "unselected")
                 }
             } header: {
                 Text(language == .zh ? "风格" : "Style")
             }
             .themedSection()
         }
-    }
-
-    /// Writes one group and paints the window in the same turn. The other group is read back and kept.
-    private func chooseMode(_ mode: AppearanceMode) {
-        let next = ChromeSelection(mode: appearanceMode, style: InterfaceStyle(rawValue: interfaceStyleRaw) ?? .classic)
-            .choosingMode(mode)
-        next.save(to: .standard)
-        appearanceMode = next.mode
-        interfaceStyleRaw = next.style.rawValue
-        WindowChrome.apply(mode: next.mode)
-    }
-
-    private func chooseStyle(_ style: InterfaceStyle) {
-        let next = ChromeSelection(mode: appearanceMode, style: InterfaceStyle(rawValue: interfaceStyleRaw) ?? .classic)
-            .choosingStyle(style)
-        next.save(to: .standard)
-        appearanceMode = next.mode
-        interfaceStyleRaw = next.style.rawValue
-        WindowChrome.apply(mode: next.mode)
     }
 
     private var nursingTimerSection: some View {
@@ -596,7 +606,6 @@ struct CaregiverRow: View {
     @State private var isWorking = false
     @State private var refreshTick = 0
     @State private var problem: CloudSyncProblem?
-    @State private var showRelation = false
 
     var body: some View {
         let _ = refreshTick
@@ -623,29 +632,7 @@ struct CaregiverRow: View {
             if let problem {
                 SyncProblemView(problem: problem) { self.problem = nil }
             }
-            if let id = baby.uuid {
-                Button {
-                    showRelation = true
-                } label: {
-                    HStack {
-                        Text(language == .zh ? "与宝宝的关系" : "Relation to this baby")
-                        Spacer()
-                        Text(relationTitle(id))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityIdentifier("caregiver-relation")
-                .sheet(isPresented: $showRelation) {
-                    CaregiverRelationSheet(babyID: id, babyName: baby.displayName)
-                }
-            }
         }
-    }
-
-    private func relationTitle(_ id: UUID) -> String {
-        let store = CaregiverRelationStore()
-        let relation = store.relation(managerID: store.managerID(), babyID: id)
-        return relation?.title(chinese: language == .zh) ?? (language == .zh ? "未设置" : "Not set")
     }
 
     private var shareButtonTitle: String {
@@ -817,6 +804,48 @@ private struct SyncProblemView: View {
                     .font(.footnote)
                     .buttonStyle(.borderless)
             }
+        }
+    }
+}
+
+/// Reads the saved relation for one baby and refreshes as soon as the sheet writes it.
+private struct BabyRelationLink: View {
+    let babyID: UUID
+    let babyName: String
+
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.storedDefault.rawValue
+    @State private var showSheet = false
+    @State private var revision = 0
+
+    private var language: ResolvedLanguage {
+        (AppLanguage(rawValue: languageRaw) ?? .zhHans).resolved()
+    }
+
+    private var title: String {
+        let _ = revision
+        let store = CaregiverRelationStore()
+        return store.relation(managerID: store.managerID(), babyID: babyID)?
+            .title(chinese: language == .zh) ?? (language == .zh ? "未设置" : "Not set")
+    }
+
+    var body: some View {
+        Button {
+            showSheet = true
+        } label: {
+            HStack {
+                Text(language == .zh ? "与宝宝的关系" : "Relation to this baby")
+                Spacer()
+                Text(title)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("caregiver-relation-value")
+            }
+        }
+        .accessibilityIdentifier("caregiver-relation")
+        .sheet(isPresented: $showSheet, onDismiss: { revision += 1 }) {
+            CaregiverRelationSheet(babyID: babyID, babyName: babyName)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CaregiverRelationStore.didChange)) { _ in
+            revision += 1
         }
     }
 }

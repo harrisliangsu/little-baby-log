@@ -79,6 +79,7 @@ public struct CaregiverRelationDraft: Equatable, Sendable {
 public struct CaregiverRelationStore: Sendable {
     public static let relationsKey = "caregiverRelations"
     public static let managerKey = "localCaregiverID"
+    public static let didChange = Notification.Name("caregiverRelationDidChange")
 
     private let defaults: UserDefaults
 
@@ -119,5 +120,6 @@ public struct CaregiverRelationStore: Sendable {
     private func write(_ rows: [CaregiverRelation]) {
         let data = try? JSONEncoder().encode(rows)
         defaults.set(data, forKey: Self.relationsKey)
+        NotificationCenter.default.post(name: Self.didChange, object: nil)
     }
 }
