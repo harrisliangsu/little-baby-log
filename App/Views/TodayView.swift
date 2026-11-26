@@ -80,36 +80,18 @@ struct TodayView: View {
 
                 Section {
                     ForEach(layout.recordCards) { card in
-                        CareCardRow(
+                        ReorderableRecordCard(
                             card: card,
-                            prominent: true,
                             detailed: layout.isDetailed(card),
                             care: care,
                             now: now,
+                            savedRecords: savedRecords,
                             onOpen: { timelineCard = card },
-                            onAdd: { add(card) }
-                        )
-                        .id("\(card.id)-\(savedRecords)")
-                        .draggable(card.rawValue)
-                        .onDrag { NSItemProvider(object: card.rawValue as NSString) }
-                        .dropDestination(for: String.self) { items, _ in
-                            guard let raw = items.first, let source = HomeCard(rawValue: raw) else { return false }
-                            saveLayout(layout.placing(source, before: card))
-                            return true
-                        }
-                        .onDrop(of: ["public.utf8-plain-text", "public.text"]) { providers in
-                            guard let provider = providers.first else { return false }
-                            _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-                                let raw = object as? String
-                                DispatchQueue.main.async {
-                                    guard let raw, let source = HomeCard(rawValue: raw) else { return }
-                                    saveLayout(layout.placing(source, before: card))
-                                }
+                            onAdd: { add(card) },
+                            moveBefore: { source in
+                                saveLayout(layout.placing(source, before: card))
                             }
-                            return true
-                        }
-                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
-                        .listRowBackground(Color.clear)
+                        )
                     }
                 } header: {
                     VStack(alignment: .leading, spacing: 0) {
@@ -324,6 +306,50 @@ struct TodayView: View {
         nursing = NursingSheetItem(event: event, suggestedSide: nextSide())
     }
 
+}
+
+private struct ReorderableRecordCard: View {
+    let card: HomeCard
+    let detailed: Bool
+    let care: CareRollup
+    let now: Date
+    let savedRecords: Int
+    let onOpen: () -> Void
+    let onAdd: () -> Void
+    let moveBefore: (HomeCard) -> Void
+
+    var body: some View {
+        CareCardRow(
+            card: card,
+            prominent: true,
+            detailed: detailed,
+            care: care,
+            now: now,
+            onOpen: onOpen,
+            onAdd: onAdd
+        )
+        .id("\(card.id)-\(savedRecords)")
+        .draggable(card.rawValue)
+        .onDrag { NSItemProvider(object: card.rawValue as NSString) }
+        .dropDestination(for: String.self) { items, _ in
+            guard let raw = items.first, let source = HomeCard(rawValue: raw) else { return false }
+            moveBefore(source)
+            return true
+        }
+        .onDrop(of: ["public.utf8-plain-text", "public.text"]) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadObject(ofClass: NSString.self) { object, _ in
+                let raw = object as? String
+                DispatchQueue.main.async {
+                    guard let raw, let source = HomeCard(rawValue: raw) else { return }
+                    moveBefore(source)
+                }
+            }
+            return true
+        }
+        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+        .listRowBackground(Color.clear)
+    }
 }
 
 /// Republishes the save chain so a failed UI assertion can show baby, context, draft, and who closed the sheet.
