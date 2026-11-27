@@ -190,6 +190,11 @@ final class SmokeUITests: XCTestCase {
             let classic = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "classic"), object: style)
             XCTAssertEqual(XCTWaiter().wait(for: [classic], timeout: 8), .completed, "style stayed \(style.label)")
         }
+        popNavigation(hub: settingsTab)
+        let hub = app.descendants(matching: .any)["appearance-scheme"]
+        let still = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: hub)
+        XCTAssertEqual(XCTWaiter().wait(for: [still], timeout: 4), .completed, "settings hub stayed \(hub.label)")
+        assertRendered(expected, name: "\(name)-settings")
         tab(homeTab).tap()
         captureCheckedAppearance(expected, name: name)
     }
@@ -1066,6 +1071,20 @@ final class SmokeUITests: XCTestCase {
         assertRendered("light", name: "cycle-light")
         chooseAppearance("dark")
         assertRendered("dark", name: "cycle-dark")
+        popNavigation()
+        assertRendered("dark", name: "cycle-dark-settings")
+        assertSettingsModule("settings-module-baby", title: "宝宝")
+        assertSettingsModule("settings-module-records", title: "记录")
+        app.descendants(matching: .any)["settings-module-baby"].tap()
+        XCTAssertTrue(app.navigationBars["宝宝"].waitForExistence(timeout: 4))
+        assertAddBabyIsItsOwnCard()
+        app.buttons["caregiver-relation"].tap()
+        XCTAssertTrue(app.buttons["caregiver-relation-cancel"].waitForExistence(timeout: 4))
+        assertRendered("dark", name: "cycle-dark-sheet")
+        app.buttons["caregiver-relation-cancel"].tap()
+        XCTAssertTrue(app.buttons["caregiver-relation-cancel"].waitForNonExistence(timeout: 4))
+        popNavigation()
+        app.descendants(matching: .any)["settings-module-appearance"].tap()
         chooseAppearance("light")
         assertRendered("light", name: "cycle-light-again")
         XCTAssertEqual(app.descendants(matching: .any)["style-classic"].value as? String, "selected")
@@ -1075,7 +1094,12 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [glassReady], timeout: 8), .completed)
         XCTAssertEqual(app.descendants(matching: .any)["appearance-scheme"].label, "light")
         app.descendants(matching: .any)["style-classic"].tap()
+        chooseAppearance("dark")
         chooseAppearance("system")
+        let followed = app.descendants(matching: .any)["appearance-scheme"]
+        let systemLight = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "light"), object: followed)
+        XCTAssertEqual(XCTWaiter().wait(for: [systemLight], timeout: 8), .completed, "follow system stayed \(followed.label)")
+        assertRendered("light", name: "cycle-system-light")
         popNavigation()
         app.descendants(matching: .any)["settings-module-baby"].tap()
         app.buttons["caregiver-relation"].tap()
@@ -1086,6 +1110,7 @@ final class SmokeUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [named], timeout: 4), .completed, "relation stayed \(value.label)")
         popNavigation()
         app.descendants(matching: .any)["settings-module-records"].tap()
+        XCTAssertTrue(app.navigationBars["记录"].waitForExistence(timeout: 4))
         app.descendants(matching: .any)["settings-home-cards"].tap()
         let details = app.switches["record-details"]
         XCTAssertTrue(details.waitForExistence(timeout: 4))
@@ -1350,14 +1375,36 @@ final class SmokeUITests: XCTestCase {
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
-    private func popNavigation() {
+    private func popNavigation(hub: String = "设置") {
         let back = app.navigationBars.buttons["BackButton"]
         if back.waitForExistence(timeout: 2) {
             back.tap()
         } else if app.navigationBars.buttons.element(boundBy: 0).exists {
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
-        _ = app.navigationBars["设置"].waitForExistence(timeout: 4)
+        _ = app.navigationBars[hub].waitForExistence(timeout: 4)
+    }
+
+    private func assertSettingsModule(_ identifier: String, title: String) {
+        let row = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(row.waitForExistence(timeout: 4), identifier)
+        XCTAssertTrue(row.label.contains(title), "\(identifier) label \(row.label)")
+        XCTAssertFalse(row.label.contains("设置"), "\(identifier) label \(row.label)")
+    }
+
+    /// Each baby is one grouped card. The add button is the next card, so the gap is wider than two rows in the baby card.
+    private func assertAddBabyIsItsOwnCard() {
+        let edit = app.buttons["settings-baby"]
+        let relation = app.buttons["caregiver-relation"]
+        let add = app.buttons["add-baby"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 4))
+        XCTAssertTrue(relation.waitForExistence(timeout: 4))
+        XCTAssertTrue(add.waitForExistence(timeout: 4))
+        XCTAssertGreaterThan(edit.frame.height, 20, "edit row was not laid out")
+        XCTAssertGreaterThan(add.frame.height, 20, "add button was not laid out")
+        let inside = relation.frame.minY - edit.frame.maxY
+        let split = add.frame.minY - relation.frame.maxY
+        XCTAssertGreaterThan(split, max(inside, 0) + 8, "add button stayed on the baby card inside=\(inside) split=\(split)")
     }
 
     private enum SwipeDirection {

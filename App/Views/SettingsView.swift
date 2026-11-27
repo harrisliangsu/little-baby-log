@@ -84,18 +84,19 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                settingsLink(language == .zh ? "宝宝设置" : "Baby", "figure.and.child.holdinghands", "settings-module-baby") {
+                settingsLink(language == .zh ? "宝宝" : "Baby", "figure.and.child.holdinghands", "settings-module-baby") {
                     Form { babiesSection }
                         .themedList()
-                        .navigationTitle(language == .zh ? "宝宝设置" : "Baby")
+                        .navigationTitle(language == .zh ? "宝宝" : "Baby")
                         .navigationDestination(item: $editingBabyID) { id in
                             BabyEditPage(id: id)
                         }
                         .sheet(item: $babySheet) { sheet in
                             BabyFormSheet(sheet: sheet)
+                                .adoptedAppearance()
                         }
                 }
-                settingsLink(language == .zh ? "记录设置" : "Records", "list.bullet.rectangle", "settings-module-records") {
+                settingsLink(language == .zh ? "记录" : "Records", "list.bullet.rectangle", "settings-module-records") {
                     Form {
                         NavigationLink {
                             HomeCardsSettingsView()
@@ -107,7 +108,7 @@ struct SettingsView: View {
                         nursingTimerSection
                     }
                     .themedList()
-                    .navigationTitle(language == .zh ? "记录设置" : "Records")
+                    .navigationTitle(language == .zh ? "记录" : "Records")
                 }
                 settingsLink(language == .zh ? "外观" : "Appearance", "circle.lefthalf.filled", "settings-module-appearance") {
                     Form { appearanceSection }
@@ -151,10 +152,12 @@ struct SettingsView: View {
         .systemBarChrome()
         .sheet(isPresented: $showWidgetPreview) {
             WidgetPreviewSheet()
+                .adoptedAppearance()
         }
         .sheet(item: $shareItem) { item in
             ActivityView(items: [item.url])
                 .presentationDetents([.medium, .large])
+                .adoptedAppearance()
         }
         .alert(
             language == .zh ? "导出失败" : "Couldn't export",
@@ -193,16 +196,19 @@ struct SettingsView: View {
             ImportPreviewSheet(file: request.file, source: request.source, allowsModel: false) { batch in
                 lastImportBatch = batch.uuidString
             }
+            .adoptedAppearance()
         }
         .sheet(item: $manualTable) { table in
             ImportManualMapSheet(table: table.table) { file, source in
                 importRequest = ImportRequest(file: file, source: source)
             }
+            .adoptedAppearance()
         }
         .sheet(item: $assistExcerpt) { excerpt in
             ImportAssistSheet(excerpt: excerpt.text) { file in
                 importRequest = ImportRequest(file: file, source: Data(excerpt.text.utf8))
             }
+            .adoptedAppearance()
         }
     }
 
@@ -217,9 +223,10 @@ struct SettingsView: View {
 
     // MARK: Sections
 
+    @ViewBuilder
     private var babiesSection: some View {
-        Section {
-            ForEach(babies, id: \.objectID) { baby in
+        ForEach(babies, id: \.objectID) { baby in
+            Section {
                 Button {
                     switchBaby(baby)
                 } label: {
@@ -227,6 +234,7 @@ struct SettingsView: View {
                         BabyRow(baby: baby)
                         if baby.uuid?.uuidString == selectedBabyID {
                             Image(systemName: "checkmark")
+                                .foregroundStyle(theme.accent)
                         }
                     }
                 }
@@ -241,13 +249,15 @@ struct SettingsView: View {
                     BabyRelationLink(babyID: id, babyName: baby.displayName)
                 }
             }
+            .themedSection()
+        }
+        Section {
             Button {
                 babySheet = .add
             } label: {
                 Label(UICopy.t(.addBaby, language), systemImage: "plus.circle.fill")
             }
-        } header: {
-            Text(language == .zh ? "宝宝" : "Babies")
+            .accessibilityIdentifier("add-baby")
         }
         .themedSection()
     }
@@ -584,9 +594,6 @@ private struct BabyRow: View {
                 }
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
         }
         .contentShape(Rectangle())
     }
@@ -843,6 +850,7 @@ private struct BabyRelationLink: View {
         .accessibilityIdentifier("caregiver-relation")
         .sheet(isPresented: $showSheet, onDismiss: { revision += 1 }) {
             CaregiverRelationSheet(babyID: babyID, babyName: babyName)
+                .adoptedAppearance()
         }
         .onReceive(NotificationCenter.default.publisher(for: CaregiverRelationStore.didChange)) { _ in
             revision += 1

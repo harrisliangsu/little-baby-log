@@ -74,6 +74,7 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showChat) {
             AIChatView(baby: baby)
+                .adoptedAppearance()
         }
         .sheet(isPresented: $showVoiceNotice) {
             VStack(alignment: .leading, spacing: 16) {
@@ -90,6 +91,7 @@ struct MainTabView: View {
             }
             .padding(20)
             .presentationDetents([.height(220)])
+            .adoptedAppearance()
         }
         .task {
             if ProcessInfo.processInfo.arguments.contains("-lbl-show-chat") {

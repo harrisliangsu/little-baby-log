@@ -138,9 +138,11 @@ private struct HistoryListView: View {
         }
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+                .adoptedAppearance()
         }
         .sheet(item: $nursing) { item in
             BreastTimerView(event: item.event, suggestedSide: item.suggestedSide)
+                .adoptedAppearance()
         }
     }
 

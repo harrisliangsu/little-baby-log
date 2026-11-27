@@ -8,7 +8,7 @@ import BabyLogKit
 struct BabyFormView: View {
     let baby: Baby?
     let onSave: (Baby) -> Void
-    /// A sheet needs its own stack. A page already pushed on 宝宝设置 must not add a second one.
+    /// A sheet needs its own stack. A page already pushed on 宝宝 must not add a second one.
     var embedsNavigation = true
 
     @Environment(\.dismiss) private var dismiss

@@ -107,12 +107,14 @@ struct CategoryTimelineView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+                .adoptedAppearance()
         }
         .sheet(isPresented: $showSummary) {
             AIChatView(baby: baby, summaryTotal: totalLine, summaryFacts: facts, onOpenFact: { id in
                 summaryOpenID = id
                 showSummary = false
             })
+            .adoptedAppearance()
         }
         .onChange(of: showSummary) { _, showing in
             guard !showing, let id = summaryOpenID else { return }

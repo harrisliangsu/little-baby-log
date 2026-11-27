@@ -51,6 +51,7 @@ struct AISettingsView: View {
         }
         .sheet(item: $sheet) { item in
             ProviderConfigSheet(mode: item, catalog: $catalog)
+                .adoptedAppearance()
         }
         .confirmationDialog(
             language == .zh ? "删除这个供应商？" : "Delete this provider?",

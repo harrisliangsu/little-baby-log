@@ -51,9 +51,11 @@ struct VoiceLogSheet: View {
                 AIConsentSheet(preview: preview) {
                     AITasks.shared.run { await submit(preview) }
                 }
+                .adoptedAppearance()
             }
             .sheet(item: $editing) { item in
                 EventEditorView(baby: item.baby, target: .seeded(item.draft))
+                    .adoptedAppearance()
             }
         }
         .accessibilityIdentifier("voice-disclosure")

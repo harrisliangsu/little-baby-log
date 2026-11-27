@@ -135,6 +135,7 @@ struct ImportPreviewSheet: View {
                             file = StandardImporter.parse(data: rebuilt)
                         }
                     })
+                    .adoptedAppearance()
                 }
             }
             .toolbar {
