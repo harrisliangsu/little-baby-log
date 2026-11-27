@@ -660,8 +660,11 @@ final class SmokeUITests: XCTestCase {
 
     private func tap(_ identifier: String) {
         let button = app.buttons[identifier]
-        XCTAssertTrue(scrollUntilOnScreen(button), "\(identifier) is not on screen\n\(app.debugDescription)")
-        button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(
+            scrollUntilOnScreen(button),
+            "\(identifier) is not on screen frame=\(button.frame) app=\(app.frame)\n\(app.debugDescription)"
+        )
+        tapVisible(button)
     }
 
     /// Lazy rows are missing from the tree until they are scrolled in. `isHittable` fails the test on a zero frame.
@@ -675,16 +678,94 @@ final class SmokeUITests: XCTestCase {
                 app.swipeUp()
             }
         }
-        return onScreen(element)
+        return awaitOnScreen(element)
+    }
+
+    /// One snapshot can report an empty frame for a button that is on screen. The next one usually has the real frame.
+    private func awaitOnScreen(_ element: XCUIElement) -> Bool {
+        if onScreen(element) { return true }
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            if onScreen(element) { return true }
+        }
+        return false
     }
 
     /// Off-screen list rows stay in the tree with an invalid hit point.
+    /// Other-log icons are buttons that contain the 记录 button. On the iOS 26 simulator that
+    /// container sometimes reports an empty `frame` while its label is still on screen, so a
+    /// single `frame` read falsely fails the review screenshots.
     private func onScreen(_ element: XCUIElement) -> Bool {
         guard element.exists else { return false }
         let frame = element.frame
+        if visibleEnough(frame) { return true }
+        guard frame.width <= 8 || frame.height <= 8 else { return false }
+        return nestedContentIsOnScreen(element)
+    }
+
+    private func visibleEnough(_ frame: CGRect) -> Bool {
         guard frame.width > 8, frame.height > 8 else { return false }
-        let visible = frame.intersection(app.frame)
+        let bounds = app.frame.width > 8 && app.frame.height > 8 ? app.frame : app.windows.element(boundBy: 0).frame
+        guard bounds.width > 8, bounds.height > 8 else {
+            return frame.minX >= -8 && frame.minY >= -8 && frame.maxX <= 1200 && frame.maxY <= 1400
+        }
+        let visible = frame.intersection(bounds)
         return visible.width > 8 && visible.height > 8
+    }
+
+    /// The nested 记录 button is what makes the outer icon an accessibility container.
+    /// Its label (or that nested button) keeps a normal frame when the container's frame is empty.
+    private func nestedContentIsOnScreen(_ element: XCUIElement) -> Bool {
+        let nested = element.buttons.allElementsBoundByIndex.filter { $0.identifier != element.identifier }
+        guard !nested.isEmpty else { return false }
+        if nested.contains(where: { visibleEnough($0.frame) }) { return true }
+        let nestedFrames = nested.map(\.frame)
+        return element.staticTexts.allElementsBoundByIndex.contains { label in
+            guard visibleEnough(label.frame) else { return false }
+            let point = CGPoint(x: label.frame.midX, y: label.frame.midY)
+            return !nestedFrames.contains { $0.contains(point) }
+        }
+    }
+
+    /// Taps the icon, not the nested 记录 button, even when the container frame is empty.
+    private func tapVisible(_ element: XCUIElement) {
+        if visibleEnough(element.frame) {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            return
+        }
+        if let label = visibleTitle(in: element) {
+            label.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            return
+        }
+        let nested = element.buttons.allElementsBoundByIndex.first {
+            $0.identifier != element.identifier && visibleEnough($0.frame)
+        }
+        if let nested {
+            // The title sits just above the nested 记录 button.
+            let point = CGPoint(x: nested.frame.midX, y: nested.frame.minY - 24)
+            let bounds = app.frame.width > 8 ? app.frame : app.windows.element(boundBy: 0).frame
+            if bounds.contains(point) {
+                let window = app.windows.element(boundBy: 0)
+                let origin = window.frame.origin
+                window.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: point.x - origin.x, dy: point.y - origin.y))
+                    .tap()
+                return
+            }
+        }
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
+    }
+
+    private func visibleTitle(in element: XCUIElement) -> XCUIElement? {
+        let nestedFrames = element.buttons.allElementsBoundByIndex
+            .filter { $0.identifier != element.identifier }
+            .map(\.frame)
+        return element.staticTexts.allElementsBoundByIndex.first { label in
+            guard visibleEnough(label.frame) else { return false }
+            let point = CGPoint(x: label.frame.midX, y: label.frame.midY)
+            return !nestedFrames.contains { $0.contains(point) }
+        }
     }
 
     private func logFormula(millilitres: String) {
