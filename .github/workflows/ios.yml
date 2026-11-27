@@ -414,8 +414,13 @@ jobs:
           test -n "$IPA"
           REPORT="$RUNNER_TEMP/exported-entitlements.txt"
           mkdir -p artifacts
+          # codesign -dv does not print Authority= lines. The 2026-11-27 export
+          # succeeded with flags=0x0(none), a 4747-byte signature, a timestamp,
+          # and a team identifier, then this check rejected it for not containing
+          # the words "Apple Distribution". Read the embedded leaf certificate.
+          set +e
           python3 - "$ARCHIVE" "$IPA" "$REPORT" <<'PY'
-          import plistlib, subprocess, sys, zipfile
+          import os, plistlib, subprocess, sys, tempfile, zipfile
           from pathlib import Path
           archive, ipa, report = map(Path, sys.argv[1:4])
 
@@ -425,13 +430,6 @@ jobs:
           def entitlements(target: Path) -> dict:
               raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(target)], stderr=subprocess.DEVNULL)
               return plistlib.loads(raw)
-
-          def signature(target: Path) -> str:
-              proc = subprocess.run(["codesign", "-dv", str(target)], capture_output=True, text=True)
-              text = proc.stderr + proc.stdout
-              if proc.returncode != 0:
-                  sys.exit(f"codesign -dv {target} failed\n{text}")
-              return text
 
           def line(label, blob):
               aps = blob.get("aps-environment", "(absent)")
@@ -446,6 +444,77 @@ jobs:
                   sys.exit(f"expected one widget appex in {app}, found {[p.name for p in found]}")
               return found[0]
 
+          def subject_fields(text: str) -> dict:
+              fields = {}
+
+              def add(key, value):
+                  key = key.strip()
+                  value = value.strip()
+                  if key:
+                      fields.setdefault(key, value)
+
+              def add_dn(body, separator):
+                  for part in body.split(separator):
+                      if "=" not in part:
+                          continue
+                      subkey, subvalue = part.split("=", 1)
+                      add(subkey, subvalue)
+
+              for raw in text.splitlines():
+                  if "=" not in raw:
+                      continue
+                  key, value = raw.split("=", 1)
+                  key = key.strip()
+                  value = value.strip()
+                  if key.lower().startswith("subject") and value:
+                      if value.startswith("/"):
+                          add_dn(value[1:], "/")
+                      elif "CN=" in value or value.startswith("CN"):
+                          add_dn(value, ",")
+                      continue
+                  short = key.split()[-1] if key else ""
+                  add(short, value)
+              return fields
+
+          def leaf_identity(target: Path):
+              display = subprocess.run(["codesign", "-dv", str(target)], capture_output=True, text=True)
+              shown = display.stderr + display.stdout
+              if display.returncode != 0:
+                  return "", "", f"codesign -dv {target.name} failed\n{shown}"
+              if "Signature=adhoc" in shown or "flags=0x2(adhoc)" in shown:
+                  return "", "", f"{target.name} is ad-hoc signed, not Apple Distribution\n{shown}"
+              with tempfile.TemporaryDirectory(prefix="lbl-certs-") as cert_dir:
+                  prefix = str(Path(cert_dir) / "leaf")
+                  extracted = subprocess.run(
+                      ["codesign", "-d", f"--extract-certificates={prefix}", str(target)],
+                      capture_output=True, text=True,
+                  )
+                  leaf = Path(prefix + "0")
+                  if extracted.returncode != 0 or not leaf.is_file():
+                      found = sorted(p.name for p in Path(cert_dir).iterdir())
+                      detail = extracted.stderr + extracted.stdout
+                      return "", "", (
+                          f"{target.name} signature has no embedded signing certificate "
+                          f"(found {found})\n{shown}{detail}"
+                      )
+                  subject = subprocess.run(
+                      ["openssl", "x509", "-inform", "DER", "-in", str(leaf), "-noout", "-subject", "-nameopt", "multiline"],
+                      capture_output=True, text=True,
+                  )
+                  if subject.returncode != 0:
+                      subject = subprocess.run(
+                          ["openssl", "x509", "-inform", "DER", "-in", str(leaf), "-noout", "-subject"],
+                          capture_output=True, text=True,
+                      )
+                  if subject.returncode != 0:
+                      return "", "", f"openssl could not read the signing certificate for {target.name}\n{subject.stderr}"
+                  fields = subject_fields(subject.stdout)
+              common = fields.get("commonName") or fields.get("CN") or ""
+              team = fields.get("organizationalUnitName") or fields.get("OU") or ""
+              if not common:
+                  return "", "", f"{target.name} signing certificate has no common name\n{subject.stdout}"
+              return common, team, ""
+
           def require_app(label, blob):
               containers = blob.get("com.apple.developer.icloud-container-identifiers") or []
               services = blob.get("com.apple.developer.icloud-services") or []
@@ -457,12 +526,16 @@ jobs:
               if GROUP not in groups:
                   sys.exit(f"{label} is missing the Little Baby Log app group")
 
-          def require_distribution(label, target: Path):
-              text = signature(target)
-              if "Apple Development" in text or "Created via API" in text:
-                  sys.exit(f"{label} is signed with an Apple Development certificate\n{text}")
-              if "Apple Distribution" not in text:
-                  sys.exit(f"{label} is not signed with Apple Distribution\n{text}")
+          def require_distribution(label, common, unit):
+              if "Created via API" in common or common.startswith("Apple Development") or common.startswith("iPhone Developer"):
+                  sys.exit(f"{label} is signed with an Apple Development certificate: {common}")
+              if not common.startswith("Apple Distribution"):
+                  sys.exit(f"{label} is not signed with Apple Distribution: {common}")
+              team = os.environ.get("TEAM", "")
+              if not team:
+                  sys.exit("APPLE_TEAM_ID is not available to the identity check")
+              if unit != team and not common.endswith(f"({team})"):
+                  sys.exit(f"{label} signing certificate is not for the configured Apple team")
 
           unpacked = Path("/tmp/lbl-ipa")
           if unpacked.exists():
@@ -471,30 +544,46 @@ jobs:
           with zipfile.ZipFile(ipa) as zf:
               zf.extractall(unpacked)
           app = next(Path(unpacked, "Payload").glob("*.app"))
+          exported_appex_path = one_appex(app)
           exported = entitlements(app)
-          exported_appex = entitlements(one_appex(app))
+          exported_appex = entitlements(exported_appex_path)
           archived_app = next(archive.glob("Products/Applications/*.app"))
           archived = entitlements(archived_app)
           archived_appex = entitlements(one_appex(archived_app))
+          ipa_cn, ipa_ou, ipa_error = leaf_identity(app)
+          widget_cn, widget_ou, widget_error = leaf_identity(exported_appex_path)
           text = "\n".join([
               line("adhoc-archive", archived),
               line("adhoc-archive-widget", archived_appex),
               line("exported-ipa", exported),
               line("exported-widget", exported_appex),
+              f"exported-ipa-certificate CN={ipa_cn or '(unreadable)'} OU={ipa_ou or '(absent)'}",
+              f"exported-widget-certificate CN={widget_cn or '(unreadable)'} OU={widget_ou or '(absent)'}",
               f"ipa={ipa.name}",
           ]) + "\n"
           report.write_text(text)
-          print(text, end="")
+          print(text, end="", flush=True)
+          if ipa_error:
+              sys.exit(ipa_error)
+          if widget_error:
+              sys.exit(widget_error)
           require_app("adhoc archive", archived)
           if GROUP not in (archived_appex.get("com.apple.security.application-groups") or []):
               sys.exit("ad-hoc archive widget is missing the Little Baby Log app group")
           require_app("exported IPA", exported)
+          if exported.get("get-task-allow") is True:
+              sys.exit("exported IPA has get-task-allow, which is a development entitlement")
           if GROUP not in (exported_appex.get("com.apple.security.application-groups") or []):
               sys.exit("exported widget is missing the Little Baby Log app group")
-          require_distribution("exported IPA", app)
-          require_distribution("exported widget", one_appex(app))
+          require_distribution("exported IPA", ipa_cn, ipa_ou)
+          require_distribution("exported widget", widget_cn, widget_ou)
           PY
-          cp "$REPORT" artifacts/exported-entitlements.txt
+          check_status=$?
+          set -e
+          if [ -f "$REPORT" ]; then
+            cp "$REPORT" artifacts/exported-entitlements.txt
+          fi
+          test "$check_status" -eq 0
           mkdir -p "$HOME/private_keys"
           cp "$KEY_DIR/AuthKey_${KEY_ID}.p8" "$HOME/private_keys/AuthKey_${KEY_ID}.p8"
           xcrun altool --upload-app --file "$IPA" --type ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER"
