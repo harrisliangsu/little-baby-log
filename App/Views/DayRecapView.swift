@@ -35,6 +35,7 @@ struct DayRecapView: View {
         .modifier(RecapTitle(embedded: embedded))
         .sheet(isPresented: $pickingDate) {
             RecapDatePicker(day: $day)
+                .adoptedAppearance()
         }
     }
 
@@ -213,9 +214,11 @@ private struct DayRecapDay: View {
         .onContextChange(context) { changeTick += 1 }
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+                .adoptedAppearance()
         }
         .sheet(item: $nursing) { item in
             BreastTimerView(event: item.event, suggestedSide: item.suggestedSide)
+                .adoptedAppearance()
         }
     }
 

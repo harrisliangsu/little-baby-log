@@ -53,6 +53,7 @@ struct RangeSummarySheet: View {
                 AIConsentSheet(preview: preview) {
                     AITasks.shared.run { await run(preview) }
                 }
+                .adoptedAppearance()
             }
         }
     }

@@ -164,6 +164,7 @@ struct TodayView: View {
         }
         .sheet(isPresented: $showAIDraft) {
             AIChatView(baby: baby)
+                .adoptedAppearance()
         }
         .sheet(isPresented: $showHomeCards) {
             NavigationStack {
@@ -175,6 +176,7 @@ struct TodayView: View {
                         }
                     }
             }
+            .adoptedAppearance()
         }
         .sensoryFeedback(.success, trigger: feedback)
         .onChange(of: link, initial: true) { _, newLink in
@@ -196,15 +198,18 @@ struct TodayView: View {
         .sheet(item: $editor, onDismiss: { savedRecords += 1 }) { target in
             EventEditorView(baby: baby, target: target)
                 .interactiveDismissDisabled(true)
+                .adoptedAppearance()
         }
         .sheet(isPresented: $feedChoice) {
             FeedingMethodSheet(babyName: baby.displayName) { card in
                 feedChoice = false
                 DispatchQueue.main.async { editor = .card(card) }
             }
+            .adoptedAppearance()
         }
         .sheet(item: $nursing) { item in
             BreastTimerView(event: item.event, suggestedSide: item.suggestedSide)
+                .adoptedAppearance()
         }
         .navigationDestination(item: $timelineCard) { card in
             CategoryTimelineView(baby: baby, card: card)

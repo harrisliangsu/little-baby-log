@@ -47,6 +47,7 @@ struct KindHistoryView: View {
         .navigationTitle(UICopy.kind(kind, language))
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
+                .adoptedAppearance()
         }
         .confirmationDialog(
             language == .zh ? "删除这条记录？" : "Delete this record?",

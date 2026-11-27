@@ -61,18 +61,21 @@ struct CareRulesBabySection: View {
             } onDelete: { id in
                 settings.rules.removeAll { $0.id == id }
             }
+            .adoptedAppearance()
         }
         .sheet(isPresented: $showAIDraft) {
             if let baby = (try? context.fetch(Baby.lblAllByCreation()))?.first(where: { $0.uuid == babyID }) {
                 AIChatView(baby: baby, reminder: true, onReminder: { rule in
                     draft = rule
                 })
+                .adoptedAppearance()
             }
         }
         .sheet(item: $draft) { rule in
             CareRuleEditor(rule: rule, language: language) { saved in
                 settings.rules.append(saved)
             } onDelete: { _ in }
+            .adoptedAppearance()
         }
     }
 

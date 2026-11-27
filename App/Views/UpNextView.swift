@@ -81,6 +81,7 @@ struct UpNextView: View {
         }
         .sheet(isPresented: $showsInfo) {
             UpNextInfoSheet(name: baby.displayName, forecast: forecast(at: now) ?? initial)
+                .adoptedAppearance()
         }
     }
 

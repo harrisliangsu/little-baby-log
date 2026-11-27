@@ -2,48 +2,53 @@ import SwiftUI
 import UIKit
 import BabyLogKit
 
-/// Applies the stored appearance to the window immediately.
-/// Light and dark set the window and a concrete color scheme.
-/// Follow-system leaves the color scheme unset and clears the window override.
-/// The one in-memory copy of appearance and style. Settings and the window read this object,
-/// so a tap updates the page that is already open instead of only the stored checkmark.
-@MainActor
-final class ChromeBox: ObservableObject {
-    static let shared = ChromeBox()
+extension Notification.Name {
+    /// Posted when the person picks 浅色, 深色, or 跟随系统. The window listens and updates immediately.
+    static let lblAppearanceModeChanged = Notification.Name("lbl.appearanceMode.changed")
+}
 
-    @Published private(set) var selection: ChromeSelection
-    /// Device appearance, refreshed when the app becomes active.
-    @Published private(set) var systemStyle: UIUserInterfaceStyle
-
-    private init() {
-        selection = ChromeSelection.load(from: .standard)
-        let style = UIScreen.main.traitCollection.userInterfaceStyle
-        systemStyle = style == .dark ? .dark : .light
-        WindowChrome.apply(mode: selection.mode)
-    }
-
-    var mode: AppearanceMode { selection.mode }
-    var style: InterfaceStyle { selection.style }
-
-    /// Follow-system passes nil so a saved choice does not pin the page to an early light reading.
+extension AppearanceMode {
+    /// `nil` means follow the device. A concrete value is only for an explicit light or dark choice.
     var colorScheme: ColorScheme? {
-        switch selection.mode {
+        switch self {
         case .light: return .light
         case .dark: return .dark
         case .system: return nil
         }
     }
+}
+
+/// The one in-memory copy of appearance and style. Settings and the window read this object,
+/// so a tap updates the checkmark on the page that is already open.
+@MainActor
+final class ChromeBox: ObservableObject {
+    static let shared = ChromeBox()
+
+    @Published private(set) var selection: ChromeSelection
+    /// Device appearance, including after the app returns to the foreground.
+    @Published private(set) var systemStyle: UIUserInterfaceStyle
+
+    private init() {
+        selection = ChromeSelection.load(from: .standard)
+        systemStyle = ScreenStyle.current()
+    }
+
+    var mode: AppearanceMode { selection.mode }
+    var style: InterfaceStyle { selection.style }
 
     func noteSystem(_ style: UIUserInterfaceStyle) {
-        guard mode == .system else { return }
-        guard style == .light || style == .dark, style != systemStyle else { return }
-        systemStyle = style
+        let resolved: UIUserInterfaceStyle = style == .dark ? .dark : .light
+        guard resolved != systemStyle else { return }
+        systemStyle = resolved
     }
 
     func setMode(_ mode: AppearanceMode) {
         selection = selection.choosingMode(mode)
         selection.save(to: .standard)
-        WindowChrome.apply(mode: selection.mode)
+        if mode == .system {
+            noteSystem(ScreenStyle.current())
+        }
+        NotificationCenter.default.post(name: .lblAppearanceModeChanged, object: mode)
     }
 
     func setStyle(_ style: InterfaceStyle) {
@@ -52,10 +57,21 @@ final class ChromeBox: ObservableObject {
     }
 }
 
+/// The device's light or dark setting, not a style this app has forced on a window.
+enum ScreenStyle {
+    static func current() -> UIUserInterfaceStyle {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            let style = scene.screen.traitCollection.userInterfaceStyle
+            if style == .light || style == .dark { return style }
+        }
+        return UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+    }
+}
+
 struct AppearanceHost: ViewModifier {
     @ObservedObject private var chrome = ChromeBox.shared
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.scenePhase) private var scenePhase
 
     private var interfaceStyle: InterfaceStyle { chrome.style }
 
@@ -63,7 +79,6 @@ struct AppearanceHost: ViewModifier {
         content
             .environment(\.appTheme, .standard)
             .environment(\.interfaceStyle, interfaceStyle)
-            .preferredColorScheme(chrome.colorScheme)
             .background {
                 if interfaceStyle == .liquidGlass, !reduceTransparency {
                     LinearGradient(
@@ -81,11 +96,12 @@ struct AppearanceHost: ViewModifier {
                     .accessibilityLabel(interfaceStyle.rawValue)
                     .allowsHitTesting(false)
             }
-            .onAppear { WindowChrome.apply(mode: chrome.mode) }
-            .onChange(of: chrome.mode) { _, mode in WindowChrome.apply(mode: mode) }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                chrome.noteSystem(WindowChrome.deviceStyle())
+            .background {
+                DeviceStyleReader { style in
+                    chrome.noteSystem(style)
+                }
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
             }
             .background(alignment: .topLeading) {
                 Text(chrome.systemStyle == .dark ? "dark" : "light")
@@ -97,48 +113,60 @@ struct AppearanceHost: ViewModifier {
     }
 }
 
-@MainActor
-enum WindowChrome {
-    static func deviceStyle() -> UIUserInterfaceStyle {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        for scene in scenes {
-            let style = scene.screen.traitCollection.userInterfaceStyle
-            if style == .dark || style == .light { return style }
-        }
-        return UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
-    }
+/// A sheet keeps its own hosting controller. The window preference updates pages already
+/// on the stack; the sheet content has to ask for the same scheme or it stays on the old one.
+struct AdoptedAppearance: ViewModifier {
+    @ObservedObject private var chrome = ChromeBox.shared
 
-    static func apply(mode: AppearanceMode) {
-        let style: UIUserInterfaceStyle
-        switch mode {
-        case .light: style = .light
-        case .dark: style = .dark
-        case .system: style = .unspecified
-        }
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        for scene in scenes {
-            for window in scene.windows {
-                window.overrideUserInterfaceStyle = style
-                if let root = window.rootViewController {
-                    stamp(style, on: root)
-                }
-            }
-        }
-    }
-
-    /// The open settings page and any sheet keep their own controller.
-    /// The window value alone does not repaint those.
-    private static func stamp(_ style: UIUserInterfaceStyle, on controller: UIViewController) {
-        controller.overrideUserInterfaceStyle = style
-        controller.children.forEach { stamp(style, on: $0) }
-        if let presented = controller.presentedViewController {
-            stamp(style, on: presented)
-        }
+    func body(content: Content) -> some View {
+        content.preferredColorScheme(chrome.mode.colorScheme)
     }
 }
 
 extension View {
     func appearanceHost() -> some View {
         modifier(AppearanceHost())
+    }
+
+    func adoptedAppearance() -> some View {
+        modifier(AdoptedAppearance())
+    }
+}
+
+/// Reports device appearance changes while 跟随系统 is in effect, including a change
+/// that happened while the app was in the background.
+private struct DeviceStyleReader: UIViewControllerRepresentable {
+    var onChange: (UIUserInterfaceStyle) -> Void
+
+    func makeUIViewController(context: Context) -> Reader {
+        let reader = Reader()
+        reader.onChange = onChange
+        return reader
+    }
+
+    func updateUIViewController(_ controller: Reader, context: Context) {
+        controller.onChange = onChange
+    }
+
+    final class Reader: UIViewController {
+        var onChange: ((UIUserInterfaceStyle) -> Void)?
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            view.isUserInteractionEnabled = false
+            view.backgroundColor = .clear
+            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (reader: Reader, _) in
+                reader.report()
+            }
+        }
+
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            report()
+        }
+
+        private func report() {
+            onChange?(ScreenStyle.current())
+        }
     }
 }

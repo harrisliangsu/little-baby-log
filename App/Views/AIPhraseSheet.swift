@@ -70,6 +70,7 @@ struct AIPhraseSheet: View {
                 AIConsentSheet(preview: preview) {
                     AITasks.shared.run { await run(preview) }
                 }
+                .adoptedAppearance()
             }
         }
     }

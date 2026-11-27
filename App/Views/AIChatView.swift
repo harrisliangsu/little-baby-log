@@ -82,11 +82,13 @@ struct AIChatView: View {
             .onChange(of: desk.pendingSend) { _, _ in flushPending() }
             .sheet(item: $editing) { item in
                 EventEditorView(baby: item.baby, target: .seeded(item.draft))
+                    .adoptedAppearance()
             }
             .sheet(item: $desk.pendingForm) { form in
                 EventEditorView(baby: baby, target: .seeded(form.draft), onFinish: { saved in
                     desk.finishForm(saved: saved)
                 })
+                .adoptedAppearance()
             }
         }
     }

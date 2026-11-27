@@ -123,6 +123,7 @@ private struct TrendsContent: View {
         loaded
             .sheet(isPresented: $growthEditor) {
                 EventEditorView(baby: baby, target: .new(.growth))
+                    .adoptedAppearance()
             }
     }
 
