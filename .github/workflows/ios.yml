@@ -231,8 +231,6 @@ jobs:
           printf '%s\n' "$KEY" > "$KEY_DIR/AuthKey_${KEY_ID}.p8"
           cat > Config/Local.xcconfig <<EOF
           DEVELOPMENT_TEAM = ${TEAM}
-          CODE_SIGN_IDENTITY = Apple Distribution
-          CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
           EOF
           xcodegen generate
           ARCHIVE="$RUNNER_TEMP/LittleBabyLog.xcarchive"
@@ -253,21 +251,160 @@ jobs:
           </dict>
           </plist>
           EOF
-          # Automatic signing with no identity archives as Apple Development. That
-          # creates a "Created via API" development certificate whose private key
-          # stays on this runner. The next archive then refuses to continue until
-          # that certificate is revoked. Distribution is cloud-managed for the API
-          # key, so the archive does not touch the development certificate.
+          # project.yml sets CODE_SIGN_STYLE=Automatic, so LittleBabyLog and
+          # LittleBabyLogWidgets are automatically signed for development.
+          # Apple Distribution on that style is the conflict that failed archive
+          # (exit 65): "conflicting provisioning settings". Automatic signing
+          # with no identity, -allowProvisioningUpdates, and this API key
+          # instead archives as Apple Development and creates a "Created via
+          # API" certificate whose private key stays on the runner. Archive
+          # with signing disabled and do not pass the API key here, so this
+          # step cannot mint that certificate. Ad-hoc sign ("-") only to put
+          # the expanded entitlements in a signature; exportArchive keeps
+          # capability entitlements that are already signed. Distribution
+          # signing is the export below, using the cloud-managed Apple
+          # Distribution certificate for this API key.
           xcodebuild -project LittleBabyLog.xcodeproj -scheme LittleBabyLog -configuration Release \
-            -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates \
+            -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
             APS_ENVIRONMENT=production \
-            CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM="${TEAM}" \
-            -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
-            -authenticationKeyID "$KEY_ID" \
-            -authenticationKeyIssuerID "$ISSUER" \
             archive
+          xcodebuild -project LittleBabyLog.xcodeproj -target LittleBabyLog -configuration Release \
+            -destination 'generic/platform=iOS' -showBuildSettings \
+            APS_ENVIRONMENT=production DEVELOPMENT_TEAM="${TEAM}" CODE_SIGNING_ALLOWED=NO \
+            > "$RUNNER_TEMP/app-settings.txt"
+          xcodebuild -project LittleBabyLog.xcodeproj -target LittleBabyLogWidgets -configuration Release \
+            -destination 'generic/platform=iOS' -showBuildSettings \
+            APS_ENVIRONMENT=production DEVELOPMENT_TEAM="${TEAM}" CODE_SIGNING_ALLOWED=NO \
+            > "$RUNNER_TEMP/widget-settings.txt"
+          python3 - "$ARCHIVE" "$RUNNER_TEMP/app-settings.txt" "$RUNNER_TEMP/widget-settings.txt" <<'PY'
+          import plistlib, re, subprocess, sys
+          from pathlib import Path
+
+          archive = Path(sys.argv[1])
+          app_settings_path, widget_settings_path = map(Path, sys.argv[2:4])
+          GROUP = "group.com.harrisliangsu.littlebabylog"
+          CONTAINER = "iCloud.com.harrisliangsu.littlebabylog"
+
+          def settings_of(path: Path) -> dict:
+              found = {}
+              capture = False
+              for line in path.read_text().splitlines():
+                  if line.startswith("Build settings for action"):
+                      found = {}
+                      capture = True
+                      continue
+                  if not capture:
+                      continue
+                  match = re.match(r"    ([A-Za-z0-9_]+) = (.*)$", line)
+                  if match:
+                      found[match.group(1)] = match.group(2)
+              if not found.get("CODE_SIGN_ENTITLEMENTS"):
+                  sys.exit(f"{path.name} did not resolve CODE_SIGN_ENTITLEMENTS")
+              return found
+
+          def substitute(text: str, settings: dict, label: str) -> str:
+              def repl(match):
+                  key = match.group(1) or match.group(2)
+                  if key not in settings:
+                      sys.exit(f"{label} uses $({key}), which the Release build settings do not set")
+                  return settings[key]
+              expanded = text
+              for _ in range(10):
+                  updated = re.sub(r"\$\(([^)]+)\)|\$\{([^}]+)\}", repl, expanded)
+                  if updated == expanded:
+                      break
+                  expanded = updated
+              else:
+                  sys.exit(f"{label} build settings did not finish substituting")
+              if "$(" in expanded or "${" in expanded:
+                  sys.exit(f"{label} still has an unsubstituted build setting")
+              return expanded
+
+          def expand(settings: dict, dest: Path) -> None:
+              src = Path(substitute(settings["CODE_SIGN_ENTITLEMENTS"], settings, "CODE_SIGN_ENTITLEMENTS"))
+              if not src.is_file():
+                  sys.exit(f"entitlements file not found: {src}")
+              dest.write_text(substitute(src.read_text(), settings, str(src)))
+              subprocess.check_call(["plutil", "-lint", str(dest)])
+
+          def sign(target: Path, entitlements) -> None:
+              cmd = ["codesign", "--force", "--sign", "-"]
+              if entitlements is not None:
+                  cmd.extend(["--entitlements", str(entitlements), "--generate-entitlement-der"])
+              cmd.append(str(target))
+              subprocess.check_call(cmd)
+
+          def nested_bins(bundle: Path):
+              found = []
+              for pattern in ("Frameworks/*.framework", "Frameworks/*.dylib"):
+                  found.extend(bundle.glob(pattern))
+              return sorted(found)
+
+          app_settings = settings_of(app_settings_path)
+          widget_settings = settings_of(widget_settings_path)
+          if app_settings.get("APS_ENVIRONMENT") != "production":
+              sys.exit(f"Release APS_ENVIRONMENT is {app_settings.get('APS_ENVIRONMENT')!r}, expected production")
+
+          apps = sorted(archive.glob("Products/Applications/*.app"))
+          if len(apps) != 1:
+              sys.exit(f"expected one archived app, found {[p.name for p in apps]}")
+          app = apps[0]
+          appexes = sorted(app.glob("PlugIns/*.appex"))
+          if len(appexes) != 1:
+              sys.exit(f"expected one widget appex, found {[p.name for p in appexes]}")
+          appex = appexes[0]
+
+          work = Path(sys.argv[2]).parent / "adhoc-entitlements"
+          work.mkdir(exist_ok=True)
+          app_xcent = work / "app.xcent"
+          widget_xcent = work / "widget.xcent"
+          expand(app_settings, app_xcent)
+          expand(widget_settings, widget_xcent)
+          for framework in nested_bins(appex):
+              sign(framework, None)
+          sign(appex, widget_xcent)
+          for framework in nested_bins(app):
+              sign(framework, None)
+          sign(app, app_xcent)
+
+          def signature(target: Path) -> str:
+              proc = subprocess.run(["codesign", "-dv", str(target)], capture_output=True, text=True)
+              text = proc.stderr + proc.stdout
+              if proc.returncode != 0:
+                  sys.exit(f"codesign -dv {target} failed\n{text}")
+              return text
+
+          def signed_entitlements(target: Path) -> dict:
+              raw = subprocess.check_output(
+                  ["codesign", "-d", "--entitlements", ":-", str(target)],
+                  stderr=subprocess.DEVNULL,
+              )
+              return plistlib.loads(raw)
+
+          for target in (appex, app):
+              text = signature(target)
+              if "Signature=adhoc" not in text and "flags=0x2(adhoc)" not in text:
+                  sys.exit(f"{target.name} is not ad-hoc signed\n{text}")
+              if "Apple Development" in text or "Created via API" in text or "Apple Distribution" in text:
+                  sys.exit(f"{target.name} was signed with an Apple certificate during archive\n{text}")
+
+          archived = signed_entitlements(app)
+          archived_appex = signed_entitlements(appex)
+          if archived.get("aps-environment") != "production":
+              sys.exit("ad-hoc archive aps-environment is not production")
+          containers = archived.get("com.apple.developer.icloud-container-identifiers") or []
+          services = archived.get("com.apple.developer.icloud-services") or []
+          if CONTAINER not in containers or "CloudKit" not in services:
+              sys.exit("ad-hoc archive is missing the Little Baby Log CloudKit container")
+          if GROUP not in (archived.get("com.apple.security.application-groups") or []):
+              sys.exit("ad-hoc archive is missing the Little Baby Log app group")
+          if GROUP not in (archived_appex.get("com.apple.security.application-groups") or []):
+              sys.exit("ad-hoc archive widget is missing the Little Baby Log app group")
+          print("ad-hoc archive carries production push, CloudKit, and the app group")
+          PY
           xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$EXPORT/ExportOptions.plist" \
             -exportPath "$EXPORT" -allowProvisioningUpdates \
             -authenticationKeyPath "$KEY_DIR/AuthKey_${KEY_ID}.p8" \
@@ -282,9 +419,19 @@ jobs:
           from pathlib import Path
           archive, ipa, report = map(Path, sys.argv[1:4])
 
+          GROUP = "group.com.harrisliangsu.littlebabylog"
+          CONTAINER = "iCloud.com.harrisliangsu.littlebabylog"
+
           def entitlements(target: Path) -> dict:
               raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(target)], stderr=subprocess.DEVNULL)
               return plistlib.loads(raw)
+
+          def signature(target: Path) -> str:
+              proc = subprocess.run(["codesign", "-dv", str(target)], capture_output=True, text=True)
+              text = proc.stderr + proc.stdout
+              if proc.returncode != 0:
+                  sys.exit(f"codesign -dv {target} failed\n{text}")
+              return text
 
           def line(label, blob):
               aps = blob.get("aps-environment", "(absent)")
@@ -292,6 +439,30 @@ jobs:
               services = blob.get("com.apple.developer.icloud-services", [])
               groups = blob.get("com.apple.security.application-groups", [])
               return f"{label} aps-environment={aps} icloud={containers} services={services} groups={groups}"
+
+          def one_appex(app: Path) -> Path:
+              found = sorted(app.glob("PlugIns/*.appex"))
+              if len(found) != 1:
+                  sys.exit(f"expected one widget appex in {app}, found {[p.name for p in found]}")
+              return found[0]
+
+          def require_app(label, blob):
+              containers = blob.get("com.apple.developer.icloud-container-identifiers") or []
+              services = blob.get("com.apple.developer.icloud-services") or []
+              groups = blob.get("com.apple.security.application-groups") or []
+              if blob.get("aps-environment") != "production":
+                  sys.exit(f"{label} aps-environment is not production")
+              if CONTAINER not in containers or "CloudKit" not in services:
+                  sys.exit(f"{label} is missing the Little Baby Log CloudKit container")
+              if GROUP not in groups:
+                  sys.exit(f"{label} is missing the Little Baby Log app group")
+
+          def require_distribution(label, target: Path):
+              text = signature(target)
+              if "Apple Development" in text or "Created via API" in text:
+                  sys.exit(f"{label} is signed with an Apple Development certificate\n{text}")
+              if "Apple Distribution" not in text:
+                  sys.exit(f"{label} is not signed with Apple Distribution\n{text}")
 
           unpacked = Path("/tmp/lbl-ipa")
           if unpacked.exists():
@@ -301,24 +472,27 @@ jobs:
               zf.extractall(unpacked)
           app = next(Path(unpacked, "Payload").glob("*.app"))
           exported = entitlements(app)
+          exported_appex = entitlements(one_appex(app))
           archived_app = next(archive.glob("Products/Applications/*.app"))
           archived = entitlements(archived_app)
+          archived_appex = entitlements(one_appex(archived_app))
           text = "\n".join([
-              line("archive-not-final", archived),
+              line("adhoc-archive", archived),
+              line("adhoc-archive-widget", archived_appex),
               line("exported-ipa", exported),
+              line("exported-widget", exported_appex),
               f"ipa={ipa.name}",
           ]) + "\n"
           report.write_text(text)
           print(text, end="")
-          containers = exported.get("com.apple.developer.icloud-container-identifiers") or []
-          services = exported.get("com.apple.developer.icloud-services") or []
-          groups = exported.get("com.apple.security.application-groups") or []
-          if exported.get("aps-environment") != "production":
-              sys.exit("exported IPA aps-environment is not production")
-          if "iCloud.com.harrisliangsu.littlebabylog" not in containers or "CloudKit" not in services:
-              sys.exit("exported IPA is missing the Little Baby Log CloudKit container")
-          if "group.com.harrisliangsu.littlebabylog" not in groups:
-              sys.exit("exported IPA is missing the Little Baby Log app group")
+          require_app("adhoc archive", archived)
+          if GROUP not in (archived_appex.get("com.apple.security.application-groups") or []):
+              sys.exit("ad-hoc archive widget is missing the Little Baby Log app group")
+          require_app("exported IPA", exported)
+          if GROUP not in (exported_appex.get("com.apple.security.application-groups") or []):
+              sys.exit("exported widget is missing the Little Baby Log app group")
+          require_distribution("exported IPA", app)
+          require_distribution("exported widget", one_appex(app))
           PY
           cp "$REPORT" artifacts/exported-entitlements.txt
           mkdir -p "$HOME/private_keys"
